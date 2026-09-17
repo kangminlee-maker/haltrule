@@ -1,0 +1,812 @@
+{
+  "fixture_version": "breaker/v0",
+  "classify": [
+    {
+      "id": "rate_limit_429",
+      "message": "429",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "rate_limit_mixed_case_phrase",
+      "message": "Rate Limit Exceeded, please wait",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "rate_limit_overloaded_mixed_case",
+      "message": "The model is currently OVERLOADED, try again",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "rate_limit_quota",
+      "message": "Quota exceeded for this project",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "auth_401",
+      "message": "401 Unauthorized",
+      "expect": "auth"
+    },
+    {
+      "id": "auth_invalid_api_key_mixed_case",
+      "message": "Invalid X-Api-Key provided",
+      "expect": "auth"
+    },
+    {
+      "id": "auth_forbidden",
+      "message": "Forbidden: you do not have access",
+      "expect": "auth"
+    },
+    {
+      "id": "transport_econnreset",
+      "message": "ECONNRESET",
+      "expect": "transport"
+    },
+    {
+      "id": "transport_timed_out_mixed_case",
+      "message": "Request Timed Out after 30s",
+      "expect": "transport"
+    },
+    {
+      "id": "transport_stream_disconnected",
+      "message": "Stream disconnected before completion unexpectedly",
+      "expect": "transport"
+    },
+    {
+      "id": "empty_string",
+      "message": "",
+      "expect": null
+    },
+    {
+      "id": "null_message",
+      "message": null,
+      "expect": null
+    },
+    {
+      "id": "non_string_number_message",
+      "message": 429,
+      "expect": null
+    },
+    {
+      "id": "no_match_message",
+      "message": "The user provided an invalid JSON payload",
+      "expect": null
+    },
+    {
+      "id": "precedence_rate_limit_over_auth",
+      "message": "429 Too Many Requests - authentication required after quota reset",
+      "expect": "rate_limit"
+    }
+  ],
+  "backoff": [
+    {
+      "id": "attempt_zero_baseline",
+      "attempt": 0,
+      "initial_ms": 1000,
+      "cap_ms": 30000,
+      "expect_ms": 1000
+    },
+    {
+      "id": "attempt_one_double",
+      "attempt": 1,
+      "initial_ms": 1000,
+      "cap_ms": 30000,
+      "expect_ms": 2000
+    },
+    {
+      "id": "cap_reached_exactly",
+      "attempt": 5,
+      "initial_ms": 1000,
+      "cap_ms": 32000,
+      "expect_ms": 32000
+    },
+    {
+      "id": "cap_exceeded",
+      "attempt": 10,
+      "initial_ms": 1000,
+      "cap_ms": 30000,
+      "expect_ms": 30000
+    },
+    {
+      "id": "negative_attempt_clamped_to_zero",
+      "attempt": -3,
+      "initial_ms": 1000,
+      "cap_ms": 30000,
+      "expect_ms": 1000
+    },
+    {
+      "id": "zero_initial_ms_falls_back_to_cap",
+      "attempt": 0,
+      "initial_ms": 0,
+      "cap_ms": 30000,
+      "expect_ms": 30000
+    },
+    {
+      "id": "zero_cap_ms",
+      "attempt": 0,
+      "initial_ms": 1000,
+      "cap_ms": 0,
+      "expect_ms": 0
+    },
+    {
+      "id": "negative_initial_ms_falls_back_to_cap",
+      "attempt": 0,
+      "initial_ms": -500,
+      "cap_ms": 30000,
+      "expect_ms": 30000
+    }
+  ],
+  "state": [
+    {
+      "id": "trip_at_threshold_three_rate_limit",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 3,
+            "threshold": 3
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 3,
+          "threshold": 3
+        }
+      }
+    },
+    {
+      "id": "item_local_failures_excluded_from_streak",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-x1",
+          "failure_class": null,
+          "failure_message": "schema validation failed",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-x2",
+          "failure_class": null,
+          "failure_message": "malformed output",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "429 rate limited",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 3,
+            "threshold": 3
+          }
+        ],
+        "completed": [],
+        "dead_letter": [
+          {
+            "item_id": "item-x1",
+            "failure_class": null,
+            "failure_message": "schema validation failed",
+            "attempt_count": 1
+          },
+          {
+            "item_id": "item-x2",
+            "failure_class": null,
+            "failure_message": "malformed output",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 3,
+          "threshold": 3
+        }
+      }
+    },
+    {
+      "id": "success_converts_pending_to_poison",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "item-a",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          },
+          {
+            "item_id": "item-b",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "skipped_does_not_convert_pending",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "skipped",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 3,
+            "threshold": 3
+          }
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 3,
+          "threshold": 3
+        }
+      }
+    },
+    {
+      "id": "trip_freezes_later_success_and_failure",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 2,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-d",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 2,
+            "threshold": 2
+          },
+          null,
+          null
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        }
+      }
+    },
+    {
+      "id": "concurrent_success_does_not_flush",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000,
+        "concurrent": true
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 3,
+            "threshold": 3
+          }
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 3,
+          "threshold": 3
+        }
+      }
+    },
+    {
+      "id": "duplicate_item_id_failure_not_double_counted",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "first timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "second timeout on same item",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 3,
+            "threshold": 3
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 3,
+          "threshold": 3
+        }
+      }
+    },
+    {
+      "id": "disabled_policy_never_trips",
+      "policy": {
+        "enabled": false,
+        "systemic_threshold": 2,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "mixed_class_burst_labels_trip_by_crossing_item",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 2,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "auth",
+          "failure_message": "401 unauthorized",
+          "attempt_count": 2
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": 3
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 2,
+            "threshold": 2
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        }
+      }
+    },
+    {
+      "id": "no_failures_baseline",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "success",
+          "item_id": "item-1"
+        },
+        {
+          "kind": "skipped",
+          "item_id": "item-2"
+        },
+        {
+          "kind": "success",
+          "item_id": "item-3"
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null
+        ],
+        "completed": [
+          "item-1",
+          "item-2",
+          "item-3"
+        ],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "dead_letter_entry_preserves_fields",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 5,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-z",
+          "failure_class": null,
+          "failure_message": "schema validation failed: missing field 'foo'",
+          "attempt_count": 1
+        }
+      ],
+      "expect": {
+        "returns": [
+          null
+        ],
+        "completed": [],
+        "dead_letter": [
+          {
+            "item_id": "item-z",
+            "failure_class": null,
+            "failure_message": "schema validation failed: missing field 'foo'",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "threshold_one_trips_immediately",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 1,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429",
+          "attempt_count": 1
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 1,
+            "threshold": 1
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 1,
+          "threshold": 1
+        }
+      }
+    },
+    {
+      "id": "duplicate_item_id_keeps_first_recorded_class",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 2,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 first",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "auth",
+          "failure_message": "401 second, same item",
+          "attempt_count": 2
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429",
+          "attempt_count": 1
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 2,
+            "threshold": 2
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        }
+      }
+    }
+  ]
+}
