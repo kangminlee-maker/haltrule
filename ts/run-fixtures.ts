@@ -23,7 +23,7 @@ import {
 } from "./breaker.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FIXTURE_PATH = path.join(__dirname, "..", "fixtures", "breaker", "v0.json");
+const DEFAULT_FIXTURE_PATH = path.join(__dirname, "..", "fixtures", "breaker", "v0.json");
 
 interface ClassifyCase {
   id: string;
@@ -165,7 +165,11 @@ function runState(cases: StateCase[]): void {
 }
 
 function main(): void {
-  const raw = readFileSync(FIXTURE_PATH, "utf8");
+  // A runner that silently ignores the path it was handed reports PASS on a file
+  // it never read, so the argument is honored here exactly as the Python runner
+  // honors sys.argv[1].
+  const fixturePath = process.argv[2] ?? DEFAULT_FIXTURE_PATH;
+  const raw = readFileSync(fixturePath, "utf8");
   const fixtures = JSON.parse(raw) as FixtureFile;
 
   runClassify(fixtures.classify);
