@@ -75,6 +75,141 @@
       "id": "precedence_rate_limit_over_auth",
       "message": "429 Too Many Requests - authentication required after quota reset",
       "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_limit_reached",
+      "message": "Limit reached for this API key",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_underscore_variant",
+      "message": "Received error code rate_limit from the provider",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_too_many_requests",
+      "message": "Too Many Requests sent in the last minute",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_selected_model_at_capacity",
+      "message": "The selected model is at capacity right now",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_session_limit",
+      "message": "Session limit exceeded for this account",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_usage_limit",
+      "message": "Usage limit hit for this billing period",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_retry_after_hyphen",
+      "message": "Please respect the Retry-After header",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_rate_limit_pattern_retry_after_underscore",
+      "message": "Backoff required: retry_after field present",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_auth_pattern_401_status_code",
+      "message": "Request rejected with status 401",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_auth_pattern_403_status_code",
+      "message": "Request rejected with status 403",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_auth_pattern_unauthorized_word",
+      "message": "This request is unauthorized",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_auth_pattern_invalid_api_key_no_prefix",
+      "message": "Invalid API key supplied in header",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_auth_pattern_authentication_word",
+      "message": "Authentication failed for this session",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_auth_pattern_not_logged_in",
+      "message": "User is not logged in",
+      "expect": "auth"
+    },
+    {
+      "id": "classify_transport_pattern_connection_reset_by_peer",
+      "message": "Connection reset by peer while streaming",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_error_sending_request",
+      "message": "Error sending request to upstream service",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_failed_to_connect_to_websocket",
+      "message": "Failed to connect to websocket endpoint",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_transport_channel_closed",
+      "message": "Transport channel closed unexpectedly",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_http_request_failed",
+      "message": "HTTP/request failed with no response",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_request_failed_after",
+      "message": "Request failed after 3 attempts",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_timeout_word",
+      "message": "Connection timeout while waiting for response",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_econnrefused",
+      "message": "ECONNREFUSED: could not reach host",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_etimedout",
+      "message": "ETIMEDOUT while connecting to host",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_socket_hang_up",
+      "message": "Upstream socket hang up detected",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_transport_pattern_fetch_failed",
+      "message": "fetch failed for the upstream request",
+      "expect": "transport"
+    },
+    {
+      "id": "precedence_auth_over_transport",
+      "message": "401 unauthorized: connection reset by peer",
+      "expect": "auth"
+    },
+    {
+      "id": "precedence_rate_limit_over_transport",
+      "message": "429 too many requests: connection reset by peer",
+      "expect": "rate_limit"
     }
   ],
   "backoff": [
@@ -133,6 +268,27 @@
       "initial_ms": -500,
       "cap_ms": 30000,
       "expect_ms": 30000
+    },
+    {
+      "id": "backoff_floor_applied_below_cap",
+      "attempt": 3,
+      "initial_ms": 333,
+      "cap_ms": 100000,
+      "expect_ms": 2664
+    },
+    {
+      "id": "backoff_cap_exceeded_large_gap",
+      "attempt": 20,
+      "initial_ms": 1000,
+      "cap_ms": 5000,
+      "expect_ms": 5000
+    },
+    {
+      "id": "backoff_floor_at_exact_cap_boundary_odd_numbers",
+      "attempt": 4,
+      "initial_ms": 777,
+      "cap_ms": 12432,
+      "expect_ms": 12432
     }
   ],
   "state": [
@@ -594,16 +750,42 @@
           "failure_class": "rate_limit",
           "failure_message": "timeout",
           "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
         }
       ],
       "expect": {
         "returns": [
           null,
           null,
+          null,
           null
         ],
-        "completed": [],
-        "dead_letter": [],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "item-a",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          },
+          {
+            "item_id": "item-b",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          },
+          {
+            "item_id": "item-c",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          }
+        ],
         "tripped": null
       }
     },
@@ -761,7 +943,7 @@
       "id": "duplicate_item_id_keeps_first_recorded_class",
       "policy": {
         "enabled": true,
-        "systemic_threshold": 2,
+        "systemic_threshold": 5,
         "per_call_max_attempts": 3,
         "backoff_initial_ms": 1000,
         "backoff_cap_ms": 30000
@@ -787,24 +969,272 @@
           "failure_class": "rate_limit",
           "failure_message": "429",
           "attempt_count": 1
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
         }
       ],
       "expect": {
         "returns": [
           null,
           null,
+          null,
+          null
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [
           {
+            "item_id": "item-a",
             "failure_class": "rate_limit",
-            "consecutive_item_count": 2,
-            "threshold": 2
+            "failure_message": "429 first",
+            "attempt_count": 1
+          },
+          {
+            "item_id": "item-b",
+            "failure_class": "rate_limit",
+            "failure_message": "429",
+            "attempt_count": 1
           }
         ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "item_local_and_poison_flush_interleave_in_dead_letter_order",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 5,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-x1",
+          "failure_class": null,
+          "failure_message": "schema fail x1",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-x2",
+          "failure_class": null,
+          "failure_message": "schema fail x2",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-x3",
+          "failure_class": null,
+          "failure_message": "schema fail x3",
+          "attempt_count": 1
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "completed": [
+          "item-s"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "item-x1",
+            "failure_class": null,
+            "failure_message": "schema fail x1",
+            "attempt_count": 1
+          },
+          {
+            "item_id": "item-x2",
+            "failure_class": null,
+            "failure_message": "schema fail x2",
+            "attempt_count": 1
+          },
+          {
+            "item_id": "item-a",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          },
+          {
+            "item_id": "item-b",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          },
+          {
+            "item_id": "item-x3",
+            "failure_class": null,
+            "failure_message": "schema fail x3",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "pending_item_then_success_appears_in_both_completed_and_dead_letter",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 5,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "timeout",
+          "attempt_count": 3
+        },
+        {
+          "kind": "success",
+          "item_id": "item-a"
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null
+        ],
+        "completed": [
+          "item-a"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "item-a",
+            "failure_class": "rate_limit",
+            "failure_message": "timeout",
+            "attempt_count": 3
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "null_class_duplicate_item_id_dead_lettered_each_time",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 3,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-z",
+          "failure_class": null,
+          "failure_message": "schema validation failed: missing field 'foo'",
+          "attempt_count": 1
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-z",
+          "failure_class": null,
+          "failure_message": "schema validation failed: missing field 'bar'",
+          "attempt_count": 2
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null
+        ],
         "completed": [],
+        "dead_letter": [
+          {
+            "item_id": "item-z",
+            "failure_class": null,
+            "failure_message": "schema validation failed: missing field 'foo'",
+            "attempt_count": 1
+          },
+          {
+            "item_id": "item-z",
+            "failure_class": null,
+            "failure_message": "schema validation failed: missing field 'bar'",
+            "attempt_count": 2
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "skipped_and_late_failure_after_trip_stay_out_of_dead_letter",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": 1,
+        "per_call_max_attempts": 3,
+        "backoff_initial_ms": 1000,
+        "backoff_cap_ms": 30000
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429",
+          "attempt_count": 1
+        },
+        {
+          "kind": "skipped",
+          "item_id": "item-s"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 again",
+          "attempt_count": 1
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 1,
+            "threshold": 1
+          },
+          null,
+          null
+        ],
+        "completed": [
+          "item-s"
+        ],
         "dead_letter": [],
         "tripped": {
           "failure_class": "rate_limit",
-          "consecutive_item_count": 2,
-          "threshold": 2
+          "consecutive_item_count": 1,
+          "threshold": 1
         }
       }
     }

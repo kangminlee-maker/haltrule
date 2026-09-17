@@ -1,7 +1,11 @@
 # haltrule spec (draft)
 
 The spec is the product. An implementation is conformant when it passes every fixture in `../fixtures` and
-its canonical output matches the others byte for byte.
+its output matches the other implementations' byte for byte.
+
+The value model and canonicalization below govern digest inputs, once `checkpoint` exists. They do not
+constrain the breaker, which takes its arguments as ordinary typed values; passing it a string where it
+expects a number is out of contract and its behavior there is not defined by any fixture.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -26,7 +30,8 @@ escape set fixed by fixture.
 
 ## Verdict
 
-Every entry point returns one shape.
+**Planned.** Every entry point is to return one shape. The breaker currently returns the shapes it had in
+the pipeline it came from, and will be adapted once the other parts exist.
 
 ```
 Verdict {
@@ -43,7 +48,8 @@ column without translation.
 
 ## Artifact status vocabulary
 
-The library never reads your artifacts. It needs one thing from them: a status drawn from
+**Planned; nothing below is implemented yet.** The library never reads your artifacts. It needs one thing
+from them: a status drawn from
 
 ```
 complete | partial | failed | blocked

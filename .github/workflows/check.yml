@@ -44,7 +44,11 @@ jobs:
 
   # Proves the gates can fail. A suite that has never been seen to fail is a
   # claim, not evidence — so break the implementation on purpose and require
-  # the gate script to notice.
+  # the GATE SCRIPT (not just one runner in isolation) to notice, in both
+  # languages: a mutant that only ever touched Python leaves the TypeScript
+  # comparison path, and everything check.sh does beyond run_fixtures.py
+  # (the corruption instrument, the byte-for-byte dump diff, purity,
+  # determinism, fixture coverage), completely unexercised by this job.
   gates-detect-a-defect:
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +60,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Break the trip threshold, then expect a failure
+      - name: Install dev tools
+        run: |
+          python -m pip install --quiet ruff==0.14.3
+          npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
+
+      - name: Break the Python trip threshold, then expect check.sh to fail
         run: |
           python - <<'PY'
           import pathlib
@@ -70,10 +79,47 @@ jobs:
           assert broken != source, "the mutation did not apply; update this step"
           path.write_text(broken)
           PY
-          if python3 py/run_fixtures.py > /tmp/mutant.txt 2>&1; then
-            echo "The fixtures passed against a broken breaker. They are not asserting the trip rule."
-            cat /tmp/mutant.txt
+          # Run the actual gate script, not just the runner directly - a
+          # mutation step that only shells out to run_fixtures.py proves
+          # nothing about whether check.sh itself would have caught it.
+          if ./scripts/check.sh > /tmp/mutant-py.txt 2>&1; then
+            echo "check.sh passed against a broken Python breaker. The gates are not asserting the trip rule."
+            cat /tmp/mutant-py.txt
             exit 1
           fi
-          echo "Fixtures caught the mutation, as they must:"
-          tail -3 /tmp/mutant.txt
+          if ! grep -q '  FAIL  ' /tmp/mutant-py.txt; then
+            echo "check.sh exited non-zero but printed no FAIL line; cannot confirm the gates actually caught it."
+            cat /tmp/mutant-py.txt
+            exit 1
+          fi
+          echo "check.sh caught the Python mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-py.txt
+          git checkout -- py/haltrule/breaker.py
+
+      - name: Break the TypeScript trip threshold, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("ts/breaker.ts")
+          source = path.read_text()
+          broken = source.replace(
+              "this.pendingSystemic.length >= this.policy.systemic_threshold",
+              "this.pendingSystemic.length > this.policy.systemic_threshold",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-ts.txt 2>&1; then
+            echo "check.sh passed against a broken TypeScript breaker. The gates are not asserting the trip rule."
+            cat /tmp/mutant-ts.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  ' /tmp/mutant-ts.txt; then
+            echo "check.sh exited non-zero but printed no FAIL line; cannot confirm the gates actually caught it."
+            cat /tmp/mutant-ts.txt
+            exit 1
+          fi
+          echo "check.sh caught the TypeScript mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-ts.txt
+          git checkout -- ts/breaker.ts

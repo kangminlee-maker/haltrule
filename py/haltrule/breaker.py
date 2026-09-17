@@ -90,22 +90,42 @@ def classify_systemic_dispatch_failure(
     return None
 
 
+def _to_float_or_inf(value: int | float) -> float:
+    """Convert to float the way a JS `number` already is one: a magnitude
+    that would not fit in float64 becomes a signed infinity instead of
+    raising, matching what an int-to-double cast does in every other
+    language. Python's `float()` is the odd one out here - it raises
+    OverflowError instead - so this is the only place that needs to know
+    about it.
+    """
+    try:
+        return float(value)
+    except OverflowError:
+        return math.inf if value > 0 else -math.inf
+
+
 def dispatch_backoff_delay_ms(*, attempt: int, initial_ms: int, cap_ms: int) -> int:
     """Capped exponential backoff (no jitter - deterministic for replay/tests).
 
     `attempt` is 0-based: delay before retry #1 is initial_ms.
 
-    Python ints have no infinity, unlike the TS float64 arithmetic this was
-    ported from, so `bounded` can only end up non-finite here if a caller
-    passes an actual float('inf')/float('nan') through initial_ms/cap_ms; the
-    isfinite check below is guarded to that case so it never raises
-    OverflowError on an ordinary (if huge) Python int.
+    Ported to match the TS float64 arithmetic byte-for-byte, including its
+    overflow behavior: `attempt`, `initial_ms` and `cap_ms` are cast to float
+    up front and the exponent is computed in float, so a huge `attempt`
+    overflows to +inf the same way `2 ** attempt` does in JS. Without this,
+    Python's arbitrary-precision ints compute `2 ** attempt` exactly - which
+    for an `attempt` near the spec's 2^53-1 ceiling never finishes - and
+    multiplying that bignum back into a float raises OverflowError instead of
+    saturating.
     """
-    exponential = initial_ms * 2 ** max(0, attempt)
-    bounded = min(cap_ms, exponential)
-    if isinstance(bounded, float) and not math.isfinite(bounded):
-        return cap_ms
-    if bounded > 0:
+    exponent = max(0.0, _to_float_or_inf(attempt))
+    try:
+        power = 2.0**exponent
+    except OverflowError:
+        power = math.inf
+    exponential = _to_float_or_inf(initial_ms) * power
+    bounded = min(_to_float_or_inf(cap_ms), exponential)
+    if math.isfinite(bounded) and bounded > 0:
         return math.floor(bounded)
     return cap_ms
 
