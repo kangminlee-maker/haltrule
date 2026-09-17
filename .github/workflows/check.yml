@@ -26,7 +26,7 @@ jobs:
       - name: Install dev tools
         run: |
           python -m pip install --quiet ruff==0.14.3
-          npm install --no-save --no-audit --no-fund typescript@5
+          npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
 
       - name: Deterministic gates
         run: ./scripts/check.sh

@@ -24,7 +24,7 @@ py_status=$?
 [ $py_status -eq 0 ] && pass "python: $py_line" || fail "python runner exited $py_status"
 
 echo "2. instrument — a corrupted fixture must make both runners fail"
-corrupt=$(mktemp -t haltrule-corrupt).json
+corrupt=$(mktemp -t haltrule.XXXXXX)
 python3 - "$corrupt" <<'PY'
 import json, sys
 fixtures = json.load(open("fixtures/breaker/v0.json"))
@@ -80,10 +80,8 @@ else
   skip "ruff" "not installed"
 fi
 if npx --no-install tsc --version >/dev/null 2>&1; then
-  npx --no-install tsc --noEmit --strict --target es2022 --module preserve --moduleResolution bundler \
-      ts/breaker.ts ts/run-fixtures.ts >/dev/null 2>&1 \
-    && pass "tsc --noEmit --strict" || { npx --no-install tsc --noEmit --strict --target es2022 \
-      --module preserve --moduleResolution bundler ts/breaker.ts ts/run-fixtures.ts; fail "tsc reported errors"; }
+  npx --no-install tsc -p ts/tsconfig.json >/dev/null 2>&1 \
+    && pass "tsc -p ts/tsconfig.json" || { npx --no-install tsc -p ts/tsconfig.json; fail "tsc reported errors"; }
 else
   skip "tsc" "typescript not installed locally; CI installs it"
 fi
