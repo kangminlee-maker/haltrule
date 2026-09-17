@@ -1,0 +1,11 @@
+# local-only notes and evidence that must not be published
+*.local.md
+notes.local/
+
+# language toolchains
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+dist/
+target/
