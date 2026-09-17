@@ -29,7 +29,9 @@ from haltrule.breaker import (  # noqa: E402
     dispatch_backoff_delay_ms,
 )
 
-DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "breaker" / "v0.json"
+DEFAULT_FIXTURE_PATH = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "breaker" / "v0.json"
+)
 
 _failure_count = 0
 _case_count = 0
@@ -127,7 +129,9 @@ def run_state(cases: list[dict]) -> None:
 
         dead_letter = _to_plain(list(state.dead_letter_entries()))
         if dead_letter != tc["expect"]["dead_letter"]:
-            _fail(tc["id"], "state.dead_letter", tc["expect"]["dead_letter"], dead_letter)
+            _fail(
+                tc["id"], "state.dead_letter", tc["expect"]["dead_letter"], dead_letter
+            )
 
         tripped = _to_plain(state.tripped())
         if tripped != tc["expect"]["tripped"]:
@@ -149,7 +153,9 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
-    print(f"OK: {_case_count} cases passed (fixture_version={fixtures['fixture_version']}).")
+    print(
+        f"OK: {_case_count} cases passed (fixture_version={fixtures['fixture_version']})."
+    )
 
 
 if __name__ == "__main__":

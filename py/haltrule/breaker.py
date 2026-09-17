@@ -66,7 +66,9 @@ _TRANSPORT_PATTERNS = TRANSIENT_TRANSPORT_MESSAGE_PATTERNS + (
 )
 
 
-def classify_systemic_dispatch_failure(message: str | None) -> SystemicDispatchFailureClass | None:
+def classify_systemic_dispatch_failure(
+    message: str | None,
+) -> SystemicDispatchFailureClass | None:
     """Classify a failure message into a systemic dispatch class, or None for
     item-local failures (malformed output, validation rejection, ...) that
     must never trip the batch breaker. Message-based by necessity: providers
@@ -219,7 +221,9 @@ class DispatchBreakerState:
             # Item-local failure class: dead-letter, never breaker fuel.
             self._dead_letter.append(entry)
             return None
-        if not any(pending.item_id == entry.item_id for pending in self._pending_systemic):
+        if not any(
+            pending.item_id == entry.item_id for pending in self._pending_systemic
+        ):
             # Post-trip in-flight systemic failures still join the pending
             # set - they are outage victims and belong to the incomplete
             # recovery set.

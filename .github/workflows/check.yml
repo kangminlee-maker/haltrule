@@ -1,0 +1,79 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # The spec targets Python 3.10+; 3.12 here is the floor a vendoring
+      # project is most likely to be on, not the newest available.
+
+      - name: Install dev tools
+        run: |
+          python -m pip install --quiet ruff==0.14.3
+          npm install --no-save --no-audit --no-fund typescript@5
+
+      - name: Deterministic gates
+        run: ./scripts/check.sh
+
+      # The gate script skips a tool it cannot find, so a CI run that quietly
+      # lost ruff or tsc would still report success. Fail here instead.
+      - name: No gate was skipped
+        run: |
+          ./scripts/check.sh | tee /tmp/gates.txt
+          if grep -q '  SKIP  ' /tmp/gates.txt; then
+            echo "A gate was skipped in CI, where every tool is installed:"
+            grep '  SKIP  ' /tmp/gates.txt
+            exit 1
+          fi
+
+  # Proves the gates can fail. A suite that has never been seen to fail is a
+  # claim, not evidence — so break the implementation on purpose and require
+  # the gate script to notice.
+  gates-detect-a-defect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Break the trip threshold, then expect a failure
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("py/haltrule/breaker.py")
+          source = path.read_text()
+          broken = source.replace(
+              "len(self._pending_systemic) >= self.policy.systemic_threshold",
+              "len(self._pending_systemic) > self.policy.systemic_threshold",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if python3 py/run_fixtures.py > /tmp/mutant.txt 2>&1; then
+            echo "The fixtures passed against a broken breaker. They are not asserting the trip rule."
+            cat /tmp/mutant.txt
+            exit 1
+          fi
+          echo "Fixtures caught the mutation, as they must:"
+          tail -3 /tmp/mutant.txt
