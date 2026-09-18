@@ -65,6 +65,11 @@ jobs:
           python -m pip install --quiet ruff==0.14.3
           npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
 
+      # Every step below credits a failure to its mutation, which only means
+      # something if the unmutated tree passes here first.
+      - name: The gates pass before any mutation
+        run: ./scripts/check.sh
+
       - name: Break the Python trip threshold, then expect check.sh to fail
         run: |
           python - <<'PY'
@@ -87,8 +92,8 @@ jobs:
             cat /tmp/mutant-py.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  ' /tmp/mutant-py.txt; then
-            echo "check.sh exited non-zero but printed no FAIL line; cannot confirm the gates actually caught it."
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py.txt; then
+            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
             cat /tmp/mutant-py.txt
             exit 1
           fi
@@ -115,11 +120,100 @@ jobs:
             cat /tmp/mutant-ts.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  ' /tmp/mutant-ts.txt; then
-            echo "check.sh exited non-zero but printed no FAIL line; cannot confirm the gates actually caught it."
+          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts.txt; then
+            echo "check.sh failed, but not on typescript conformance; the mutation is not what it caught."
             cat /tmp/mutant-ts.txt
             exit 1
           fi
           echo "check.sh caught the TypeScript mutation, as it must:"
           grep '  FAIL  ' /tmp/mutant-ts.txt
           git checkout -- ts/breaker.ts
+
+      # Canonicalization is where the two languages drift apart silently: Python
+      # sorts strings by code point, JavaScript by UTF-16 code unit, and they
+      # disagree exactly when a non-BMP key meets one in U+E000-U+FFFF.
+      - name: Sort Python map keys by code point, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("py/haltrule/checkpoint.py")
+          source = path.read_text()
+          broken = source.replace(
+              "keys = sorted(value, key=_utf16_key)",
+              "keys = sorted(value)",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-py-canon.txt 2>&1; then
+            echo "check.sh passed with Python sorting keys by code point. The fixtures are not pinning UTF-16 key order."
+            cat /tmp/mutant-py-canon.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-canon.txt; then
+            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
+            cat /tmp/mutant-py-canon.txt
+            exit 1
+          fi
+          echo "check.sh caught the Python key-order mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-py-canon.txt
+          git checkout -- py/haltrule/checkpoint.py
+
+      # The same divergence in the reuse verdict: dependency issues are listed
+      # in UTF-16 key order, which a code-point sort breaks only for non-BMP ids.
+      - name: Sort Python dependency ids by code point, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("py/haltrule/checkpoint.py")
+          source = path.read_text()
+          broken = source.replace(
+              "for dependency_id in sorted(expected_dependencies, key=_utf16_key):",
+              "for dependency_id in sorted(expected_dependencies):",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-py-deps.txt 2>&1; then
+            echo "check.sh passed with Python ordering dependency ids by code point. The fixtures are not pinning UTF-16 order."
+            cat /tmp/mutant-py-deps.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-deps.txt; then
+            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
+            cat /tmp/mutant-py-deps.txt
+            exit 1
+          fi
+          echo "check.sh caught the Python dependency-order mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-py-deps.txt
+          git checkout -- py/haltrule/checkpoint.py
+
+      - name: Let TypeScript canonicalize fractional numbers, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("ts/checkpoint.ts")
+          source = path.read_text()
+          broken = source.replace(
+              "if (!Number.isFinite(value) || !Number.isInteger(value)) {",
+              "if (!Number.isFinite(value)) {",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-ts-canon.txt 2>&1; then
+            echo "check.sh passed with TypeScript accepting 1.5. The fixtures are not pinning float rejection."
+            cat /tmp/mutant-ts-canon.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts-canon.txt; then
+            echo "check.sh failed, but not on typescript conformance; the mutation is not what it caught."
+            cat /tmp/mutant-ts-canon.txt
+            exit 1
+          fi
+          echo "check.sh caught the TypeScript float mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-ts-canon.txt
+          git checkout -- ts/checkpoint.ts

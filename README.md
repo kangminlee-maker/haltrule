@@ -36,7 +36,8 @@ get a `Verdict` back; your loop decides what to do with it.
 | `slot` | whether a value filled in by a person or a model satisfies its contract |
 
 Planned, not yet built: every entry point will return one shape, meant to be written straight into your
-artifact. Today the breaker still returns the shapes it had in the pipeline it was lifted from.
+artifact. Today the breaker and `checkpoint` still return the shapes they had in the pipelines they were
+lifted from.
 
 ```
 Verdict { spec, verdict: ok | warning | halt, reason, message, resume }
@@ -58,13 +59,14 @@ passes the same conformance fixtures, and CI compares their output byte for byte
 
 | Language | Status |
 |---|---|
-| TypeScript | breaker implemented |
-| Python | breaker implemented |
+| TypeScript | breaker, checkpoint implemented |
+| Python | breaker, checkpoint implemented |
 | Go | planned, once the spec freezes |
 | Rust | planned, once the spec freezes |
 
-A fifth language will not need a port to interoperate: `canonicalize` is to be public, so anything that
-can run `sha256sum` can compute the same digest. That part is not written yet.
+A fifth language will not need a port to interoperate: `canonicalize` is public and its rules are in the
+spec, so anything that can run `sha256sum` computes the same digest. CI checks exactly that, with the
+system's own `sha256sum` over every canonical form in the fixtures.
 
 ## License
 

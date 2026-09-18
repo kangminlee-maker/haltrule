@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Conformance runner for fixtures/breaker/v0.json against py/haltrule/breaker.py.
+"""Conformance runner for the fixtures under fixtures/ against
+py/haltrule/breaker.py and py/haltrule/checkpoint.py.
+
+With no path, runs every .json file under fixtures/, in path order; with one,
+runs that file only. The file's own `fixture_version` picks the part under
+test, and an unknown version is an error rather than zero cases passed, so a
+fixture file added under fixtures/ is run or refused, never skipped.
 
 Loads the fixture file, feeds each case to the pure policy functions, and
 diffs the actual result against the fixture's expected value. Exits non-zero
@@ -14,7 +20,16 @@ byte-for-byte against `ts/run-fixtures.ts --dump` - that is the real parity
 check the README promises ("CI compares their output byte for byte"), not
 just the summary line both runners happen to print at the end.
 
-Only the standard library (json, sys, pathlib, dataclasses) is used; no
+Fixture inputs never hold a raw JSON number: json and JavaScript's
+JSON.parse disagree about some (1.0, anything past 2^53), so both would test
+different values. A number is written {"$number": "<literal>"} and each runner
+decodes the literal itself; {"$bigint": "<literal>"} is an integer (a plain int
+here, a bigint in the TypeScript runner); {"$unsupported": "<kind>"} builds a
+value outside the digest model that JSON cannot spell. A file section, or an
+$unsupported kind, this runner does not know is an error.
+
+Only the standard library (collections, json, re, sys, pathlib, dataclasses)
+is used; no
 third-party dependencies. Mirrors ts/run-fixtures.ts field-for-field so the
 two runners' pass/fail verdicts, and their --dump output, are directly
 comparable.
@@ -22,8 +37,10 @@ comparable.
 
 from __future__ import annotations
 
+import collections
 import dataclasses
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -36,10 +53,23 @@ from haltrule.breaker import (  # noqa: E402
     classify_systemic_dispatch_failure,
     dispatch_backoff_delay_ms,
 )
-
-DEFAULT_FIXTURE_PATH = (
-    Path(__file__).resolve().parent.parent / "fixtures" / "breaker" / "v0.json"
+from haltrule.checkpoint import (  # noqa: E402
+    canonicalize,
+    checkpoint_digest,
+    evaluate_checkpoint_artifact,
 )
+
+FIXTURE_ROOT = Path(__file__).resolve().parent.parent / "fixtures"
+
+
+def default_fixture_paths() -> list[Path]:
+    # Every .json under fixtures/, in the order ts/run-fixtures.ts uses too:
+    # relative paths compared as ASCII strings.
+    return sorted(
+        FIXTURE_ROOT.rglob("*.json"),
+        key=lambda p: p.relative_to(FIXTURE_ROOT).as_posix(),
+    )
+
 
 _failure_count = 0
 _case_count = 0
@@ -67,7 +97,9 @@ def _canonical_json(value) -> str:
     the same actual result. Must stay in lockstep with the TS runner's
     `canonicalStringify`.
     """
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    # ensure_ascii=False: JSON.stringify writes non-ASCII as itself, and the
+    # canonical strings in a --dump line carry non-ASCII text.
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def _fail(case_id: str, field: str, expected, actual) -> None:
@@ -175,6 +207,105 @@ def run_state(cases: list[dict]) -> None:
             _fail(tc["id"], "state.tripped", tc["expect"]["tripped"], actual["tripped"])
 
 
+_INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")
+
+
+def _int_from_literal(text: str) -> int:
+    """int(text) without Python's int-to-str digit limit, which int() enforces
+    on a literal past 4300 digits. Built in chunks rather than by raising the
+    limit, because the limit must stay in force for the code under test."""
+    digits = text.lstrip("-")
+    value = 0
+    for start in range(0, len(digits), 1000):
+        chunk = digits[start : start + 1000]
+        value = value * 10 ** len(chunk) + int(chunk)
+    return -value if text.startswith("-") else value
+
+
+def _decode_fixture_value(value):
+    """Decode a fixture input: see the module docstring for why numbers
+    arrive as text."""
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, (int, float)):
+        raise ValueError(
+            f"fixture input holds the raw JSON number {value!r}; write "
+            f'{{"$number": "{value}"}} so both runners decode the same literal'
+        )
+    if isinstance(value, list):
+        return [_decode_fixture_value(item) for item in value]
+    if len(value) == 1:
+        ((key, inner),) = value.items()
+        if key == "$number" and isinstance(inner, str):
+            return int(inner) if _INTEGER_LITERAL.fullmatch(inner) else float(inner)
+        if key == "$bigint" and isinstance(inner, str):
+            return (
+                _int_from_literal(inner)
+                if _INTEGER_LITERAL.fullmatch(inner)
+                else int(inner)
+            )
+        if key == "$unsupported":
+            if inner in ("undefined", "instance"):
+                return object()
+            if inner == "non_string_key":
+                return {1: 1}
+            if inner == "sparse_array":
+                # Python has no holes; a list holding an unsupported element is
+                # the value a hole reads as.
+                return [object()]
+            raise ValueError(f"unknown $unsupported kind {inner!r}")
+    return {key: _decode_fixture_value(inner) for key, inner in value.items()}
+
+
+def _actual_canonicalize(tc: dict) -> dict:
+    value = _decode_fixture_value(tc["input"])
+    canonical = canonicalize(value)
+    digest = checkpoint_digest(value)
+    # The two entry points must agree about the same value; if they do not,
+    # that is a bug in the implementation, not a verdict to compare.
+    if "halt" in canonical or "halt" in digest:
+        if canonical.get("halt") is None or canonical.get("halt") != digest.get("halt"):
+            raise AssertionError(
+                f"[{tc['id']}] canonicalize and checkpoint_digest disagree about halting"
+            )
+        return {"halt": canonical["halt"]}
+    return {"canonical": canonical["canonical"], "digest": digest["digest"]}
+
+
+def _actual_checkpoint(tc: dict) -> list:
+    args = _decode_fixture_value(tc["args"])
+    actual = evaluate_checkpoint_artifact(**args)
+    # validation_issues is typed Sequence: any sequence must give the verdict a
+    # list gives. If it does not, that is a bug, not a verdict to compare.
+    if isinstance(args.get("validation_issues"), list):
+        as_sequence = dict(
+            args, validation_issues=collections.UserList(args["validation_issues"])
+        )
+        if evaluate_checkpoint_artifact(**as_sequence) != actual:
+            raise AssertionError(
+                f"[{tc['id']}] validation_issues as a non-list sequence gives a different verdict"
+            )
+    return actual
+
+
+def run_canonicalize(cases: list[dict]) -> None:
+    global _case_count
+    for tc in cases:
+        _case_count += 1
+        actual = _actual_canonicalize(tc)
+        if actual != tc["expect"]:
+            _fail(tc["id"], "canonicalize.expect", tc["expect"], actual)
+
+
+def run_checkpoint(cases: list[dict]) -> None:
+    global _case_count
+    for tc in cases:
+        _case_count += 1
+        actual = _actual_checkpoint(tc)
+        if actual != tc["expect"]:
+            _fail(tc["id"], "checkpoint.expect", tc["expect"], actual)
+
+
 def dump_classify(cases: list[dict]) -> None:
     for tc in cases:
         print(
@@ -202,33 +333,92 @@ def dump_state(cases: list[dict]) -> None:
         )
 
 
+def dump_canonicalize(cases: list[dict]) -> None:
+    for tc in cases:
+        print(
+            _canonical_json(
+                {
+                    "section": "canonicalize",
+                    "id": tc["id"],
+                    "actual": _actual_canonicalize(tc),
+                }
+            )
+        )
+
+
+def dump_checkpoint(cases: list[dict]) -> None:
+    for tc in cases:
+        print(
+            _canonical_json(
+                {
+                    "section": "checkpoint",
+                    "id": tc["id"],
+                    "actual": _actual_checkpoint(tc),
+                }
+            )
+        )
+
+
+_SECTIONS = {
+    "breaker/v0": ("classify", "backoff", "state"),
+    "checkpoint/v0": ("canonicalize", "checkpoint"),
+}
+
+
+def run_file(fixtures: dict, dump: bool) -> None:
+    version = fixtures["fixture_version"]
+    # A section no runner reads would pass with every case in it wrong.
+    for key in fixtures:
+        if (
+            version in _SECTIONS
+            and key != "fixture_version"
+            and key not in _SECTIONS[version]
+        ):
+            raise ValueError(f"unknown fixture section {key!r} in {version}")
+    if version == "breaker/v0":
+        if dump:
+            dump_classify(fixtures["classify"])
+            dump_backoff(fixtures["backoff"])
+            dump_state(fixtures["state"])
+        else:
+            run_classify(fixtures["classify"])
+            run_backoff(fixtures["backoff"])
+            run_state(fixtures["state"])
+    elif version == "checkpoint/v0":
+        if dump:
+            dump_canonicalize(fixtures["canonicalize"])
+            dump_checkpoint(fixtures["checkpoint"])
+        else:
+            run_canonicalize(fixtures["canonicalize"])
+            run_checkpoint(fixtures["checkpoint"])
+    else:
+        raise ValueError(f"unknown fixture_version {version!r}")
+
+
 def main() -> None:
+    # A --dump line carries non-ASCII text; write it as UTF-8 whatever the
+    # locale says, as node does.
+    sys.stdout.reconfigure(encoding="utf-8")
     args = sys.argv[1:]
     dump = "--dump" in args
     positional = [a for a in args if a != "--dump"]
-    fixture_path = Path(positional[0]) if positional else DEFAULT_FIXTURE_PATH
-    fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
-
+    fixture_paths = [Path(positional[0])] if positional else default_fixture_paths()
+    versions = []
+    for fixture_path in fixture_paths:
+        fixtures = json.loads(fixture_path.read_text(encoding="utf-8"))
+        run_file(fixtures, dump)
+        versions.append(fixtures["fixture_version"])
     if dump:
-        dump_classify(fixtures["classify"])
-        dump_backoff(fixtures["backoff"])
-        dump_state(fixtures["state"])
         return
 
-    run_classify(fixtures["classify"])
-    run_backoff(fixtures["backoff"])
-    run_state(fixtures["state"])
-
+    label = "fixture_version=" + ", ".join(versions)
     if _failure_count > 0:
         print(
-            f"\n{_failure_count} mismatch(es) across {_case_count} cases "
-            f"(fixture_version={fixtures['fixture_version']}).",
+            f"\n{_failure_count} mismatch(es) across {_case_count} cases ({label}).",
             file=sys.stderr,
         )
         sys.exit(1)
-    print(
-        f"OK: {_case_count} cases passed (fixture_version={fixtures['fixture_version']})."
-    )
+    print(f"OK: {_case_count} cases passed ({label}).")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,68 @@ fail() { printf '  FAIL  %s\n' "$1"; failed=$((failed + 1)); }
 skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
 
 FIXTURE_PATH="fixtures/breaker/v0.json"
+CHECKPOINT_FIXTURE_PATH="fixtures/checkpoint/v0.json"
+
+# Every fixture file, found the way both runners find theirs when given no path:
+# each .json under fixtures/. Gates count against this inventory, never against
+# a runner's own report of what it ran, so a runner that skips a file or a
+# section cannot pass by agreeing with itself.
+fixture_files=()
+while IFS= read -r f; do fixture_files+=("$f"); done < <(find fixtures -type f -name '*.json' | LC_ALL=C sort)
+
+# Prints the number of cases in the inventory: every list under a fixture
+# file's top-level keys, one case per entry. Fails on an empty inventory.
+fixture_case_count() {
+  python3 - "${fixture_files[@]}" <<'PY'
+import json, sys
+total = sum(
+    len(cases)
+    for f in sys.argv[1:]
+    for cases in json.load(open(f, encoding="utf-8")).values()
+    if isinstance(cases, list)
+)
+if total == 0:
+    sys.exit("the fixture inventory holds no cases")
+print(total)
+PY
+}
+
+# Succeeds, printing the case count, when the --dump in $1 holds exactly one
+# line per inventory case; otherwise prints what is missing, extra, or
+# repeated and fails.
+dump_covers_inventory() {
+  python3 - "$1" "${fixture_files[@]}" <<'PY'
+import collections, json, sys
+want = collections.Counter()
+for f in sys.argv[2:]:
+    for section, cases in json.load(open(f, encoding="utf-8")).items():
+        if isinstance(cases, list):
+            want.update((section, case["id"]) for case in cases)
+if not want:
+    sys.exit("the fixture inventory holds no cases")
+got = collections.Counter()
+for line in open(sys.argv[1], encoding="utf-8"):
+    row = json.loads(line)
+    got[(row["section"], row["id"])] += 1
+missing, extra = want - got, got - want
+if missing or extra:
+    def show(counter):
+        return ", ".join(f"{s}/{i}" for s, i in sorted(counter)[:5]) + (" ..." if len(counter) > 5 else "")
+    print(f"covers {sum((got & want).values())} of {sum(want.values())} fixture cases;"
+          + (f" missing {sum(missing.values())}: {show(missing)}" if missing else "")
+          + (f" extra or repeated {sum(extra.values())}: {show(extra)}" if extra else ""))
+    sys.exit(1)
+print(sum(want.values()))
+PY
+}
+
+# The fixture file a corruption target lives in.
+fixture_for_target() {
+  case "$1" in
+    canonicalize_*|checkpoint_*) printf '%s\n' "$CHECKPOINT_FIXTURE_PATH" ;;
+    *) printf '%s\n' "$FIXTURE_PATH" ;;
+  esac
+}
 
 echo "1. conformance — both implementations against the fixtures"
 ts_full=$(node ts/run-fixtures.ts 2>&1)
@@ -27,29 +89,36 @@ ts_line=$(printf '%s\n' "$ts_full" | tail -1)
 py_full=$(python3 py/run_fixtures.py 2>&1)
 py_status=$?
 py_line=$(printf '%s\n' "$py_full" | tail -1)
-if [ $ts_status -eq 0 ]; then
-  pass "typescript: $ts_line"
-else
-  fail "typescript runner exited $ts_status"
-  printf '%s\n' "$ts_full"
+inventory_cases=$(fixture_case_count)
+inventory_status=$?
+if [ $inventory_status -ne 0 ] || [ -z "$inventory_cases" ]; then
+  fail "could not count the fixture inventory (exit $inventory_status) — no runner count can be checked against it"
+  inventory_cases=-1
 fi
-if [ $py_status -eq 0 ]; then
-  pass "python: $py_line"
-else
-  fail "python runner exited $py_status"
-  printf '%s\n' "$py_full"
-fi
+for lang in typescript python; do
+  if [ "$lang" = typescript ]; then status=$ts_status line=$ts_line full=$ts_full; else status=$py_status line=$py_line full=$py_full; fi
+  ran=$(printf '%s\n' "$line" | sed -nE 's/^OK: ([0-9]+) cases passed.*/\1/p')
+  if [ "$status" -ne 0 ]; then
+    fail "$lang runner exited $status"
+    printf '%s\n' "$full"
+  elif [ "$ran" != "$inventory_cases" ]; then
+    fail "$lang runner reported ${ran:-no} cases; the fixtures hold $inventory_cases"
+  else
+    pass "$lang: $line"
+  fi
+done
 
 echo "2. instrument — a corrupted fixture must make both runners fail"
 
 # Corrupts exactly one expected value in a fresh copy of the fixture and
 # writes it to $2. $1 selects which field: every comparison path the runners
-# make (classify.expect, backoff.expect_ms, and each of the four state.*
-# fields) needs its own case here, because a runner that only ever gets
-# exercised on one field (e.g. only ever state.tripped, as this gate used to
-# do) has never had its other comparisons checked at all.
+# make (classify.expect, backoff.expect_ms, each of the four state.* fields,
+# canonicalize.expect in each of its shapes, and checkpoint.expect) needs its
+# own case here, because a runner that only ever gets exercised on one field
+# (e.g. only ever state.tripped, as this gate used to do) has never had its
+# other comparisons checked at all.
 corrupt_fixture() {
-  python3 - "$1" "$2" "$FIXTURE_PATH" <<'PY'
+  python3 - "$1" "$2" "$(fixture_for_target "$1")" <<'PY'
 import json, sys
 
 target, out_path, fixture_path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -81,6 +150,27 @@ elif target == "state_tripped":
         if case["expect"]["tripped"] is not None
         else {"failure_class": "rate_limit", "consecutive_item_count": 999, "threshold": 999}
     )
+elif target == "canonicalize_canonical":
+    case = next(c for c in fixtures["canonicalize"] if "canonical" in c["expect"])
+    case["expect"]["canonical"] += "CORRUPT_MARKER"
+elif target == "canonicalize_digest":
+    case = next(c for c in fixtures["canonicalize"] if "digest" in c["expect"])
+    digest = case["expect"]["digest"]
+    case["expect"]["digest"] = digest[:-1] + ("1" if digest[-1] == "0" else "0")
+elif target == "canonicalize_halt":
+    case = next(c for c in fixtures["canonicalize"] if "halt" in c["expect"])
+    case["expect"]["halt"] = (
+        "digest_input_int_range" if case["expect"]["halt"] == "digest_input_float" else "digest_input_float"
+    )
+elif target == "canonicalize_halt_to_value":
+    case = next(c for c in fixtures["canonicalize"] if "halt" in c["expect"])
+    case["expect"] = {"canonical": "null", "digest": "sha256:" + "0" * 64}
+elif target == "checkpoint_issue_field":
+    fixtures["checkpoint"][0]["expect"][0]["reason"] += "_CORRUPT_MARKER"
+elif target == "checkpoint_extra_issue":
+    fixtures["checkpoint"][0]["expect"].append(dict(fixtures["checkpoint"][0]["expect"][0]))
+elif target == "checkpoint_missing_issue":
+    next(c for c in fixtures["checkpoint"] if len(c["expect"]) > 1)["expect"].pop()
 else:
     sys.exit(f"unknown corruption target: {target}")
 
@@ -95,8 +185,9 @@ PY
 # for the wrong reason.
 corrupt_and_verify() {
   local target="$1" desc="$2"
-  local out
+  local out source
   out=$(mktemp -t haltrule.XXXXXX)
+  source=$(fixture_for_target "$target")
 
   corrupt_fixture "$target" "$out"
   local mutate_status=$?
@@ -105,7 +196,7 @@ corrupt_and_verify() {
     rm -f "$out"
     return
   fi
-  if cmp -s "$out" "$FIXTURE_PATH"; then
+  if cmp -s "$out" "$source"; then
     fail "$desc: corrupted copy is byte-identical to the original fixture — nothing was mutated"
     rm -f "$out"
     return
@@ -138,6 +229,13 @@ corrupt_and_verify state_returns      "a corrupted state.returns"
 corrupt_and_verify state_completed    "a corrupted state.completed"
 corrupt_and_verify state_dead_letter  "a corrupted state.dead_letter"
 corrupt_and_verify state_tripped      "a corrupted state.tripped"
+corrupt_and_verify canonicalize_canonical     "a corrupted canonical form"
+corrupt_and_verify canonicalize_digest        "a corrupted digest"
+corrupt_and_verify canonicalize_halt          "a corrupted halt reason"
+corrupt_and_verify canonicalize_halt_to_value "a halt case rewritten as a value"
+corrupt_and_verify checkpoint_issue_field     "a corrupted checkpoint issue field"
+corrupt_and_verify checkpoint_extra_issue     "an extra checkpoint issue"
+corrupt_and_verify checkpoint_missing_issue   "a missing checkpoint issue"
 
 ts_missing_out=$(node ts/run-fixtures.ts /nonexistent/fixture.json 2>&1)
 ts_missing_status=$?
@@ -156,6 +254,70 @@ else
   printf '%s\n' "$py_missing_out"
 fi
 
+# Malformed fixture files each runner must refuse outright - with its own
+# message, so a runner dying for an unrelated reason does not count. A raw
+# JSON number decodes differently in the two languages (1.0, 2^53 + 1); an
+# unknown fixture_version must never read as zero cases passed; a section no
+# runner reads would pass with every case in it wrong; and a mistyped
+# $unsupported kind would otherwise build some value that merely happens to halt.
+malformed_fixture() {
+  python3 - "$1" "$2" "$CHECKPOINT_FIXTURE_PATH" <<'PY'
+import json, sys
+
+kind, out_path, fixture_path = sys.argv[1], sys.argv[2], sys.argv[3]
+fixtures = json.load(open(fixture_path))
+if kind == "raw_number":
+    fixtures["canonicalize"][0]["input"] = 7
+elif kind == "unknown_version":
+    fixtures["fixture_version"] = "checkpoint/v999"
+elif kind == "unknown_kind":
+    fixtures["canonicalize"][0]["input"] = {"$unsupported": "no_such_kind"}
+elif kind == "unknown_section":
+    fixtures["canonicalize_extra"] = [
+        {"id": "never_read", "input": None, "expect": {"canonical": "WRONG", "digest": "sha256:WRONG"}}
+    ]
+else:
+    sys.exit(f"unknown malformation: {kind}")
+json.dump(fixtures, open(out_path, "w"))
+PY
+}
+
+refuse_and_verify() {
+  local kind="$1" expect_text="$2" desc="$3"
+  local out
+  out=$(mktemp -t haltrule.XXXXXX)
+  malformed_fixture "$kind" "$out"
+  local malform_status=$?
+  if [ $malform_status -ne 0 ] || cmp -s "$out" "$CHECKPOINT_FIXTURE_PATH"; then
+    fail "$desc: could not build the malformed fixture (exit $malform_status)"
+    rm -f "$out"
+    return
+  fi
+  local ts_out ts_status py_out py_status
+  ts_out=$(node ts/run-fixtures.ts "$out" 2>&1)
+  ts_status=$?
+  py_out=$(python3 py/run_fixtures.py "$out" 2>&1)
+  py_status=$?
+  if [ $ts_status -ne 0 ] && printf '%s' "$ts_out" | grep -qF "$expect_text"; then
+    pass "typescript refuses $desc"
+  else
+    fail "typescript did not refuse $desc (exit=$ts_status)"
+    printf '%s\n' "$ts_out" | tail -5
+  fi
+  if [ $py_status -ne 0 ] && printf '%s' "$py_out" | grep -qF "$expect_text"; then
+    pass "python refuses $desc"
+  else
+    fail "python did not refuse $desc (exit=$py_status)"
+    printf '%s\n' "$py_out" | tail -5
+  fi
+  rm -f "$out"
+}
+
+refuse_and_verify raw_number      "raw JSON number"          "a raw number in a fixture input"
+refuse_and_verify unknown_version "unknown fixture_version"  "an unknown fixture_version"
+refuse_and_verify unknown_section "unknown fixture section"  "a fixture section no runner reads"
+refuse_and_verify unknown_kind    "unknown \$unsupported kind" "an \$unsupported kind no runner builds"
+
 echo "3. parity — the two runners' actual output matches byte for byte"
 # --dump prints each case's ACTUAL result (never the fixture's expectation)
 # as one canonical JSON line. This is the check the README and spec promise
@@ -173,7 +335,12 @@ if [ $ts_dump_status -ne 0 ] || [ $py_dump_status -ne 0 ]; then
   echo "--- typescript --dump output ---"; cat "$ts_dump_file"
   echo "--- python --dump output ---"; cat "$py_dump_file"
 elif cmp -s "$ts_dump_file" "$py_dump_file"; then
-  pass "identical dump across $(wc -l < "$ts_dump_file" | tr -d ' ') cases"
+  # Identical is not enough: two dumps that skip the same section agree.
+  if covered=$(dump_covers_inventory "$ts_dump_file"); then
+    pass "identical dump covering all $covered fixture cases"
+  else
+    fail "both --dump outputs are identical but not complete: $covered"
+  fi
 else
   fail "runner output diverges — dumps are not byte-identical"
   diff "$py_dump_file" "$ts_dump_file" | head -20
@@ -184,17 +351,29 @@ echo "4. purity — the policy files import nothing they should not"
 # Broadened past a bare '^import': a dynamic `await import(...)`, a
 # CommonJS `require(...)`, and a `export ... from "./somewhere"` re-export
 # are all dependencies too, and none of them start a line with "import".
-ts_import_hits=$(grep -nE '\bimport\b|\brequire[[:space:]]*\(|^[[:space:]]*export[[:space:]].*\bfrom\b' ts/breaker.ts || true)
-if [ -z "$ts_import_hits" ]; then
-  pass "ts/breaker.ts has no imports"
-else
-  fail "ts/breaker.ts has import(s)/require(s)/re-export(s); it must have none"
-  printf '%s\n' "$ts_import_hits"
-fi
+# ts/checkpoint.ts may take SHA-256 from node:crypto and nothing else; the
+# spec allows SHA-256 as the one dependency where it is not otherwise at hand.
+TS_CRYPTO_IMPORT='^[0-9]+:import \{ createHash \} from "node:crypto";$'
+for ts_file in ts/breaker.ts ts/checkpoint.ts; do
+  ts_import_hits=$(grep -nE '\bimport\b|\brequire[[:space:]]*\(|^[[:space:]]*export[[:space:]].*\bfrom\b' "$ts_file" || true)
+  if [ "$ts_file" = ts/checkpoint.ts ]; then
+    ts_import_hits=$(printf '%s\n' "$ts_import_hits" | grep -vE "$TS_CRYPTO_IMPORT" || true)
+    allowed="node:crypto's createHash"
+  else
+    allowed="nothing"
+  fi
+  if [ -z "$ts_import_hits" ]; then
+    pass "$ts_file imports $allowed"
+  else
+    fail "$ts_file has import(s)/require(s)/re-export(s) beyond $allowed"
+    printf '%s\n' "$ts_import_hits"
+  fi
+done
 
-py_purity_out=$(python3 - <<'PY'
+for py_file in py/haltrule/breaker.py py/haltrule/checkpoint.py; do
+py_purity_out=$(python3 - "$py_file" <<'PY'
 import ast, sys
-tree = ast.parse(open("py/haltrule/breaker.py").read())
+tree = ast.parse(open(sys.argv[1]).read())
 modules = []
 for node in ast.walk(tree):
     if isinstance(node, ast.Import):
@@ -207,59 +386,324 @@ PY
 )
 py_purity_status=$?
 if [ $py_purity_status -ne 0 ]; then
-  fail "py/haltrule/breaker.py purity check crashed (exit $py_purity_status) — cannot verify import purity"
+  fail "$py_file purity check crashed (exit $py_purity_status) — cannot verify import purity"
   printf '%s\n' "$py_purity_out"
 elif [ -z "$py_purity_out" ]; then
-  pass "py/haltrule/breaker.py imports only the standard library"
+  pass "$py_file imports only the standard library"
 else
-  fail "py/haltrule/breaker.py imports third-party modules: $py_purity_out"
+  fail "$py_file imports third-party modules: $py_purity_out"
 fi
+done
 
-echo "5. determinism — no clock, timer, or I/O in the policy files"
+echo "5. determinism — no clock, timer, randomness, or I/O in the policy files"
 # The spec requires these to stay pure (no I/O, no clock, no sleep). Checked
-# only against the two policy files, never the runners, which legitimately
-# read argv and the fixture file.
-ts_clock_hits=$(grep -nE '\bDate\b|\bsetTimeout\b|\bsetInterval\b|\bprocess\b|\brequire[[:space:]]*\(|\bimport[[:space:]]*\(' ts/breaker.ts || true)
-if [ -z "$ts_clock_hits" ]; then
-  pass "ts/breaker.ts touches no clock, timer, or I/O API"
-else
-  fail "ts/breaker.ts references a clock/timer/I/O API"
-  printf '%s\n' "$ts_clock_hits"
-fi
+# only against the policy files, never the runners, which legitimately read
+# argv and the fixture file. Two layers, because each has a blind spot the
+# other covers: the static scan reads every line but only sees names, so an
+# alias or a string-built call slips past it; the sealed run sees through any
+# alias but only on the paths the fixtures execute. Each PASS line says which
+# of the two it is.
 
-py_clock_out=$(python3 - <<'PY'
-import ast
+# 5a. TypeScript, static: parsed with the TypeScript compiler, so words inside
+# strings and comments never count and only real references do. Math is
+# allowed only through its pure members.
+# node reads a module only by its extension, so the temp file gets .mjs.
+ts_static_js=$(mktemp -t haltrule.XXXXXX)
+mv "$ts_static_js" "$ts_static_js.mjs"
+ts_static_js="$ts_static_js.mjs"
+cat > "$ts_static_js" <<'JS'
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+let ts;
+try {
+  ts = createRequire(`${process.cwd()}/`)("typescript");
+} catch {
+  console.log("SKIP");
+  process.exit(0);
+}
+const FORBIDDEN = new Set([
+  "Date", "performance", "setTimeout", "setInterval", "setImmediate", "queueMicrotask",
+  "process", "fetch", "XMLHttpRequest", "WebSocket", "crypto", "Intl", "console",
+  "globalThis", "global", "window", "self", "require", "eval", "Function", "Deno", "Bun",
+]);
+const PURE_MATH = new Set([
+  "abs", "floor", "ceil", "round", "trunc", "sign", "max", "min", "pow", "sqrt", "cbrt",
+  "hypot", "log", "log2", "log10", "exp", "imul", "clz32", "fround",
+  "PI", "E", "LN2", "LN10", "LOG2E", "LOG10E", "SQRT2", "SQRT1_2",
+]);
+const file = process.argv[2];
+const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const line = (node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+// A name in one of these slots is a property or a declared name, not a
+// reference to a global: `x.Date`, `{ Date: 1 }`, `import { x }`.
+function isNameSlot(id) {
+  const p = id.parent;
+  if (ts.isPropertyAccessExpression(p) || ts.isQualifiedName(p)) return (p.name ?? p.right) === id;
+  if (ts.isBindingElement(p)) return p.propertyName === id;
+  if (ts.isImportSpecifier(p) || ts.isExportSpecifier(p)) return true;
+  return (
+    (ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) ||
+      ts.isMethodDeclaration(p) || ts.isMethodSignature(p) || ts.isGetAccessor(p) ||
+      ts.isSetAccessor(p) || ts.isEnumMember(p)) && p.name === id
+  );
+}
+const hits = [];
+let identifiers = 0;
+function visit(node) {
+  if (ts.isImportDeclaration(node)) return; // gate 4 owns imports
+  if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    hits.push(`line ${line(node)}: dynamic import`);
+  }
+  if (ts.isIdentifier(node)) {
+    identifiers += 1;
+    if (!isNameSlot(node)) {
+      if (FORBIDDEN.has(node.text)) hits.push(`line ${line(node)}: ${node.text}`);
+      if (node.text === "Math") {
+        const p = node.parent;
+        if (!(ts.isPropertyAccessExpression(p) && p.expression === node && PURE_MATH.has(p.name.text))) {
+          hits.push(`line ${line(node)}: Math used other than through a pure member`);
+        }
+      }
+    }
+  }
+  ts.forEachChild(node, visit);
+}
+visit(source);
+// A parse that saw nothing would report a clean file.
+if (identifiers === 0) hits.push("no identifiers parsed at all");
+console.log(hits.join("\n"));
+JS
+for ts_file in ts/breaker.ts ts/checkpoint.ts; do
+  ts_static_out=$(node "$ts_static_js" "$ts_file" 2>&1)
+  ts_static_status=$?
+  if [ $ts_static_status -ne 0 ]; then
+    fail "$ts_file static scan crashed (exit $ts_static_status)"
+    printf '%s\n' "$ts_static_out"
+  elif [ "$ts_static_out" = "SKIP" ]; then
+    skip "$ts_file static scan" "typescript not installed locally; CI installs it"
+  elif [ -z "$ts_static_out" ]; then
+    pass "$ts_file (static) references no clock, timer, randomness, process, network, console, or eval global; Math only through pure members"
+  else
+    fail "$ts_file (static) references a clock, timer, randomness, or I/O global"
+    printf '%s\n' "$ts_static_out"
+  fi
+done
+rm -f "$ts_static_js"
 
-FORBIDDEN_MODULES = {"time", "datetime", "random", "os"}
-tree = ast.parse(open("py/haltrule/breaker.py").read())
+# 5b. Python, static: an import allowlist, and no reference at all - called or
+# not - to a builtin that does I/O, evaluates code, or reaches the builtins.
+for py_file in py/haltrule/breaker.py py/haltrule/checkpoint.py; do
+py_clock_out=$(python3 - "$py_file" <<'PY'
+import ast, sys
+
+ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing"}
+FORBIDDEN_NAMES = {
+    "open", "print", "input", "exec", "eval", "compile", "__import__", "breakpoint",
+    "__builtins__", "getattr", "setattr", "delattr", "globals", "vars", "locals",
+    # process-random: string hashing is seeded per process; id() is an address,
+    # and so is the default repr() of an object
+    "hash", "id", "repr",
+}
+FORBIDDEN_ATTRIBUTES = {"__builtins__", "__globals__", "__subclasses__", "__import__", "__loader__"}
+tree = ast.parse(open(sys.argv[1]).read())
 hits = []
 for node in ast.walk(tree):
     if isinstance(node, ast.Import):
         for alias in node.names:
-            if alias.name.split(".")[0] in FORBIDDEN_MODULES:
+            if alias.name.split(".")[0] not in ALLOWED_MODULES:
                 hits.append(f"line {node.lineno}: import {alias.name}")
-    elif isinstance(node, ast.ImportFrom) and node.module:
-        if node.module.split(".")[0] in FORBIDDEN_MODULES:
-            hits.append(f"line {node.lineno}: from {node.module} import ...")
-    elif (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "open"
-    ):
-        hits.append(f"line {node.lineno}: open(...)")
+    elif isinstance(node, ast.ImportFrom):
+        if (node.module or "").split(".")[0] not in ALLOWED_MODULES or node.level:
+            hits.append(f"line {node.lineno}: from {'.' * node.level}{node.module or ''} import ...")
+    elif isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
+        hits.append(f"line {node.lineno}: {node.id}")
+    elif isinstance(node, ast.Attribute) and node.attr in FORBIDDEN_ATTRIBUTES:
+        hits.append(f"line {node.lineno}: .{node.attr}")
 print("\n".join(hits))
 PY
 )
 py_clock_status=$?
 if [ $py_clock_status -ne 0 ]; then
-  fail "py/haltrule/breaker.py clock/timer/I/O check crashed (exit $py_clock_status)"
+  fail "$py_file static check crashed (exit $py_clock_status)"
   printf '%s\n' "$py_clock_out"
 elif [ -z "$py_clock_out" ]; then
-  pass "py/haltrule/breaker.py touches no clock, timer, or I/O API"
+  pass "$py_file (static) imports only __future__/dataclasses/hashlib/math/typing and names no I/O, eval, process-random, or builtins-reaching builtin"
 else
-  fail "py/haltrule/breaker.py references a clock/timer/I/O API"
+  fail "$py_file (static) imports outside the allowlist or names an I/O, eval, process-random, or builtins-reaching builtin"
   printf '%s\n' "$py_clock_out"
 fi
+done
+
+# 5c/5d. Sealed runs: every fixture again, with the policy code unable to read
+# a clock, draw randomness, or do I/O - reached by any name. The seal checks
+# itself inside the very process that runs the fixtures and prints a marker
+# only when it holds, so a seal that failed to install, or a run that lost it,
+# cannot pass as a clean run. The question here is only whether sealing
+# changes the outcome - the same exit status and summary as gate 1's unsealed
+# run - so a conformance failure is reported once, by gate 1, not again here.
+SEAL_MARKER="haltrule-seal: installed"
+
+ts_seal=$(mktemp -t haltrule.XXXXXX)
+mv "$ts_seal" "$ts_seal.mjs"
+ts_seal="$ts_seal.mjs"
+cat > "$ts_seal" <<'JS'
+import { writeSync } from "node:fs";
+// Each refusal is recorded on stderr as it happens, before it throws: policy
+// code that catches the throw must not erase the evidence. The self-check's
+// own probes run before recording starts.
+let recording = false;
+const refuse = (what) => function sealed() {
+  if (recording) writeSync(2, `haltrule-seal: policy code used ${what}\n`);
+  throw new Error(`sealed: policy code used ${what}`);
+};
+const SealedDate = new Proxy(Date, {
+  apply: refuse("Date()"),
+  construct: refuse("new Date()"),
+  get: (target, key) => (key === "now" ? refuse("Date.now") : Reflect.get(target, key)),
+});
+globalThis.Date = SealedDate;
+globalThis.performance = { now: refuse("performance.now") };
+Math.random = refuse("Math.random");
+for (const name of ["setTimeout", "setInterval", "setImmediate", "queueMicrotask", "fetch"]) {
+  globalThis[name] = refuse(name);
+}
+Object.defineProperty(globalThis, "crypto", {
+  value: { getRandomValues: refuse("crypto.getRandomValues"), randomUUID: refuse("crypto.randomUUID") },
+});
+process.hrtime = Object.assign(refuse("process.hrtime"), { bigint: refuse("process.hrtime.bigint") });
+process.uptime = refuse("process.uptime");
+// Self-check in this process: every probe must throw before the marker prints.
+const probes = [() => Date.now(), () => new Date(), () => Math.random(), () => performance.now(), () => setTimeout(() => {}, 0)];
+if (probes.every((probe) => { try { probe(); return false; } catch { return true; } })) {
+  recording = true;
+  writeSync(2, "haltrule-seal: installed\n");
+}
+JS
+ts_sealed_out=$(node --import "$ts_seal" ts/run-fixtures.ts 2>&1)
+ts_sealed_status=$?
+ts_sealed_line=$(printf '%s\n' "$ts_sealed_out" | tail -1)
+ts_refused=$(printf '%s\n' "$ts_sealed_out" | sed -n 's/^haltrule-seal: policy code /&/p' | head -1)
+if [ -n "$ts_refused" ]; then
+  fail "typescript policy code reached a refused API under the seal: $ts_refused"
+elif ! printf '%s\n' "$ts_sealed_out" | grep -qxF "$SEAL_MARKER"; then
+  fail "typescript sealed run carries no seal marker — the seal did not install or did not hold"
+  printf '%s\n' "$ts_sealed_out" | tail -3
+elif [ $ts_sealed_status -ne $ts_status ] || [ "$ts_sealed_line" != "$ts_line" ]; then
+  fail "typescript: sealing changed the outcome under the seal: exit=$ts_sealed_status '$ts_sealed_line' vs unsealed exit=$ts_status '$ts_line'"
+  printf '%s\n' "$ts_sealed_out" | grep -m3 'sealed:' || printf '%s\n' "$ts_sealed_out" | tail -3
+else
+  pass "typescript (sealed run) same outcome as unsealed with Date, performance, Math.random, timers, fetch, Web Crypto randomness, and process clocks refusing"
+fi
+rm -f "$ts_seal"
+
+py_seal=$(mktemp -t haltrule.XXXXXX)
+cat > "$py_seal" <<'PY'
+import builtins
+import importlib.util
+import os
+import runpy
+import sys
+
+ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing"}
+REFUSED = ("open", "print", "input", "exec", "eval", "compile", "breakpoint", "hash", "id", "repr")
+
+
+# Each refusal is recorded on stderr as it happens, before it raises: policy
+# code that catches the error must not erase the evidence. Recording covers
+# module loading too; only the self-check's own probe is not recorded.
+recording = True
+
+
+def record(line):
+    if recording:
+        os.write(2, f"haltrule-seal: policy code {line}\n".encode())
+
+
+def refuse(what):
+    def sealed(*args, **kwargs):
+        record(f"used {what}")
+        raise RuntimeError(f"sealed: policy code used {what}")
+
+    return sealed
+
+
+real_import = builtins.__import__
+
+
+def sealed_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if level or name.split(".")[0] not in ALLOWED_MODULES:
+        record(f"imported {name!r}")
+        raise ImportError(f"sealed: policy code imported {name!r}")
+    return real_import(name, globals, locals, fromlist, level)
+
+
+# The policy modules get their own builtins; the runner keeps the real ones.
+SEALED = dict(vars(builtins), __import__=sealed_import, **{n: refuse(n) for n in REFUSED})
+
+sys.path.insert(0, "py")
+import haltrule  # noqa: E402  the package itself is empty and loads normally
+
+for part in ("breaker", "checkpoint"):
+    name = f"haltrule.{part}"
+    spec = importlib.util.spec_from_file_location(name, f"py/haltrule/{part}.py")
+    module = importlib.util.module_from_spec(spec)
+    module.__dict__["__builtins__"] = SEALED
+    sys.modules[name] = module
+    setattr(haltrule, part, module)
+    spec.loader.exec_module(module)
+    # Self-check in the module's own namespace: `open` there must refuse.
+    recording = False
+    try:
+        eval("open('/dev/null')", dict(module.__dict__))
+    except RuntimeError:
+        pass
+    else:
+        sys.exit(f"{name} loaded without the seal")
+    recording = True
+
+print("haltrule-seal: installed", file=sys.stderr)
+sys.argv = ["py/run_fixtures.py"]
+runpy.run_path("py/run_fixtures.py", run_name="__main__")
+PY
+py_sealed_out=$(python3 "$py_seal" 2>&1)
+py_sealed_status=$?
+py_sealed_line=$(printf '%s\n' "$py_sealed_out" | tail -1)
+py_refused=$(printf '%s\n' "$py_sealed_out" | sed -n 's/^haltrule-seal: policy code /&/p' | head -1)
+if [ -n "$py_refused" ]; then
+  fail "python policy code reached a refused API under the seal: $py_refused"
+elif ! printf '%s\n' "$py_sealed_out" | grep -qxF "$SEAL_MARKER"; then
+  fail "python sealed run carries no seal marker — the seal did not install or did not hold"
+  printf '%s\n' "$py_sealed_out" | tail -3
+elif [ $py_sealed_status -ne $py_status ] || [ "$py_sealed_line" != "$py_line" ]; then
+  fail "python: sealing changed the outcome under the seal: exit=$py_sealed_status '$py_sealed_line' vs unsealed exit=$py_status '$py_line'"
+  printf '%s\n' "$py_sealed_out" | grep -m3 'sealed:' || printf '%s\n' "$py_sealed_out" | tail -3
+else
+  pass "python (sealed run) same outcome as unsealed with open/print/input/exec/eval/compile/hash/id/repr refusing and imports held to the allowlist"
+fi
+rm -f "$py_seal"
+
+# 5e. Python, behavioural: string hashing is seeded per process, so iterating
+# a set, or anything else ordered by hash, can reorder output from one run to
+# the next without naming a single forbidden builtin. The --dump must come out
+# byte-identical under several fixed seeds.
+seed_dir=$(mktemp -d -t haltrule.XXXXXX)
+seed_bad=""
+for seed in 0 1 2 3 4; do
+  if ! PYTHONHASHSEED=$seed python3 py/run_fixtures.py --dump > "$seed_dir/$seed" 2>&1; then
+    seed_bad="$seed_bad $seed(exit)"
+  elif [ "$seed" != 0 ] && ! cmp -s "$seed_dir/0" "$seed_dir/$seed"; then
+    seed_bad="$seed_bad $seed"
+  fi
+done
+if [ -n "$seed_bad" ]; then
+  fail "python --dump differs by hash seed (seeds:$seed_bad vs seed 0)"
+  diff "$seed_dir/0" "$seed_dir/$(printf '%s' "$seed_bad" | awk '{print $1}' | tr -dc 0-9)" 2>/dev/null | head -6
+elif ! covered=$(dump_covers_inventory "$seed_dir/0"); then
+  fail "python --dump under PYTHONHASHSEED=0 is not complete: $covered"
+else
+  pass "python --dump identical under PYTHONHASHSEED 0-4, covering all $covered fixture cases"
+fi
+rm -rf "$seed_dir"
 
 echo "6. fixture coverage — enough cases to exercise the contract"
 # A gate that only checks pass/fail wiring, never coverage, still passes
@@ -280,8 +724,106 @@ else
   if [ "$backoff_n" -ge 10 ]; then pass "backoff: $backoff_n cases (>= 10)"; else fail "backoff: only $backoff_n cases (need >= 10)"; fi
   if [ "$state_n" -ge 16 ]; then pass "state: $state_n cases (>= 16)"; else fail "state: only $state_n cases (need >= 16)"; fi
 fi
+checkpoint_counts=$(python3 - "$CHECKPOINT_FIXTURE_PATH" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(len(d["canonicalize"]), len(d["checkpoint"]))
+PY
+)
+checkpoint_counts_status=$?
+if [ $checkpoint_counts_status -ne 0 ] || [ -z "$checkpoint_counts" ]; then
+  fail "could not read fixture case counts from $CHECKPOINT_FIXTURE_PATH (exit $checkpoint_counts_status)"
+else
+  read -r canonicalize_n checkpoint_n <<< "$checkpoint_counts"
+  if [ "$canonicalize_n" -ge 30 ]; then pass "canonicalize: $canonicalize_n cases (>= 30)"; else fail "canonicalize: only $canonicalize_n cases (need >= 30)"; fi
+  if [ "$checkpoint_n" -ge 20 ]; then pass "checkpoint: $checkpoint_n cases (>= 20)"; else fail "checkpoint: only $checkpoint_n cases (need >= 20)"; fi
+fi
 
-echo "7. lint and types"
+# fixtures/README.md promises ASCII files, so no editor or transport can
+# normalize a test value away (an NFD case silently becoming NFC).
+if [ "${#fixture_files[@]}" -lt 2 ]; then
+  fail "found ${#fixture_files[@]} fixture files; expected at least breaker and checkpoint"
+else
+  non_ascii=$(python3 - "${fixture_files[@]}" <<'PY'
+import sys
+print(" ".join(p for p in sys.argv[1:] if any(b > 0x7F for b in open(p, "rb").read())))
+PY
+)
+  non_ascii_status=$?
+  if [ $non_ascii_status -ne 0 ]; then
+    fail "fixture ASCII check crashed (exit $non_ascii_status)"
+  elif [ -z "$non_ascii" ]; then
+    pass "all ${#fixture_files[@]} fixture files are ASCII"
+  else
+    fail "fixture files with non-ASCII bytes: $non_ascii"
+  fi
+fi
+
+echo "7. digest — an independent sha256 over each canonical form gives its digest"
+# The spec promises that anything able to run sha256sum computes the same
+# digest from the canonical form. Checked with the system's own tool over the
+# implementations' actual output (gate 3 proved both identical), never with
+# the hashing either implementation uses.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256_tool="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  sha256_tool="shasum -a 256"
+else
+  sha256_tool=""
+fi
+digest_dir=$(mktemp -d -t haltrule.XXXXXX)
+if [ -z "$sha256_tool" ]; then
+  fail "neither sha256sum nor shasum is on PATH — cannot check digests independently"
+elif ! node ts/run-fixtures.ts --dump > "$digest_dir/dump" 2>&1; then
+  fail "typescript --dump failed; cannot check digests"
+  tail -5 "$digest_dir/dump"
+else
+  digest_split=$(python3 - "$digest_dir" "$CHECKPOINT_FIXTURE_PATH" <<'PY'
+import json, sys
+
+out_dir, fixture_path = sys.argv[1], sys.argv[2]
+want = sum("canonical" in c["expect"] for c in json.load(open(fixture_path))["canonicalize"])
+written = 0
+with open(f"{out_dir}/expect", "w") as expect:
+    for line in open(f"{out_dir}/dump", encoding="utf-8"):
+        row = json.loads(line)
+        if row["section"] == "canonicalize" and "canonical" in row["actual"]:
+            written += 1
+            with open(f"{out_dir}/{written}.bin", "wb") as blob:
+                blob.write(row["actual"]["canonical"].encode("utf-8"))
+            expect.write(f"{written} {row['actual']['digest']}\n")
+print(want, written)
+PY
+  )
+  digest_split_status=$?
+  read -r digest_want digest_written <<< "$digest_split"
+  if [ $digest_split_status -ne 0 ] || [ -z "$digest_written" ]; then
+    fail "could not split canonical forms out of the dump (exit $digest_split_status)"
+  elif [ "$digest_written" -eq 0 ] || [ "$digest_written" -ne "$digest_want" ]; then
+    fail "dump held $digest_written canonical forms; the fixture has $digest_want"
+  else
+    digest_bad=0
+    digest_checked=0
+    while read -r n want_digest; do
+      got_digest="sha256:$($sha256_tool < "$digest_dir/$n.bin" | cut -d' ' -f1)"
+      digest_checked=$((digest_checked + 1))
+      if [ "$got_digest" != "$want_digest" ]; then
+        digest_bad=$((digest_bad + 1))
+        printf '  mismatch #%s: %s gives %s, runner said %s\n' "$n" "$sha256_tool" "$got_digest" "$want_digest"
+      fi
+    done < "$digest_dir/expect"
+    if [ "$digest_checked" -ne "$digest_written" ]; then
+      fail "checked $digest_checked of $digest_written canonical forms"
+    elif [ "$digest_bad" -eq 0 ]; then
+      pass "$sha256_tool reproduces all $digest_checked digests"
+    else
+      fail "$digest_bad of $digest_checked digests differ from $sha256_tool"
+    fi
+  fi
+fi
+rm -rf "$digest_dir"
+
+echo "8. lint and types"
 if command -v ruff >/dev/null 2>&1; then
   ruff check py >/dev/null 2>&1 && pass "ruff check py" || { ruff check py; fail "ruff reported issues"; }
   ruff format --check py >/dev/null 2>&1 && pass "ruff format --check py" || fail "ruff format --check py"

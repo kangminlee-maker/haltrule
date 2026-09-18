@@ -1,5 +1,12 @@
 /**
- * Conformance runner for fixtures/breaker/v0.json against ts/breaker.ts.
+ * Conformance runner for the fixtures under fixtures/ against
+ * ts/breaker.ts and ts/checkpoint.ts.
+ *
+ * With no path, runs every .json file under fixtures/, in path order; with
+ * one, runs that file only. The file's own `fixture_version` picks the part
+ * under test, and an unknown version is an error rather than zero cases
+ * passed, so a fixture file added under fixtures/ is run or refused, never
+ * skipped.
  *
  * Loads the fixture file, feeds each case to the pure policy functions, and
  * diffs the actual result against the fixture's expected value. Exits
@@ -15,9 +22,17 @@
  * for byte"), not just the summary line both runners happen to print at the
  * end.
  *
+ * Fixture inputs never hold a raw JSON number: JSON.parse and Python's json
+ * disagree about some (`1.0`, anything past 2^53), so both would test
+ * different values. A number is written `{"$number": "<literal>"}` and each
+ * runner decodes the literal itself; `{"$bigint": "<literal>"}` is an integer
+ * this runner builds as a bigint; `{"$unsupported": "<kind>"}` builds a value
+ * outside the digest model that JSON cannot spell. A file section, or an
+ * `$unsupported` kind, this runner does not know is an error.
+ *
  * Only node:fs/node:path (both stdlib) are used; no external dependencies.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
@@ -29,9 +44,25 @@ import {
   type DispatchBreakerTripState,
   type SystemicDispatchFailureClass,
 } from "./breaker.ts";
+import {
+  canonicalize,
+  checkpointDigest,
+  evaluateCheckpointArtifact,
+  type EvaluateCheckpointArtifactArgs,
+} from "./checkpoint.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_FIXTURE_PATH = path.join(__dirname, "..", "fixtures", "breaker", "v0.json");
+const FIXTURE_ROOT = path.join(__dirname, "..", "fixtures");
+
+/** Every .json under fixtures/, in the order py/run_fixtures.py uses too:
+ * relative paths compared as ASCII strings. */
+function defaultFixturePaths(): string[] {
+  return readdirSync(FIXTURE_ROOT, { recursive: true, encoding: "utf8" })
+    .map((relative) => relative.split(path.sep).join("/"))
+    .filter((relative) => relative.endsWith(".json"))
+    .sort()
+    .map((relative) => path.join(FIXTURE_ROOT, relative));
+}
 
 interface ClassifyCase {
   id: string;
@@ -70,11 +101,31 @@ interface StateCase {
   };
 }
 
-interface FixtureFile {
-  fixture_version: string;
+interface BreakerFixtureFile {
+  fixture_version: "breaker/v0";
   classify: ClassifyCase[];
   backoff: BackoffCase[];
   state: StateCase[];
+}
+
+type CanonicalizeOutcome = { canonical: string; digest: string } | { halt: string };
+
+interface CanonicalizeCase {
+  id: string;
+  input: unknown;
+  expect: CanonicalizeOutcome;
+}
+
+interface CheckpointCase {
+  id: string;
+  args: Record<string, unknown>;
+  expect: unknown[];
+}
+
+interface CheckpointFixtureFile {
+  fixture_version: "checkpoint/v0";
+  canonicalize: CanonicalizeCase[];
+  checkpoint: CheckpointCase[];
 }
 
 interface StateActual {
@@ -215,6 +266,96 @@ function runState(cases: StateCase[]): void {
   }
 }
 
+/** Decode a fixture input: see the header for why numbers arrive as text. */
+function decodeFixtureValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    throw new Error(
+      `fixture input holds the raw JSON number ${value}; write {"$number": "${value}"} so both runners decode the same literal`,
+    );
+  }
+  if (Array.isArray(value)) return value.map(decodeFixtureValue);
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 1) {
+    const [key, inner] = entries[0]!;
+    if (key === "$number" && typeof inner === "string") return Number(inner);
+    if (key === "$bigint" && typeof inner === "string") {
+      // The bigint cases exist to reach the implementation's bigint path; the
+      // same value as a number would pass every one of them and test nothing.
+      const decoded: unknown = BigInt(inner);
+      if (typeof decoded !== "bigint") throw new Error(`$bigint ${inner} did not decode to a bigint`);
+      return decoded;
+    }
+    if (key === "$unsupported") {
+      if (inner === "undefined") return undefined;
+      if (inner === "instance") return new Map();
+      if (inner === "non_string_key") return { [Symbol("key")]: 1 };
+      if (inner === "sparse_array") return new Array(1);
+      throw new Error(`unknown $unsupported kind ${JSON.stringify(inner)}`);
+    }
+  }
+  // fromEntries defines own properties, so a "__proto__" key stays a key.
+  return Object.fromEntries(entries.map(([key, inner]) => [key, decodeFixtureValue(inner)]));
+}
+
+function actualCanonicalize(tc: CanonicalizeCase): CanonicalizeOutcome {
+  const input = decodeFixtureValue(tc.input);
+  const canonical = canonicalize(input);
+  const digest = checkpointDigest(input);
+  // The two entry points must agree about the same value; if they do not,
+  // that is a bug in the implementation, not a verdict to compare.
+  if ("halt" in canonical || "halt" in digest) {
+    if (!("halt" in canonical && "halt" in digest && canonical.halt === digest.halt)) {
+      throw new Error(`[${tc.id}] canonicalize and checkpointDigest disagree about halting`);
+    }
+    return { halt: canonical.halt };
+  }
+  return { canonical: canonical.canonical, digest: digest.digest };
+}
+
+const CHECKPOINT_ARG_NAMES: Record<string, keyof EvaluateCheckpointArtifactArgs> = {
+  stage_id: "stageId",
+  subject_ref: "subjectRef",
+  artifact: "artifact",
+  expected_contract_revision: "expectedContractRevision",
+  expected_stage_config_digest: "expectedStageConfigDigest",
+  expected_dependency_digests: "expectedDependencyDigests",
+  required_resume_from_stage: "requiredResumeFromStage",
+  validation_issues: "validationIssues",
+  status_map: "statusMap",
+};
+
+function actualCheckpoint(tc: CheckpointCase): unknown[] {
+  const decoded = decodeFixtureValue(tc.args) as Record<string, unknown>;
+  const args: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(decoded)) {
+    const name = CHECKPOINT_ARG_NAMES[key];
+    if (name === undefined) throw new Error(`[${tc.id}] unknown checkpoint arg ${key}`);
+    args[name] = value;
+  }
+  return evaluateCheckpointArtifact(args as unknown as EvaluateCheckpointArtifactArgs);
+}
+
+function runCanonicalize(cases: CanonicalizeCase[]): void {
+  for (const tc of cases) {
+    caseCount += 1;
+    const actual = actualCanonicalize(tc);
+    if (!deepEqual(actual, tc.expect)) {
+      fail(tc.id, "canonicalize.expect", tc.expect, actual);
+    }
+  }
+}
+
+function runCheckpoint(cases: CheckpointCase[]): void {
+  for (const tc of cases) {
+    caseCount += 1;
+    const actual = actualCheckpoint(tc);
+    if (!deepEqual(actual, tc.expect)) {
+      fail(tc.id, "checkpoint.expect", tc.expect, actual);
+    }
+  }
+}
+
 function dumpClassify(cases: ClassifyCase[]): void {
   for (const tc of cases) {
     console.log(canonicalStringify({ section: "classify", id: tc.id, actual: actualClassify(tc) }));
@@ -233,6 +374,56 @@ function dumpState(cases: StateCase[]): void {
   }
 }
 
+function dumpCanonicalize(cases: CanonicalizeCase[]): void {
+  for (const tc of cases) {
+    console.log(canonicalStringify({ section: "canonicalize", id: tc.id, actual: actualCanonicalize(tc) }));
+  }
+}
+
+function dumpCheckpoint(cases: CheckpointCase[]): void {
+  for (const tc of cases) {
+    console.log(canonicalStringify({ section: "checkpoint", id: tc.id, actual: actualCheckpoint(tc) }));
+  }
+}
+
+const SECTIONS: Record<string, readonly string[]> = {
+  "breaker/v0": ["classify", "backoff", "state"],
+  "checkpoint/v0": ["canonicalize", "checkpoint"],
+};
+
+function runFile(fixtures: BreakerFixtureFile | CheckpointFixtureFile, dump: boolean): void {
+  // A section no runner reads would pass with every case in it wrong.
+  const known = SECTIONS[fixtures.fixture_version];
+  if (known !== undefined) {
+    for (const key of Object.keys(fixtures)) {
+      if (key !== "fixture_version" && !known.includes(key)) {
+        throw new Error(`unknown fixture section ${JSON.stringify(key)} in ${fixtures.fixture_version}`);
+      }
+    }
+  }
+  if (fixtures.fixture_version === "breaker/v0") {
+    if (dump) {
+      dumpClassify(fixtures.classify);
+      dumpBackoff(fixtures.backoff);
+      dumpState(fixtures.state);
+    } else {
+      runClassify(fixtures.classify);
+      runBackoff(fixtures.backoff);
+      runState(fixtures.state);
+    }
+  } else if (fixtures.fixture_version === "checkpoint/v0") {
+    if (dump) {
+      dumpCanonicalize(fixtures.canonicalize);
+      dumpCheckpoint(fixtures.checkpoint);
+    } else {
+      runCanonicalize(fixtures.canonicalize);
+      runCheckpoint(fixtures.checkpoint);
+    }
+  } else {
+    throw new Error(`unknown fixture_version ${JSON.stringify((fixtures as { fixture_version: unknown }).fixture_version)}`);
+  }
+}
+
 function main(): void {
   // A runner that silently ignores the path it was handed reports PASS on a file
   // it never read, so the argument is honored here exactly as the Python runner
@@ -240,26 +431,21 @@ function main(): void {
   const args = process.argv.slice(2);
   const dump = args.includes("--dump");
   const positional = args.filter((a) => a !== "--dump");
-  const fixturePath = positional[0] ?? DEFAULT_FIXTURE_PATH;
-  const raw = readFileSync(fixturePath, "utf8");
-  const fixtures = JSON.parse(raw) as FixtureFile;
-
-  if (dump) {
-    dumpClassify(fixtures.classify);
-    dumpBackoff(fixtures.backoff);
-    dumpState(fixtures.state);
-    return;
+  const fixturePaths = positional.length > 0 ? [positional[0]!] : defaultFixturePaths();
+  const versions: string[] = [];
+  for (const fixturePath of fixturePaths) {
+    const fixtures = JSON.parse(readFileSync(fixturePath, "utf8")) as BreakerFixtureFile | CheckpointFixtureFile;
+    runFile(fixtures, dump);
+    versions.push(fixtures.fixture_version);
   }
+  if (dump) return;
 
-  runClassify(fixtures.classify);
-  runBackoff(fixtures.backoff);
-  runState(fixtures.state);
-
+  const label = `fixture_version=${versions.join(", ")}`;
   if (failureCount > 0) {
-    console.error(`\n${failureCount} mismatch(es) across ${caseCount} cases (fixture_version=${fixtures.fixture_version}).`);
+    console.error(`\n${failureCount} mismatch(es) across ${caseCount} cases (${label}).`);
     process.exit(1);
   }
-  console.log(`OK: ${caseCount} cases passed (fixture_version=${fixtures.fixture_version}).`);
+  console.log(`OK: ${caseCount} cases passed (${label}).`);
 }
 
 main();
