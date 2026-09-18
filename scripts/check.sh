@@ -15,6 +15,9 @@ failed=0
 skipped=0
 
 pass() { printf '  PASS  %s\n' "$1"; }
+# A FAIL line's wording is evidence: scripts/mutants.py credits a mutant only
+# when the FAIL lines it names appear. Rewording one fails that suite loudly;
+# update the mutant's evidence with it.
 fail() { printf '  FAIL  %s\n' "$1"; failed=$((failed + 1)); }
 skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
 

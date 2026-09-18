@@ -55,7 +55,9 @@ function, sleep for you, and read the wall clock themselves. This one reads noth
 ## Languages
 
 The spec is the product; the implementations are references that prove it is portable. Each implementation
-passes the same conformance fixtures, and CI compares their output byte for byte.
+passes the same conformance fixtures, and CI compares their output byte for byte. CI also runs
+`scripts/mutants.py`, which breaks one promise at a time — in an implementation, a runner, a fixture, or the
+gates themselves — and requires the gates to catch every one.
 
 | Language | Status |
 |---|---|
