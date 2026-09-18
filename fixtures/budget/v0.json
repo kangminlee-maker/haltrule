@@ -39,26 +39,33 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "9223372036854775807",
+          "ms": "9223372036854775807",
+          "tokens": "9223372036854775807"
         }
-      ]
+      }
     },
     {
       "id": "all_caps_null_never_exhausted",
@@ -80,14 +87,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "10",
+          "ms": "10",
+          "tokens": "10"
         }
-      ]
+      }
     },
     {
       "id": "turns_exhausted_when_used_reaches_cap",
@@ -120,32 +134,39 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "4",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "turns_one_charge_exactly_the_cap",
@@ -163,14 +184,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "5",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "turns_one_charge_past_the_cap",
@@ -188,14 +216,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "6",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "turns_one_below_then_one_more",
@@ -218,20 +253,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "5",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "time_exhausted_when_used_reaches_cap",
@@ -254,20 +296,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_time",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "1000",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "time_one_charge_past_the_cap",
@@ -285,14 +334,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_time",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "1001",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "tokens_exhausted_when_used_reaches_cap",
@@ -315,20 +371,156 @@
           }
         }
       ],
-      "expect": [
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "2000000"
+        }
+      }
+    },
+    {
+      "id": "tokens_one_charge_past_the_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
         {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
+          "tokens": {
+            "$number": "2"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "2"
+        }
+      }
+    },
+    {
+      "id": "tokens_stay_exhausted_past_the_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "1"
+          }
         },
         {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "7"
+          }
         }
-      ]
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "9"
+        }
+      }
+    },
+    {
+      "id": "time_stays_exhausted_past_the_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "10"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "ms": {
+            "$number": "10"
+          }
+        },
+        {
+          "ms": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "11",
+          "tokens": "0"
+        }
+      }
     },
     {
       "id": "zero_charge_reports_the_current_state",
@@ -356,26 +548,33 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "empty_charge_reports_the_current_state",
@@ -395,26 +594,33 @@
         },
         {}
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "zero_cap_is_exhausted_before_any_charge",
@@ -428,14 +634,21 @@
       "charges": [
         {}
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "zero_time_cap_is_exhausted_before_any_charge",
@@ -449,14 +662,339 @@
       "charges": [
         {}
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_time",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
+    },
+    {
+      "id": "zero_token_cap_is_exhausted_before_any_charge",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "0"
+        }
+      },
+      "charges": [
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "zero_caps_report_turns_first",
+      "budget": {
+        "max_turns": {
+          "$number": "0"
+        },
+        "time_budget_ms": {
+          "$number": "0"
+        },
+        "token_budget": {
+          "$number": "0"
+        }
+      },
+      "charges": [
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "empty_charge_under_time_cap_reports_the_current_state",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "1"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {},
+        {
+          "ms": {
+            "$number": "1"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "1",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "empty_charge_under_token_cap_reports_the_current_state",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {},
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "1"
+        }
+      }
+    },
+    {
+      "id": "zero_charge_under_time_cap_reports_the_current_state",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "1"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "ms": {
+            "$number": "0"
+          }
+        },
+        {
+          "ms": {
+            "$number": "1"
+          }
+        },
+        {
+          "ms": {
+            "$number": "0"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "1",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "zero_charge_under_token_cap_reports_the_current_state",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "0"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "0"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "1"
+        }
+      }
+    },
+    {
+      "id": "omitted_resources_charge_nothing",
+      "budget": {
+        "max_turns": {
+          "$number": "1"
+        },
+        "time_budget_ms": {
+          "$number": "1"
+        },
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "0"
+          }
+        },
+        {
+          "ms": {
+            "$number": "0"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "1"
+        }
+      }
     },
     {
       "id": "turns_reported_before_time_before_tokens",
@@ -484,14 +1022,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "1",
+          "tokens": "1"
         }
-      ]
+      }
     },
     {
       "id": "time_reported_before_tokens",
@@ -517,14 +1062,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_time",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "5",
+          "ms": "1",
+          "tokens": "1"
         }
-      ]
+      }
     },
     {
       "id": "tokens_alone",
@@ -548,14 +1100,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "5",
+          "ms": "5",
+          "tokens": "1"
         }
-      ]
+      }
     },
     {
       "id": "first_exhausted_resource_keeps_the_verdict",
@@ -580,20 +1139,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "2",
+          "ms": "0",
+          "tokens": "10"
         }
-      ]
+      }
     },
     {
       "id": "exhausted_stays_exhausted_without_charges",
@@ -613,26 +1179,33 @@
         {},
         {}
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "1"
         }
-      ]
+      }
     },
     {
       "id": "cap_at_ledger_max_reached_by_saturation",
@@ -655,20 +1228,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "9223372036854775807",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "cap_at_ledger_max_reached_exactly",
@@ -686,14 +1266,21 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_time",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "9223372036854775807",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "largest_safe_integer_cap",
@@ -716,20 +1303,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "9007199254740991",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     },
     {
       "id": "cap_past_the_safe_range_is_exact",
@@ -752,20 +1346,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_tokens",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "9007199254740993"
         }
-      ]
+      }
     },
     {
       "id": "chat_agent_preset",
@@ -804,20 +1405,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "200",
+          "ms": "1790001",
+          "tokens": "1990001"
         }
-      ]
+      }
     },
     {
       "id": "integral_float_is_its_integer",
@@ -840,20 +1448,27 @@
           }
         }
       ],
-      "expect": [
-        {
-          "spec": "haltrule/0",
-          "verdict": "ok",
-          "reason": "budget_ok",
-          "resume": null
-        },
-        {
-          "spec": "haltrule/0",
-          "verdict": "warning",
-          "reason": "budget_turns",
-          "resume": null
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "2",
+          "ms": "0",
+          "tokens": "0"
         }
-      ]
+      }
     }
   ]
 }

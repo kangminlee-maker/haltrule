@@ -1107,18 +1107,247 @@ CATALOG += [
     mutant(
         "check.sh: the seal loads every policy module",
         "scripts/check.sh",
-        'for part in parts:\n    name = f"haltrule.{part}"',
-        'for part in parts[:-1]:\n    name = f"haltrule.{part}"',
+        "for name, file in modules:",
+        "for name, file in modules[:-1]:",
         ["loaded outside the seal"],
     ),
     mutant(
         "check.sh: the policy file lists are not empty",
         "scripts/check.sh",
-        'for f in ts/*.ts; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done',
-        'for f in ts/*.tsx; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done',
+        "find ts -type f -name '*.ts' ! -path ts/run-fixtures.ts",
+        "find ts -type f -name '*.tsx' ! -path ts/run-fixtures.ts",
         ["TypeScript and", "policy files; expected at least"],
     ),
+    # --- round-4 review: the library contract (lone surrogates, the verdict
+    # shape, token overshoot, ledger saturation, a $number a double cannot hold)
+    mutant(
+        "ts slot: a lone surrogate is not a string of scalar values",
+        "ts/slot.ts",
+        "  if (hasLoneSurrogate(value)) {",
+        "  if (hasLoneSurrogate(value) && value.length > 3) {",
+        [TS_RUNNER_FAILS, "FAIL [text_lone_high_surrogate_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: a lone surrogate is not a string of scalar values",
+        "py/haltrule/slot.py",
+        "    if _has_lone_surrogate(value):",
+        "    if _has_lone_surrogate(value) and len(value) > 3:",
+        [PY_RUNNER_FAILS, "FAIL [text_lone_high_surrogate_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "ts verdict: message is a string, never null",
+        "ts/verdict.ts",
+        "  return { spec: SPEC, verdict: level, reason, message, resume };",
+        "  return { spec: SPEC, verdict: level, reason, message: null as unknown as string, resume };",
+        [TS_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.raised"],
+    ),
+    mutant(
+        "py verdict: message is a string, never None",
+        "py/haltrule/verdict.py",
+        '        "message": message,',
+        '        "message": None,',
+        [PY_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.raised"],
+    ),
+    mutant(
+        "ts budget: tokens exhausted past the cap, not only at it",
+        "ts/budget.ts",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget) {",
+        "    if (this.token_budget !== null && this.tokens_used === this.token_budget) {",
+        [TS_RUNNER_FAILS, "FAIL [tokens_one_charge_past_the_cap] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: tokens exhausted past the cap, not only at it",
+        "py/haltrule/budget.py",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget:",
+        "        if self.token_budget is not None and self.tokens_used == self.token_budget:",
+        [PY_RUNNER_FAILS, "FAIL [tokens_one_charge_past_the_cap] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: the ledger saturates at 2^63 - 1",
+        "ts/budget.ts",
+        "  return sum > LEDGER_MAX ? LEDGER_MAX : sum;",
+        "  return sum;",
+        [TS_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: the ledger saturates at 2^63 - 1",
+        "py/haltrule/budget.py",
+        "    return min(used + amount, _LEDGER_MAX)",
+        "    return used + amount",
+        [PY_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "ts runner: a $number a double cannot hold is refused, not rounded",
+        "ts/run-fixtures.ts",
+        "      if (INTEGER_LITERAL.test(inner) && !exactlyRepresentable(inner, decoded)) {",
+        "      if (INTEGER_LITERAL.test(inner) && !Number.isFinite(decoded)) {",
+        ["typescript did not refuse a $number integer literal a double cannot hold"],
+    ),
+    mutant(
+        "py runner: a $number a double cannot hold is refused, not kept exact",
+        "py/run_fixtures.py",
+        "            if not _exactly_representable(value):",
+        "            if not _exactly_representable(value) and value < 0:",
+        ["python did not refuse a $number integer literal a double cannot hold"],
+    ),
+    # --- round-4 review: the harness (each resource and each bound has its own
+    # case; the package marker and hidden files are policy files)
+    mutant(
+        "ts slot: both bounds hold when both are given",
+        "ts/slot.ts",
+        "  const max = bound(spec.max_length, `slot ${name}: max_length`);",
+        "  const max = min === null ? bound(spec.max_length, `slot ${name}: max_length`) : null;",
+        [TS_RUNNER_FAILS, "FAIL [text_both_bounds_above_max_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: both bounds hold when both are given",
+        "py/haltrule/slot.py",
+        '    maximum = _bound(spec.get("max_length"), f"slot {name}: max_length")',
+        '    maximum = None if minimum is not None else _bound(spec.get("max_length"), "max")',
+        [PY_RUNNER_FAILS, "FAIL [text_both_bounds_above_max_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "ts budget: a zero time cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms) {",
+        "    if (this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms && this.ms_used > 0n) {",
+        [TS_RUNNER_FAILS, "FAIL [zero_time_cap_is_exhausted_before_any_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a zero token cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget) {",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget && this.tokens_used > 0n) {",
+        [TS_RUNNER_FAILS, "FAIL [zero_token_cap_is_exhausted_before_any_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a zero cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.max_turns is not None and self.turns_used >= self.max_turns:",
+        "        if self.max_turns is not None and self.turns_used >= self.max_turns > 0:",
+        [PY_RUNNER_FAILS, "FAIL [zero_cap_is_exhausted_before_any_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a zero time cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms:",
+        "        if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms > 0:",
+        [PY_RUNNER_FAILS, "FAIL [zero_time_cap_is_exhausted_before_any_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a zero token cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget:",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget > 0:",
+        [PY_RUNNER_FAILS, "FAIL [zero_token_cap_is_exhausted_before_any_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an omitted turns charge is zero",
+        "ts/budget.ts",
+        '    this.turns_used = saturatingAdd(this.turns_used, ledger(charge.turns, "turns"));',
+        '    this.turns_used = saturatingAdd(this.turns_used, ledger(charge.turns ?? 1, "turns"));',
+        [TS_RUNNER_FAILS, "FAIL [empty_charge_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an omitted ms charge is zero",
+        "ts/budget.ts",
+        '    this.ms_used = saturatingAdd(this.ms_used, ledger(charge.ms, "ms"));',
+        '    this.ms_used = saturatingAdd(this.ms_used, ledger(charge.ms ?? 1, "ms"));',
+        [TS_RUNNER_FAILS, "FAIL [empty_charge_under_time_cap_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an omitted tokens charge is zero",
+        "ts/budget.ts",
+        '    this.tokens_used = saturatingAdd(this.tokens_used, ledger(charge.tokens, "tokens"));',
+        '    this.tokens_used = saturatingAdd(this.tokens_used, ledger(charge.tokens ?? 1, "tokens"));',
+        [TS_RUNNER_FAILS, "FAIL [empty_charge_under_token_cap_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: an omitted turns charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 1, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        [PY_RUNNER_FAILS, "FAIL [empty_charge_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: an omitted ms charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 1, tokens: Any = 0) -> dict[str, Any]:",
+        [PY_RUNNER_FAILS, "FAIL [empty_charge_under_time_cap_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: an omitted tokens charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 1) -> dict[str, Any]:",
+        [PY_RUNNER_FAILS, "FAIL [empty_charge_under_token_cap_reports_the_current_state] field=charge.expect"],
+    ),
+    Mutant(
+        "check.sh: a helper in the package marker is policy code too",
+        (
+            Edit(
+                "py/haltrule/__init__.py",
+                '"""haltrule: each part is a module of its own; the package holds nothing else."""\n',
+                '"""haltrule: each part is a module of its own; the package holds nothing else."""\n\nimport time\n\n\ndef read_clock():\n    return time.time()\n',
+            ),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                "from haltrule import read_clock\nfrom haltrule.verdict import verdict\n\nREAD_AT = read_clock()\n",
+            ),
+        ),
+        tuple(["py/haltrule/__init__.py (static)", "policy code imported 'time'"]),
+    ),
+    mutant(
+        "check.sh: the seal loads the package marker too",
+        "scripts/check.sh",
+        'modules = [("haltrule", "py/haltrule/__init__.py")] + [',
+        "import haltrule  # noqa: E402\nmodules = [",
+        ["module haltrule loaded outside the seal"],
+    ),
+    Mutant(
+        "check.sh: a hidden policy file is under the gates too",
+        (
+            Edit(
+                "ts/.hidden-policy.ts",
+                None,
+                'import { readFileSync } from "node:fs";\n\nexport const size = readFileSync(new URL(import.meta.url)).length;\n',
+            ),
+            Edit(
+                "ts/run-fixtures.ts",
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\nimport "./.hidden-policy.ts";\n',
+            ),
+        ),
+        tuple(["ts/.hidden-policy.ts has import(s)/require(s)/re-export(s) beyond ./verdict.ts"]),
+    ),
+    Mutant(
+        "check.sh: the typescript runner executes only the policy inventory",
+        (
+            Edit("helpers/clock.ts", None, "export const startedAt = 0;\n"),
+            Edit(
+                "ts/run-fixtures.ts",
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\nimport "../helpers/clock.ts";\n',
+            ),
+        ),
+        tuple(["ts/run-fixtures.ts imports outside the policy inventory"]),
+    ),
+    Mutant(
+        "check.sh: the python runner executes only the policy inventory",
+        (
+            Edit("py/clock_helper.py", None, "STARTED_AT = 0\n"),
+            Edit(
+                "py/run_fixtures.py",
+                "from haltrule.slot import validate_slot  # noqa: E402\n",
+                "from haltrule.slot import validate_slot  # noqa: E402\nimport clock_helper  # noqa: E402,F401\n",
+            ),
+        ),
+        tuple(["py/run_fixtures.py imports outside the standard library and the policy inventory"]),
+    ),
 ]
+
 
 if __name__ == "__main__":
     sys.exit(main())

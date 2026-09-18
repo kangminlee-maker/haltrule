@@ -22,8 +22,9 @@ whose computation raises fails under its own id.
 
 Inputs never hold a raw JSON number. Parsers disagree about some — JavaScript reads `1.0` as `1` and
 `9007199254740993` as `9007199254740992` — so two runners would test two different values. A number is
-written `{"$number": "<literal>"}` and each runner decodes the literal itself; `{"$bigint": "<literal>"}` is
-an integer the TypeScript runner builds as a bigint. `{"$unsupported": "<kind>"}` builds a value outside the
+written `{"$number": "<literal>"}` and each runner decodes the literal itself, refusing an integer literal a
+double cannot hold exactly (past ±2^53 the two languages would decode different values);
+`{"$bigint": "<literal>"}` is an integer the TypeScript runner builds as a bigint, for exactly those. `{"$unsupported": "<kind>"}` builds a value outside the
 digest model that JSON cannot spell, in each language's own form: `undefined`, `instance` (a class
 instance), `non_string_key` (a map with a symbol key in TypeScript, an int key in Python), `sparse_array`
 (an array with a hole in TypeScript; Python has no holes, so a list holding an unsupported element). Runners
@@ -36,5 +37,7 @@ A canonicalize case expects either `{"canonical", "digest"}` or `{"halt": "<reas
 is written from the spec, never produced by an implementation, and its digest is `sha256sum` of those
 bytes.
 
-A `charge` case runs its charges, in order, against one budget and expects one verdict per charge; a
-`validate` case expects one verdict. An expected verdict omits `message`, which is not part of conformance.
+A `charge` case runs its charges, in order, against one budget and expects one verdict per charge
+(`verdicts`) and the ledger afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser); a
+`validate` case expects one verdict. An expected verdict omits `message`, which is not part of conformance;
+the runners check that it is present and a string before dropping it.

@@ -104,9 +104,10 @@ not name is not reusable.
   in Unicode scalar values lies within `min_length`..`max_length`, each optional. A value of null, or a string
   that is empty or holds only ASCII whitespace, is missing: `warning`, `slot_missing`. A present value that
   fails its contract is `halt`, `slot_invalid`; one that meets it is `ok`, `slot_accepted`. Comparison is
-  exact — no trimming, no case folding, no Unicode normalization; a shape beyond length is the caller's to
-  check first, as a float's rendering is in a digest. A reference to something that exists is a `choice`
-  whose candidates are the known identifiers.
+  exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar
+  values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
+  as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
+  are the known identifiers.
 
 ## Reason registry
 

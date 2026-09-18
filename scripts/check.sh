@@ -93,13 +93,15 @@ print(sum(want.values()))
 PY
 }
 
-# The policy files: every module under ts/ and py/haltrule/ except the runner
-# and the empty package marker, so a new part is under gates 4 and 5 the day
-# it is added, with nothing to remember to list.
+# The policy files: every module under ts/ and py/haltrule/ except the runner,
+# hidden files and subdirectories included, so a new part is under gates 4
+# and 5 the day it is added, with nothing to remember to list and nothing a
+# name can hide. Python's package marker is a policy file too: the sealed run
+# loads it, so the gates read it.
 ts_policy_files=()
-for f in ts/*.ts; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done
+while IFS= read -r f; do ts_policy_files+=("$f"); done < <(find ts -type f -name '*.ts' ! -path ts/run-fixtures.ts ! -path '*/node_modules/*' | LC_ALL=C sort)
 py_policy_files=()
-for f in py/haltrule/*.py; do [ -f "$f" ] && [ "$f" != py/haltrule/__init__.py ] && py_policy_files+=("$f"); done
+while IFS= read -r f; do py_policy_files+=("$f"); done < <(find py/haltrule -type f -name '*.py' | LC_ALL=C sort)
 
 # The fixture file a corruption target lives in.
 fixture_for_target() {
@@ -201,9 +203,11 @@ elif target == "checkpoint_extra_issue":
 elif target == "checkpoint_missing_issue":
     next(c for c in fixtures["checkpoint"] if len(c["expect"]) > 1)["expect"].pop()
 elif target == "charge_verdict":
-    fixtures["charge"][0]["expect"][0]["reason"] += "_CORRUPT_MARKER"
+    fixtures["charge"][0]["expect"]["verdicts"][0]["reason"] += "_CORRUPT_MARKER"
 elif target == "charge_missing_verdict":
-    next(c for c in fixtures["charge"] if len(c["expect"]) > 1)["expect"].pop()
+    next(c for c in fixtures["charge"] if len(c["expect"]["verdicts"]) > 1)["expect"]["verdicts"].pop()
+elif target == "charge_used":
+    fixtures["charge"][0]["expect"]["used"]["turns"] += "1"
 elif target == "validate_verdict":
     case = fixtures["validate"][0]
     case["expect"]["verdict"] = "halt" if case["expect"]["verdict"] != "halt" else "ok"
@@ -274,6 +278,7 @@ corrupt_and_verify checkpoint_extra_issue     "an extra checkpoint issue"
 corrupt_and_verify checkpoint_missing_issue   "a missing checkpoint issue"
 corrupt_and_verify charge_verdict          "a corrupted charge verdict"
 corrupt_and_verify charge_missing_verdict  "a missing charge verdict"
+corrupt_and_verify charge_used             "a corrupted charge ledger"
 corrupt_and_verify validate_verdict        "a corrupted validate verdict"
 
 ts_missing_out=$(node ts/run-fixtures.ts /nonexistent/fixture.json 2>&1)
@@ -311,6 +316,8 @@ elif kind == "unknown_version":
     fixtures["fixture_version"] = "checkpoint/v999"
 elif kind == "unknown_kind":
     fixtures["canonicalize"][0]["input"] = {"$unsupported": "no_such_kind"}
+elif kind == "wide_number":
+    fixtures["canonicalize"][0]["input"] = {"$number": "9007199254740993"}
 elif kind == "unknown_section":
     fixtures["canonicalize_extra"] = [
         {"id": "never_read", "input": None, "expect": {"canonical": "WRONG", "digest": "sha256:WRONG"}}
@@ -356,6 +363,7 @@ refuse_and_verify raw_number      "raw JSON number"          "a raw number in a 
 refuse_and_verify unknown_version "unknown fixture_version"  "an unknown fixture_version"
 refuse_and_verify unknown_section "unknown fixture section"  "a fixture section no runner reads"
 refuse_and_verify unknown_kind    "unknown \$unsupported kind" "an \$unsupported kind no runner builds"
+refuse_and_verify wide_number     "not exactly representable as a double" "a \$number integer literal a double cannot hold"
 
 echo "3. parity — the two runners' actual output matches byte for byte"
 # --dump prints each case's ACTUAL result (never the fixture's expectation)
@@ -442,6 +450,81 @@ else
   fail "$py_file imports third-party modules: $py_purity_out"
 fi
 done
+
+# The runners execute nothing but that inventory: a policy imported from
+# anywhere else - a file the discovery above did not list - would run with
+# gates 4 and 5 never having read it.
+ts_runner_out=$(python3 - "${ts_policy_files[@]}" <<'PY'
+import os, re, sys
+inventory = set(sys.argv[1:])
+source = open("ts/run-fixtures.ts", encoding="utf-8").read()
+hits = []
+for match in re.finditer(r'(?:\bfrom|^\s*import)\s+"([^"]+)"', source, re.MULTILINE):
+    spec = match.group(1)
+    if spec.startswith("node:"):
+        continue
+    if spec.startswith("./") or spec.startswith("../"):
+        resolved = os.path.normpath(os.path.join("ts", spec))
+        if resolved in inventory:
+            continue
+        hits.append(f"{spec} -> {resolved}, not in the policy inventory")
+    else:
+        hits.append(f"{spec}: neither a node: builtin nor a relative path")
+if re.search(r"\bimport\s*\(|\brequire\s*\(", source):
+    hits.append("a dynamic import() or require()")
+print("\n".join(hits))
+PY
+)
+ts_runner_status=$?
+if [ $ts_runner_status -ne 0 ]; then
+  fail "ts/run-fixtures.ts import check crashed (exit $ts_runner_status)"
+  printf '%s\n' "$ts_runner_out"
+elif [ -z "$ts_runner_out" ]; then
+  pass "ts/run-fixtures.ts imports only node: builtins and files in the policy inventory"
+else
+  fail "ts/run-fixtures.ts imports outside the policy inventory"
+  printf '%s\n' "$ts_runner_out"
+fi
+
+py_runner_out=$(python3 - "${py_policy_files[@]}" <<'PY'
+import ast, sys
+inventory = set(sys.argv[1:])
+tree = ast.parse(open("py/run_fixtures.py", encoding="utf-8").read())
+hits = []
+for node in ast.walk(tree):
+    if isinstance(node, ast.Import):
+        modules = [alias.name for alias in node.names]
+    elif isinstance(node, ast.ImportFrom):
+        if node.level:
+            hits.append(f"line {node.lineno}: a relative import")
+            continue
+        modules = [node.module or ""]
+    else:
+        continue
+    for module in modules:
+        top = module.split(".")[0]
+        if top == "haltrule":
+            file = "py/" + module.replace(".", "/") + ".py"
+            if module == "haltrule" or file in inventory:
+                continue
+            hits.append(f"line {node.lineno}: {module} -> {file}, not in the policy inventory")
+        elif top not in sys.stdlib_module_names:
+            hits.append(f"line {node.lineno}: {module}: not in the standard library")
+        elif top == "importlib":
+            hits.append(f"line {node.lineno}: importlib loads modules the inventory cannot name")
+print("\n".join(hits))
+PY
+)
+py_runner_status=$?
+if [ $py_runner_status -ne 0 ]; then
+  fail "py/run_fixtures.py import check crashed (exit $py_runner_status)"
+  printf '%s\n' "$py_runner_out"
+elif [ -z "$py_runner_out" ]; then
+  pass "py/run_fixtures.py imports only the standard library and modules in the policy inventory"
+else
+  fail "py/run_fixtures.py imports outside the standard library and the policy inventory"
+  printf '%s\n' "$py_runner_out"
+fi
 
 echo "5. determinism — no clock, timer, randomness, or I/O in the policy files"
 # The spec requires these to stay pure (no I/O, no clock, no sleep). Checked
@@ -694,19 +777,22 @@ def sealed_import(name, globals=None, locals=None, fromlist=(), level=0):
 SEALED = dict(vars(builtins), __import__=sealed_import, **{n: refuse(n) for n in REFUSED})
 
 sys.path.insert(0, "py")
-import haltrule  # noqa: E402  the package itself is empty and loads normally
 
-# Every policy module, verdict first: the others import it.
+# The package marker first - code there would otherwise run outside the seal -
+# then every policy module, verdict first: the others import it.
 parts = ["verdict"] + sorted(
     path.stem for path in pathlib.Path("py/haltrule").glob("*.py") if path.stem not in ("__init__", "verdict")
 )
-for part in parts:
-    name = f"haltrule.{part}"
-    spec = importlib.util.spec_from_file_location(name, f"py/haltrule/{part}.py")
+modules = [("haltrule", "py/haltrule/__init__.py")] + [(f"haltrule.{part}", f"py/haltrule/{part}.py") for part in parts]
+for name, file in modules:
+    spec = importlib.util.spec_from_file_location(
+        name, file, submodule_search_locations=["py/haltrule"] if name == "haltrule" else None
+    )
     module = importlib.util.module_from_spec(spec)
     module.__dict__["__builtins__"] = SEALED
     sys.modules[name] = module
-    setattr(haltrule, part, module)
+    if name != "haltrule":
+        setattr(sys.modules["haltrule"], name.rpartition(".")[2], module)
     spec.loader.exec_module(module)
     # Self-check in the module's own namespace: `open` there must refuse.
     recording = False
@@ -723,9 +809,12 @@ sys.argv = ["py/run_fixtures.py"]
 try:
     runpy.run_path("py/run_fixtures.py", run_name="__main__")
 finally:
-    # Every policy module the run used must be one the seal loaded.
+    # Every policy module the run used, the package included, must be one the
+    # seal loaded.
     for loaded_name, loaded in list(sys.modules.items()):
-        if loaded_name.startswith("haltrule.") and vars(loaded).get("__builtins__") is not SEALED:
+        if loaded_name == "haltrule" or loaded_name.startswith("haltrule."):
+            if vars(loaded).get("__builtins__") is SEALED:
+                continue
             record(f"module {loaded_name} loaded outside the seal")
 PY
 py_sealed_out=$(python3 "$py_seal" 2>&1)
@@ -812,8 +901,8 @@ if [ $part_counts_status -ne 0 ] || [ -z "$part_counts" ]; then
   fail "could not read fixture case counts from $BUDGET_FIXTURE_PATH and $SLOT_FIXTURE_PATH (exit $part_counts_status)"
 else
   read -r charge_n validate_n <<< "$part_counts"
-  if [ "$charge_n" -ge 20 ]; then pass "charge: $charge_n cases (>= 20)"; else fail "charge: only $charge_n cases (need >= 20)"; fi
-  if [ "$validate_n" -ge 30 ]; then pass "validate: $validate_n cases (>= 30)"; else fail "validate: only $validate_n cases (need >= 30)"; fi
+  if [ "$charge_n" -ge 30 ]; then pass "charge: $charge_n cases (>= 30)"; else fail "charge: only $charge_n cases (need >= 30)"; fi
+  if [ "$validate_n" -ge 40 ]; then pass "validate: $validate_n cases (>= 40)"; else fail "validate: only $validate_n cases (need >= 40)"; fi
 fi
 
 # fixtures/README.md promises ASCII files, so no editor or transport can

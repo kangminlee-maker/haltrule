@@ -286,6 +286,24 @@
       }
     },
     {
+      "id": "choice_lone_low_surrogate_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "\udc00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
       "id": "text_within_bounds_accepted",
       "spec": {
         "name": "note",
@@ -586,6 +604,174 @@
         "spec": "haltrule/0",
         "verdict": "warning",
         "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_lone_high_surrogate_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "1"
+        },
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\ud800",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_lone_surrogate_between_letters_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": "a\udc00b",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_reversed_surrogate_pair_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": "\udc00\ud800",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_both_bounds_below_min_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "4"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_both_bounds_above_max_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "4"
+        }
+      },
+      "value": "abcde",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_both_bounds_at_min_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "4"
+        }
+      },
+      "value": "ab",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_both_bounds_at_max_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "4"
+        }
+      },
+      "value": "abcd",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_equal_bounds_exact_length_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "3"
+        }
+      },
+      "value": "abc",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_equal_bounds_off_by_one_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "3"
+        }
+      },
+      "value": "abcd",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
         "resume": null
       }
     }

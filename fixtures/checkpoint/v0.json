@@ -124,7 +124,7 @@
     {
       "id": "max_safe_plus_two",
       "input": {
-        "$number": "9007199254740993"
+        "$bigint": "9007199254740993"
       },
       "expect": {
         "halt": "digest_input_int_range"

@@ -232,6 +232,13 @@ def run_state(cases: list[dict]) -> None:
 _INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")
 
 
+def _exactly_representable(value: int) -> bool:
+    try:
+        return int(float(value)) == value
+    except OverflowError:
+        return False
+
+
 def _int_from_literal(text: str) -> int:
     """int(text) without Python's int-to-str digit limit, which int() enforces
     on a literal past 4300 digits. Built in chunks rather than by raising the
@@ -259,7 +266,17 @@ def _decode_fixture_value(value):
     if len(value) == 1:
         ((key, inner),) = value.items()
         if key == "$number" and isinstance(inner, str):
-            return int(inner) if _INTEGER_LITERAL.fullmatch(inner) else float(inner)
+            if not _INTEGER_LITERAL.fullmatch(inner):
+                return float(inner)
+            value = int(inner)
+            # An integer literal a double cannot hold stays exact here and
+            # rounds in JavaScript, so the two runners would test two values.
+            if not _exactly_representable(value):
+                raise ValueError(
+                    f"$number {inner} is not exactly representable as a double; "
+                    f'write {{"$bigint": "{inner}"}} so both runners decode the same value'
+                )
+            return value
         if key == "$bigint" and isinstance(inner, str):
             return (
                 _int_from_literal(inner)
@@ -321,17 +338,39 @@ def _actual_checkpoint(tc: dict) -> list:
     return actual
 
 
+_VERDICT_FIELDS = ["message", "reason", "resume", "spec", "verdict"]
+
+
 def _normative(result: dict) -> dict:
-    """A verdict as conformance sees it: without `message`, which is for people."""
+    """A verdict as conformance sees it: without `message`, which is for
+    people - after checking the shape the spec promises: exactly the five
+    fields, `message` a string. Its wording is not conformance; its presence
+    and type are."""
+    fields = sorted(result)
+    if fields != _VERDICT_FIELDS:
+        raise AssertionError(f"verdict has fields {fields}, not {_VERDICT_FIELDS}")
+    if not isinstance(result["message"], str):
+        raise AssertionError(
+            f"verdict message is {type(result['message']).__name__}, not a string"
+        )
     return {key: value for key, value in result.items() if key != "message"}
 
 
-def _actual_charge(tc: dict) -> list:
+def _actual_charge(tc: dict) -> dict:
     budget = Budget(**_decode_fixture_value(tc["budget"]))
-    return [
+    verdicts = [
         _normative(budget.charge(**_decode_fixture_value(charge)))
         for charge in tc["charges"]
     ]
+    # The ledger in decimal, so 2^63 - 1 survives JSON in every language.
+    return {
+        "verdicts": verdicts,
+        "used": {
+            "turns": str(budget.turns_used),
+            "ms": str(budget.ms_used),
+            "tokens": str(budget.tokens_used),
+        },
+    }
 
 
 def _actual_validate(tc: dict) -> dict:

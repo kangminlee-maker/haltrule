@@ -65,5 +65,5 @@ jobs:
           npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
 
       - name: Every mutant must make check.sh fail with its own evidence
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: python3 scripts/mutants.py

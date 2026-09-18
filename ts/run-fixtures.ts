@@ -145,7 +145,8 @@ interface ChargeCase {
   id: string;
   budget: unknown;
   charges: unknown[];
-  expect: NormativeVerdict[];
+  /** One verdict per charge, then the ledger, in decimal so 2^63 - 1 survives JSON. */
+  expect: { verdicts: NormativeVerdict[]; used: { turns: string; ms: string; tokens: string } };
 }
 
 interface BudgetFixtureFile {
@@ -273,15 +274,27 @@ function actualState(tc: StateCase): StateActual {
   };
 }
 
+const VERDICT_FIELDS = "message,reason,resume,spec,verdict";
+
+/** Strips `message` after checking the shape the spec promises: exactly the
+ * five fields, `message` a string. Its wording is not conformance; its
+ * presence and type are. */
 function normative(result: Verdict): NormativeVerdict {
+  const fields = Object.keys(result).sort().join(",");
+  if (fields !== VERDICT_FIELDS) throw new Error(`verdict has fields ${fields}, not ${VERDICT_FIELDS}`);
+  if (typeof result.message !== "string") throw new Error(`verdict message is ${typeof result.message}, not a string`);
   const { message, ...rest } = result;
   void message;
   return rest;
 }
 
-function actualCharge(tc: ChargeCase): NormativeVerdict[] {
+function actualCharge(tc: ChargeCase): ChargeCase["expect"] {
   const budget = new Budget(decodeFixtureValue(tc.budget) as BudgetCaps);
-  return tc.charges.map((charge) => normative(budget.charge(decodeFixtureValue(charge) as Charge)));
+  const verdicts = tc.charges.map((charge) => normative(budget.charge(decodeFixtureValue(charge) as Charge)));
+  return {
+    verdicts,
+    used: { turns: String(budget.turns_used), ms: String(budget.ms_used), tokens: String(budget.tokens_used) },
+  };
 }
 
 function actualValidate(tc: ValidateCase): NormativeVerdict {
@@ -330,6 +343,16 @@ function runState(cases: StateCase[]): void {
   }
 }
 
+const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
+
+function exactlyRepresentable(literal: string, decoded: number): boolean {
+  try {
+    return BigInt(literal) === BigInt(decoded);
+  } catch {
+    return false; // decoded is infinite or fractional, so the literal was not held
+  }
+}
+
 /** Decode a fixture input: see the header for why numbers arrive as text. */
 function decodeFixtureValue(value: unknown): unknown {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
@@ -342,7 +365,17 @@ function decodeFixtureValue(value: unknown): unknown {
   const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length === 1) {
     const [key, inner] = entries[0]!;
-    if (key === "$number" && typeof inner === "string") return Number(inner);
+    if (key === "$number" && typeof inner === "string") {
+      const decoded = Number(inner);
+      // An integer literal a double cannot hold rounds here and stays exact in
+      // Python, so the two runners would test two different values.
+      if (INTEGER_LITERAL.test(inner) && !exactlyRepresentable(inner, decoded)) {
+        throw new Error(
+          `$number ${inner} is not exactly representable as a double; write {"$bigint": "${inner}"} so both runners decode the same value`,
+        );
+      }
+      return decoded;
+    }
     if (key === "$bigint" && typeof inner === "string") {
       // The bigint cases exist to reach the implementation's bigint path; the
       // same value as a number would pass every one of them and test nothing.

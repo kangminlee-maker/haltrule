@@ -15,9 +15,10 @@
  * if it were valid. Missing is null, or a string that is empty or holds only
  * ASCII whitespace. Comparison is exact — no trimming, no case folding, no
  * Unicode normalization; a caller that wants those applies them first.
- * Lengths count Unicode scalar values, so every language counts the same. A
- * shape beyond length — a UUID, a URL — is the caller's to check, as a
- * float's rendering is the caller's in a digest.
+ * Lengths count Unicode scalar values, so every language counts the same,
+ * and a string that is not made of them (it holds a lone surrogate) fails
+ * its contract. A shape beyond length — a UUID, a URL — is the caller's to
+ * check, as a float's rendering is the caller's in a digest.
  */
 import { verdict, type Verdict } from "./verdict.ts";
 
@@ -42,6 +43,23 @@ function isBlank(text: string): boolean {
   return true;
 }
 
+/** True when a UTF-16 code unit sequence holds a surrogate without its pair. */
+function hasLoneSurrogate(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    const unit = text.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        index += 1;
+        continue;
+      }
+      return true;
+    }
+    if (unit >= 0xdc00 && unit <= 0xdfff) return true;
+  }
+  return false;
+}
+
 function bound(value: number | null | undefined, what: string): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
@@ -64,6 +82,9 @@ export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
 
   if (value === null || value === undefined) return verdict("warning", "slot_missing", `slot ${name}: no value`);
   if (typeof value !== "string") return verdict("halt", "slot_invalid", `slot ${name}: a ${typeof value} is not a string`);
+  if (hasLoneSurrogate(value)) {
+    return verdict("halt", "slot_invalid", `slot ${name}: not a string of Unicode scalar values (a lone surrogate)`);
+  }
   if (isBlank(value)) return verdict("warning", "slot_missing", `slot ${name}: blank`);
 
   if (spec.kind === "choice") {

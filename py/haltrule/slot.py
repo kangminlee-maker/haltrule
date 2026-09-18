@@ -17,9 +17,10 @@
 # if it were valid. Missing is None, or a string that is empty or holds only
 # ASCII whitespace. Comparison is exact - no trimming, no case folding, no
 # Unicode normalization; a caller that wants those applies them first.
-# Lengths count Unicode scalar values, so every language counts the same. A
-# shape beyond length - a UUID, a URL - is the caller's to check, as a float's
-# rendering is the caller's in a digest.
+# Lengths count Unicode scalar values, so every language counts the same, and
+# a string that is not made of them (it holds a lone surrogate) fails its
+# contract. A shape beyond length - a UUID, a URL - is the caller's to check,
+# as a float's rendering is the caller's in a digest.
 
 from __future__ import annotations
 
@@ -32,6 +33,11 @@ _ASCII_WHITESPACE = " \t\n\r\f\v"
 
 def _is_blank(text: str) -> bool:
     return text.strip(_ASCII_WHITESPACE) == ""
+
+
+def _has_lone_surrogate(text: str) -> bool:
+    # A Python str never pairs surrogates, so any surrogate code point is lone.
+    return any(0xD800 <= ord(character) <= 0xDFFF for character in text)
 
 
 def _bound(value: Any, what: str) -> Optional[int]:
@@ -73,6 +79,12 @@ def validate_slot(spec: Mapping[str, Any], value: Any) -> dict[str, Any]:
             "halt",
             "slot_invalid",
             f"slot {name}: a {type(value).__name__} is not a string",
+        )
+    if _has_lone_surrogate(value):
+        return verdict(
+            "halt",
+            "slot_invalid",
+            f"slot {name}: not a string of Unicode scalar values (a lone surrogate)",
         )
     if _is_blank(value):
         return verdict("warning", "slot_missing", f"slot {name}: blank")
