@@ -1,0 +1,859 @@
+{
+  "fixture_version": "budget/v0",
+  "charge": [
+    {
+      "id": "no_caps_never_exhausted",
+      "budget": {},
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$bigint": "9223372036854775807"
+          },
+          "ms": {
+            "$bigint": "9223372036854775807"
+          },
+          "tokens": {
+            "$bigint": "9223372036854775807"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "all_caps_null_never_exhausted",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "10"
+          },
+          "ms": {
+            "$number": "10"
+          },
+          "tokens": {
+            "$number": "10"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "turns_exhausted_when_used_reaches_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "3"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "turns_one_charge_exactly_the_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "5"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "5"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "turns_one_charge_past_the_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "5"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "6"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "turns_one_below_then_one_more",
+      "budget": {
+        "max_turns": {
+          "$number": "5"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "4"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "time_exhausted_when_used_reaches_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "1000"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "ms": {
+            "$number": "999"
+          }
+        },
+        {
+          "ms": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_time",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "time_one_charge_past_the_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "1000"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "ms": {
+            "$number": "1001"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_time",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "tokens_exhausted_when_used_reaches_cap",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "2000000"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "1999999"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "zero_charge_reports_the_current_state",
+      "budget": {
+        "max_turns": {
+          "$number": "1"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "0"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "0"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "empty_charge_reports_the_current_state",
+      "budget": {
+        "max_turns": {
+          "$number": "1"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {},
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {}
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "zero_cap_is_exhausted_before_any_charge",
+      "budget": {
+        "max_turns": {
+          "$number": "0"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {}
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "zero_time_cap_is_exhausted_before_any_charge",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "0"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {}
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_time",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "turns_reported_before_time_before_tokens",
+      "budget": {
+        "max_turns": {
+          "$number": "1"
+        },
+        "time_budget_ms": {
+          "$number": "1"
+        },
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "time_reported_before_tokens",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$number": "1"
+        },
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "5"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_time",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "tokens_alone",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "5"
+          },
+          "ms": {
+            "$number": "5"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "first_exhausted_resource_keeps_the_verdict",
+      "budget": {
+        "max_turns": {
+          "$number": "2"
+        },
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "2"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "10"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "exhausted_stays_exhausted_without_charges",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {},
+        {}
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "cap_at_ledger_max_reached_by_saturation",
+      "budget": {
+        "max_turns": {
+          "$bigint": "9223372036854775807"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$bigint": "9223372036854775806"
+          }
+        },
+        {
+          "turns": {
+            "$number": "5"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "cap_at_ledger_max_reached_exactly",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": {
+          "$bigint": "9223372036854775807"
+        },
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "ms": {
+            "$bigint": "9223372036854775807"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_time",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "largest_safe_integer_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "9007199254740991"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "9007199254740990"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "cap_past_the_safe_range_is_exact",
+      "budget": {
+        "max_turns": null,
+        "time_budget_ms": null,
+        "token_budget": {
+          "$bigint": "9007199254740993"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$bigint": "9007199254740992"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_tokens",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "chat_agent_preset",
+      "budget": {
+        "max_turns": {
+          "$number": "200"
+        },
+        "time_budget_ms": {
+          "$number": "1800000"
+        },
+        "token_budget": {
+          "$number": "2000000"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "199"
+          },
+          "ms": {
+            "$number": "1790000"
+          },
+          "tokens": {
+            "$number": "1990000"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    },
+    {
+      "id": "integral_float_is_its_integer",
+      "budget": {
+        "max_turns": {
+          "$number": "2.0"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "1.0"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1e0"
+          }
+        }
+      ],
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "verdict": "ok",
+          "reason": "budget_ok",
+          "resume": null
+        },
+        {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "budget_turns",
+          "resume": null
+        }
+      ]
+    }
+  ]
+}

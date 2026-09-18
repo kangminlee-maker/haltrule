@@ -14,7 +14,7 @@ Two rules hold for every fixture added here:
 ## Format
 
 One JSON file per part, `<part>/v<N>.json`, each naming itself in `fixture_version` (`breaker/v0`,
-`checkpoint/v0`). A runner given no path runs every `.json` file under `fixtures/`, picks the part from that
+`checkpoint/v0`, `budget/v0`, `slot/v0`). A runner given no path runs every `.json` file under `fixtures/`, picks the part from that
 field, and refuses a version it does not know or a section it does not read, so neither a file nor a
 section it skips can pass as zero cases. The gates count cases from the files themselves and require each
 runner to have run, and dumped, every one; a case id is therefore unique across all fixture files. A case
@@ -35,3 +35,6 @@ test needs, is a `\u` escape, and no editor or transport can normalize a test va
 A canonicalize case expects either `{"canonical", "digest"}` or `{"halt": "<reason>"}`. Its canonical form
 is written from the spec, never produced by an implementation, and its digest is `sha256sum` of those
 bytes.
+
+A `charge` case runs its charges, in order, against one budget and expects one verdict per charge; a
+`validate` case expects one verdict. An expected verdict omits `message`, which is not part of conformance.

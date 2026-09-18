@@ -1,6 +1,6 @@
 /**
  * Conformance runner for the fixtures under fixtures/ against
- * ts/breaker.ts and ts/checkpoint.ts.
+ * ts/breaker.ts, ts/checkpoint.ts, ts/budget.ts and ts/slot.ts.
  *
  * With no path, runs every .json file under fixtures/, in path order; with
  * one, runs that file only. The file's own `fixture_version` picks the part
@@ -50,6 +50,9 @@ import {
   evaluateCheckpointArtifact,
   type EvaluateCheckpointArtifactArgs,
 } from "./checkpoint.ts";
+import { Budget, type BudgetCaps, type Charge } from "./budget.ts";
+import { validateSlot, type SlotSpec } from "./slot.ts";
+import type { Verdict } from "./verdict.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_ROOT = path.join(__dirname, "..", "fixtures");
@@ -134,6 +137,35 @@ interface StateActual {
   dead_letter: DispatchDeadLetterEntry[];
   tripped: DispatchBreakerTripState | null;
 }
+
+/** A verdict as conformance sees it: without `message`, which is for people. */
+type NormativeVerdict = Omit<Verdict, "message">;
+
+interface ChargeCase {
+  id: string;
+  budget: unknown;
+  charges: unknown[];
+  expect: NormativeVerdict[];
+}
+
+interface BudgetFixtureFile {
+  fixture_version: "budget/v0";
+  charge: ChargeCase[];
+}
+
+interface ValidateCase {
+  id: string;
+  spec: unknown;
+  value: unknown;
+  expect: NormativeVerdict;
+}
+
+interface SlotFixtureFile {
+  fixture_version: "slot/v0";
+  validate: ValidateCase[];
+}
+
+type FixtureFile = BreakerFixtureFile | CheckpointFixtureFile | BudgetFixtureFile | SlotFixtureFile;
 
 let failureCount = 0;
 let caseCount = 0;
@@ -239,6 +271,21 @@ function actualState(tc: StateCase): StateActual {
     dead_letter: [...state.deadLetterEntries()],
     tripped: state.tripped(),
   };
+}
+
+function normative(result: Verdict): NormativeVerdict {
+  const { message, ...rest } = result;
+  void message;
+  return rest;
+}
+
+function actualCharge(tc: ChargeCase): NormativeVerdict[] {
+  const budget = new Budget(decodeFixtureValue(tc.budget) as BudgetCaps);
+  return tc.charges.map((charge) => normative(budget.charge(decodeFixtureValue(charge) as Charge)));
+}
+
+function actualValidate(tc: ValidateCase): NormativeVerdict {
+  return normative(validateSlot(decodeFixtureValue(tc.spec) as SlotSpec, decodeFixtureValue(tc.value)));
 }
 
 function runClassify(cases: ClassifyCase[]): void {
@@ -375,6 +422,28 @@ function runCheckpoint(cases: CheckpointCase[]): void {
   }
 }
 
+function runCharge(cases: ChargeCase[]): void {
+  for (const tc of cases) {
+    caseCount += 1;
+    const actual = computeOrFail(tc.id, "charge", () => actualCharge(tc));
+    if (actual === RAISED) continue;
+    if (!deepEqual(actual, tc.expect)) {
+      fail(tc.id, "charge.expect", tc.expect, actual);
+    }
+  }
+}
+
+function runValidate(cases: ValidateCase[]): void {
+  for (const tc of cases) {
+    caseCount += 1;
+    const actual = computeOrFail(tc.id, "validate", () => actualValidate(tc));
+    if (actual === RAISED) continue;
+    if (!deepEqual(actual, tc.expect)) {
+      fail(tc.id, "validate.expect", tc.expect, actual);
+    }
+  }
+}
+
 function dumpClassify(cases: ClassifyCase[]): void {
   for (const tc of cases) {
     console.log(canonicalStringify({ section: "classify", id: tc.id, actual: actualClassify(tc) }));
@@ -405,12 +474,26 @@ function dumpCheckpoint(cases: CheckpointCase[]): void {
   }
 }
 
+function dumpCharge(cases: ChargeCase[]): void {
+  for (const tc of cases) {
+    console.log(canonicalStringify({ section: "charge", id: tc.id, actual: actualCharge(tc) }));
+  }
+}
+
+function dumpValidate(cases: ValidateCase[]): void {
+  for (const tc of cases) {
+    console.log(canonicalStringify({ section: "validate", id: tc.id, actual: actualValidate(tc) }));
+  }
+}
+
 const SECTIONS: Record<string, readonly string[]> = {
   "breaker/v0": ["classify", "backoff", "state"],
   "checkpoint/v0": ["canonicalize", "checkpoint"],
+  "budget/v0": ["charge"],
+  "slot/v0": ["validate"],
 };
 
-function runFile(fixtures: BreakerFixtureFile | CheckpointFixtureFile, dump: boolean): void {
+function runFile(fixtures: FixtureFile, dump: boolean): void {
   // A section no runner reads would pass with every case in it wrong.
   const known = SECTIONS[fixtures.fixture_version];
   if (known !== undefined) {
@@ -438,6 +521,18 @@ function runFile(fixtures: BreakerFixtureFile | CheckpointFixtureFile, dump: boo
       runCanonicalize(fixtures.canonicalize);
       runCheckpoint(fixtures.checkpoint);
     }
+  } else if (fixtures.fixture_version === "budget/v0") {
+    if (dump) {
+      dumpCharge(fixtures.charge);
+    } else {
+      runCharge(fixtures.charge);
+    }
+  } else if (fixtures.fixture_version === "slot/v0") {
+    if (dump) {
+      dumpValidate(fixtures.validate);
+    } else {
+      runValidate(fixtures.validate);
+    }
   } else {
     throw new Error(`unknown fixture_version ${JSON.stringify((fixtures as { fixture_version: unknown }).fixture_version)}`);
   }
@@ -453,7 +548,7 @@ function main(): void {
   const fixturePaths = positional.length > 0 ? [positional[0]!] : defaultFixturePaths();
   const versions: string[] = [];
   for (const fixturePath of fixturePaths) {
-    const fixtures = JSON.parse(readFileSync(fixturePath, "utf8")) as BreakerFixtureFile | CheckpointFixtureFile;
+    const fixtures = JSON.parse(readFileSync(fixturePath, "utf8")) as FixtureFile;
     runFile(fixtures, dump);
     versions.push(fixtures.fixture_version);
   }

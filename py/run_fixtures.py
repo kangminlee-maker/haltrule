@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Conformance runner for the fixtures under fixtures/ against
-py/haltrule/breaker.py and py/haltrule/checkpoint.py.
+py/haltrule/breaker.py, checkpoint.py, budget.py and slot.py.
 
 With no path, runs every .json file under fixtures/, in path order; with one,
 runs that file only. The file's own `fixture_version` picks the part under
@@ -58,6 +58,8 @@ from haltrule.checkpoint import (  # noqa: E402
     checkpoint_digest,
     evaluate_checkpoint_artifact,
 )
+from haltrule.budget import Budget  # noqa: E402
+from haltrule.slot import validate_slot  # noqa: E402
 
 FIXTURE_ROOT = Path(__file__).resolve().parent.parent / "fixtures"
 
@@ -319,6 +321,27 @@ def _actual_checkpoint(tc: dict) -> list:
     return actual
 
 
+def _normative(result: dict) -> dict:
+    """A verdict as conformance sees it: without `message`, which is for people."""
+    return {key: value for key, value in result.items() if key != "message"}
+
+
+def _actual_charge(tc: dict) -> list:
+    budget = Budget(**_decode_fixture_value(tc["budget"]))
+    return [
+        _normative(budget.charge(**_decode_fixture_value(charge)))
+        for charge in tc["charges"]
+    ]
+
+
+def _actual_validate(tc: dict) -> dict:
+    return _normative(
+        validate_slot(
+            _decode_fixture_value(tc["spec"]), _decode_fixture_value(tc["value"])
+        )
+    )
+
+
 def run_canonicalize(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
@@ -343,6 +366,28 @@ def run_checkpoint(cases: list[dict]) -> None:
             continue
         if actual != tc["expect"]:
             _fail(tc["id"], "checkpoint.expect", tc["expect"], actual)
+
+
+def run_charge(cases: list[dict]) -> None:
+    global _case_count
+    for tc in cases:
+        _case_count += 1
+        actual = _compute_or_fail(tc["id"], "charge", lambda: _actual_charge(tc))
+        if actual is _RAISED:
+            continue
+        if actual != tc["expect"]:
+            _fail(tc["id"], "charge.expect", tc["expect"], actual)
+
+
+def run_validate(cases: list[dict]) -> None:
+    global _case_count
+    for tc in cases:
+        _case_count += 1
+        actual = _compute_or_fail(tc["id"], "validate", lambda: _actual_validate(tc))
+        if actual is _RAISED:
+            continue
+        if actual != tc["expect"]:
+            _fail(tc["id"], "validate.expect", tc["expect"], actual)
 
 
 def dump_classify(cases: list[dict]) -> None:
@@ -398,9 +443,29 @@ def dump_checkpoint(cases: list[dict]) -> None:
         )
 
 
+def dump_charge(cases: list[dict]) -> None:
+    for tc in cases:
+        print(
+            _canonical_json(
+                {"section": "charge", "id": tc["id"], "actual": _actual_charge(tc)}
+            )
+        )
+
+
+def dump_validate(cases: list[dict]) -> None:
+    for tc in cases:
+        print(
+            _canonical_json(
+                {"section": "validate", "id": tc["id"], "actual": _actual_validate(tc)}
+            )
+        )
+
+
 _SECTIONS = {
     "breaker/v0": ("classify", "backoff", "state"),
     "checkpoint/v0": ("canonicalize", "checkpoint"),
+    "budget/v0": ("charge",),
+    "slot/v0": ("validate",),
 }
 
 
@@ -430,6 +495,16 @@ def run_file(fixtures: dict, dump: bool) -> None:
         else:
             run_canonicalize(fixtures["canonicalize"])
             run_checkpoint(fixtures["checkpoint"])
+    elif version == "budget/v0":
+        if dump:
+            dump_charge(fixtures["charge"])
+        else:
+            run_charge(fixtures["charge"])
+    elif version == "slot/v0":
+        if dump:
+            dump_validate(fixtures["validate"])
+        else:
+            run_validate(fixtures["validate"])
     else:
         raise ValueError(f"unknown fixture_version {version!r}")
 

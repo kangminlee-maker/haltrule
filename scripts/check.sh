@@ -23,6 +23,8 @@ skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
 
 FIXTURE_PATH="fixtures/breaker/v0.json"
 CHECKPOINT_FIXTURE_PATH="fixtures/checkpoint/v0.json"
+BUDGET_FIXTURE_PATH="fixtures/budget/v0.json"
+SLOT_FIXTURE_PATH="fixtures/slot/v0.json"
 
 # Every fixture file, found the way both runners find theirs when given no path:
 # each .json under fixtures/. Gates count against this inventory, never against
@@ -91,10 +93,20 @@ print(sum(want.values()))
 PY
 }
 
+# The policy files: every module under ts/ and py/haltrule/ except the runner
+# and the empty package marker, so a new part is under gates 4 and 5 the day
+# it is added, with nothing to remember to list.
+ts_policy_files=()
+for f in ts/*.ts; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done
+py_policy_files=()
+for f in py/haltrule/*.py; do [ -f "$f" ] && [ "$f" != py/haltrule/__init__.py ] && py_policy_files+=("$f"); done
+
 # The fixture file a corruption target lives in.
 fixture_for_target() {
   case "$1" in
     canonicalize_*|checkpoint_*) printf '%s\n' "$CHECKPOINT_FIXTURE_PATH" ;;
+    charge_*) printf '%s\n' "$BUDGET_FIXTURE_PATH" ;;
+    validate_*) printf '%s\n' "$SLOT_FIXTURE_PATH" ;;
     *) printf '%s\n' "$FIXTURE_PATH" ;;
   esac
 }
@@ -188,6 +200,13 @@ elif target == "checkpoint_extra_issue":
     fixtures["checkpoint"][0]["expect"].append(dict(fixtures["checkpoint"][0]["expect"][0]))
 elif target == "checkpoint_missing_issue":
     next(c for c in fixtures["checkpoint"] if len(c["expect"]) > 1)["expect"].pop()
+elif target == "charge_verdict":
+    fixtures["charge"][0]["expect"][0]["reason"] += "_CORRUPT_MARKER"
+elif target == "charge_missing_verdict":
+    next(c for c in fixtures["charge"] if len(c["expect"]) > 1)["expect"].pop()
+elif target == "validate_verdict":
+    case = fixtures["validate"][0]
+    case["expect"]["verdict"] = "halt" if case["expect"]["verdict"] != "halt" else "ok"
 else:
     sys.exit(f"unknown corruption target: {target}")
 
@@ -253,6 +272,9 @@ corrupt_and_verify canonicalize_halt_to_value "a halt case rewritten as a value"
 corrupt_and_verify checkpoint_issue_field     "a corrupted checkpoint issue field"
 corrupt_and_verify checkpoint_extra_issue     "an extra checkpoint issue"
 corrupt_and_verify checkpoint_missing_issue   "a missing checkpoint issue"
+corrupt_and_verify charge_verdict          "a corrupted charge verdict"
+corrupt_and_verify charge_missing_verdict  "a missing charge verdict"
+corrupt_and_verify validate_verdict        "a corrupted validate verdict"
 
 ts_missing_out=$(node ts/run-fixtures.ts /nonexistent/fixture.json 2>&1)
 ts_missing_status=$?
@@ -371,23 +393,32 @@ echo "4. purity — the policy files import nothing they should not"
 # ts/checkpoint.ts may take SHA-256 from node:crypto and nothing else; the
 # spec allows SHA-256 as the one dependency where it is not otherwise at hand.
 TS_CRYPTO_IMPORT='^[0-9]+:import \{ createHash \} from "node:crypto";$'
-for ts_file in ts/breaker.ts ts/checkpoint.ts; do
+# Every part but verdict.ts may import the Verdict shape from ./verdict.ts.
+TS_VERDICT_IMPORT='^[0-9]+:import \{[^}]*\} from "\./verdict\.ts";$'
+if [ "${#ts_policy_files[@]}" -lt 5 ] || [ "${#py_policy_files[@]}" -lt 5 ]; then
+  fail "found ${#ts_policy_files[@]} TypeScript and ${#py_policy_files[@]} Python policy files; expected at least verdict, breaker, checkpoint, budget, slot"
+fi
+for ts_file in "${ts_policy_files[@]}"; do
   ts_import_hits=$(grep -nE '\bimport\b|\brequire[[:space:]]*\(|^[[:space:]]*export[[:space:]].*\bfrom\b' "$ts_file" || true)
-  if [ "$ts_file" = ts/checkpoint.ts ]; then
-    ts_import_hits=$(printf '%s\n' "$ts_import_hits" | grep -vE "$TS_CRYPTO_IMPORT" || true)
-    allowed="node:crypto's createHash"
-  else
-    allowed="nothing"
-  fi
+  case "$ts_file" in
+    ts/verdict.ts)
+      allowed="its own file" ;;
+    ts/checkpoint.ts)
+      ts_import_hits=$(printf '%s\n' "$ts_import_hits" | grep -vE "$TS_CRYPTO_IMPORT|$TS_VERDICT_IMPORT" || true)
+      allowed="node:crypto's createHash and ./verdict.ts" ;;
+    *)
+      ts_import_hits=$(printf '%s\n' "$ts_import_hits" | grep -vE "$TS_VERDICT_IMPORT" || true)
+      allowed="./verdict.ts" ;;
+  esac
   if [ -z "$ts_import_hits" ]; then
-    pass "$ts_file imports $allowed"
+    pass "$ts_file: no import beyond $allowed"
   else
     fail "$ts_file has import(s)/require(s)/re-export(s) beyond $allowed"
     printf '%s\n' "$ts_import_hits"
   fi
 done
 
-for py_file in py/haltrule/breaker.py py/haltrule/checkpoint.py; do
+for py_file in "${py_policy_files[@]}"; do
 py_purity_out=$(python3 - "$py_file" <<'PY'
 import ast, sys
 tree = ast.parse(open(sys.argv[1]).read())
@@ -397,8 +428,8 @@ for node in ast.walk(tree):
         modules += [alias.name for alias in node.names]
     elif isinstance(node, ast.ImportFrom) and node.module:
         modules.append(node.module)
-stdlib = set(sys.stdlib_module_names) | {"__future__"}
-print(",".join(m for m in modules if m.split(".")[0] not in stdlib))
+allowed = set(sys.stdlib_module_names) | {"__future__", "haltrule"}
+print(",".join(m for m in modules if m.split(".")[0] not in allowed))
 PY
 )
 py_purity_status=$?
@@ -406,7 +437,7 @@ if [ $py_purity_status -ne 0 ]; then
   fail "$py_file purity check crashed (exit $py_purity_status) — cannot verify import purity"
   printf '%s\n' "$py_purity_out"
 elif [ -z "$py_purity_out" ]; then
-  pass "$py_file imports only the standard library"
+  pass "$py_file imports only the standard library and haltrule"
 else
   fail "$py_file imports third-party modules: $py_purity_out"
 fi
@@ -490,7 +521,7 @@ visit(source);
 if (identifiers === 0) hits.push("no identifiers parsed at all");
 console.log(hits.join("\n"));
 JS
-for ts_file in ts/breaker.ts ts/checkpoint.ts; do
+for ts_file in "${ts_policy_files[@]}"; do
   ts_static_out=$(node "$ts_static_js" "$ts_file" 2>&1)
   ts_static_status=$?
   if [ $ts_static_status -ne 0 ]; then
@@ -509,11 +540,11 @@ rm -f "$ts_static_js"
 
 # 5b. Python, static: an import allowlist, and no reference at all - called or
 # not - to a builtin that does I/O, evaluates code, or reaches the builtins.
-for py_file in py/haltrule/breaker.py py/haltrule/checkpoint.py; do
+for py_file in "${py_policy_files[@]}"; do
 py_clock_out=$(python3 - "$py_file" <<'PY'
 import ast, sys
 
-ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing"}
+ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
 FORBIDDEN_NAMES = {
     "open", "print", "input", "exec", "eval", "compile", "__import__", "breakpoint",
     "__builtins__", "getattr", "setattr", "delattr", "globals", "vars", "locals",
@@ -544,7 +575,7 @@ if [ $py_clock_status -ne 0 ]; then
   fail "$py_file static check crashed (exit $py_clock_status)"
   printf '%s\n' "$py_clock_out"
 elif [ -z "$py_clock_out" ]; then
-  pass "$py_file (static) imports only __future__/dataclasses/hashlib/math/typing and names no I/O, eval, process-random, or builtins-reaching builtin"
+  pass "$py_file (static) imports only __future__/dataclasses/hashlib/math/typing/haltrule and names no I/O, eval, process-random, or builtins-reaching builtin"
 else
   fail "$py_file (static) imports outside the allowlist or names an I/O, eval, process-random, or builtins-reaching builtin"
   printf '%s\n' "$py_clock_out"
@@ -618,10 +649,11 @@ cat > "$py_seal" <<'PY'
 import builtins
 import importlib.util
 import os
+import pathlib
 import runpy
 import sys
 
-ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing"}
+ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
 REFUSED = ("open", "print", "input", "exec", "eval", "compile", "breakpoint", "hash", "id", "repr")
 
 
@@ -651,6 +683,10 @@ def sealed_import(name, globals=None, locals=None, fromlist=(), level=0):
     if level or name.split(".")[0] not in ALLOWED_MODULES:
         record(f"imported {name!r}")
         raise ImportError(f"sealed: policy code imported {name!r}")
+    # A sibling the seal has not loaded yet would load outside it.
+    if name.startswith("haltrule.") and name not in sys.modules:
+        record(f"imported {name!r} before the seal loaded it")
+        raise ImportError(f"sealed: policy code imported {name!r} before the seal loaded it")
     return real_import(name, globals, locals, fromlist, level)
 
 
@@ -660,7 +696,11 @@ SEALED = dict(vars(builtins), __import__=sealed_import, **{n: refuse(n) for n in
 sys.path.insert(0, "py")
 import haltrule  # noqa: E402  the package itself is empty and loads normally
 
-for part in ("breaker", "checkpoint"):
+# Every policy module, verdict first: the others import it.
+parts = ["verdict"] + sorted(
+    path.stem for path in pathlib.Path("py/haltrule").glob("*.py") if path.stem not in ("__init__", "verdict")
+)
+for part in parts:
     name = f"haltrule.{part}"
     spec = importlib.util.spec_from_file_location(name, f"py/haltrule/{part}.py")
     module = importlib.util.module_from_spec(spec)
@@ -680,7 +720,13 @@ for part in ("breaker", "checkpoint"):
 
 print("haltrule-seal: installed", file=sys.stderr)
 sys.argv = ["py/run_fixtures.py"]
-runpy.run_path("py/run_fixtures.py", run_name="__main__")
+try:
+    runpy.run_path("py/run_fixtures.py", run_name="__main__")
+finally:
+    # Every policy module the run used must be one the seal loaded.
+    for loaded_name, loaded in list(sys.modules.items()):
+        if loaded_name.startswith("haltrule.") and vars(loaded).get("__builtins__") is not SEALED:
+            record(f"module {loaded_name} loaded outside the seal")
 PY
 py_sealed_out=$(python3 "$py_seal" 2>&1)
 py_sealed_status=$?
@@ -754,6 +800,20 @@ else
   read -r canonicalize_n checkpoint_n <<< "$checkpoint_counts"
   if [ "$canonicalize_n" -ge 30 ]; then pass "canonicalize: $canonicalize_n cases (>= 30)"; else fail "canonicalize: only $canonicalize_n cases (need >= 30)"; fi
   if [ "$checkpoint_n" -ge 20 ]; then pass "checkpoint: $checkpoint_n cases (>= 20)"; else fail "checkpoint: only $checkpoint_n cases (need >= 20)"; fi
+fi
+
+part_counts=$(python3 - "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH" <<'PY'
+import json, sys
+print(len(json.load(open(sys.argv[1]))["charge"]), len(json.load(open(sys.argv[2]))["validate"]))
+PY
+)
+part_counts_status=$?
+if [ $part_counts_status -ne 0 ] || [ -z "$part_counts" ]; then
+  fail "could not read fixture case counts from $BUDGET_FIXTURE_PATH and $SLOT_FIXTURE_PATH (exit $part_counts_status)"
+else
+  read -r charge_n validate_n <<< "$part_counts"
+  if [ "$charge_n" -ge 20 ]; then pass "charge: $charge_n cases (>= 20)"; else fail "charge: only $charge_n cases (need >= 20)"; fi
+  if [ "$validate_n" -ge 30 ]; then pass "validate: $validate_n cases (>= 30)"; else fail "validate: only $validate_n cases (need >= 30)"; fi
 fi
 
 # fixtures/README.md promises ASCII files, so no editor or transport can

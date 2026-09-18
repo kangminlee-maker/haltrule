@@ -1,0 +1,593 @@
+{
+  "fixture_version": "slot/v0",
+  "validate": [
+    {
+      "id": "choice_first_candidate_accepted",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "keep",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_second_candidate_accepted",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "delete",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_null_is_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": null,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_empty_string_is_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_ascii_whitespace_is_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": " \t\n\r\f\u000b",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_unknown_value_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "maybe",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_case_differs_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "Keep",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_leading_space_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": " keep",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_trailing_space_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "keep ",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_number_is_not_the_string",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          "1",
+          "2"
+        ]
+      },
+      "value": {
+        "$number": "1"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_no_candidates_value_is_invalid",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": []
+      },
+      "value": "x",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_no_candidates_null_is_missing",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": []
+      },
+      "value": null,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_hangul_nfc_accepted",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "\uc0ad\uc81c",
+          "\ubcf4\uc874"
+        ]
+      },
+      "value": "\uc0ad\uc81c",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_hangul_nfd_is_invalid",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "\uc0ad\uc81c",
+          "\ubcf4\uc874"
+        ]
+      },
+      "value": "\u1109\u1161\u11a8\u110c\u1166",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_no_break_space_is_invalid_not_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "\u00a0",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "choice_ideographic_space_is_invalid_not_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "\u3000",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_within_bounds_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": "abc",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_null_is_missing",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": null,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_blank_is_missing",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": "   ",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_too_long_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": "abcdef",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_exactly_max_length_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": "abcde",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_too_short_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        }
+      },
+      "value": "ab",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_exactly_min_length_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        }
+      },
+      "value": "abc",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_length_counts_scalar_values_not_utf16_units",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud83d\ude00\ud83d\ude00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_three_non_bmp_exceed_two",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_length_counts_scalar_values_not_bytes",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud55c\uae00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_nfc_syllable_is_one_character",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\ud55c",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_nfd_syllable_is_three_characters",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\u1112\u1161\u11ab",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_no_bounds_accepts_any_non_blank",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": "anything at all, of any length",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_null_bounds_accept_any_non_blank",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": null,
+        "max_length": null
+      },
+      "value": "x",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_number_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "5"
+        }
+      },
+      "value": {
+        "$number": "42"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_inner_whitespace_counts",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "3"
+        }
+      },
+      "value": "a  b",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_leading_whitespace_counts",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        }
+      },
+      "value": " a",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_ascii_whitespace_only_is_missing_not_short",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "10"
+        }
+      },
+      "value": "\t\t",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    }
+  ]
+}

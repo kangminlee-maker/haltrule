@@ -509,9 +509,7 @@ CATALOG += [
         "ts/checkpoint.ts",
         'import { createHash } from "node:crypto";',
         'import { createHash } from "node:crypto";\nimport { readFileSync } from "node:fs";\nvoid readFileSync;',
-        [
-            "ts/checkpoint.ts has import(s)/require(s)/re-export(s) beyond node:crypto's createHash"
-        ],
+        ["ts/checkpoint.ts has import(s)/require(s)/re-export(s) beyond"],
     ),
     mutant(
         "py purity: no clock import in a policy file",
@@ -923,6 +921,202 @@ CATALOG += [
         "if (!Number.isFinite(value) || !Number.isInteger(value)) {",
         "if (!Number.isFinite(value)) {",
         [TS_RUNNER_FAILS, "FAIL [fraction] field=canonicalize.expect"],
+    ),
+    # --- budget and slot: the first parts to return the one Verdict shape ---
+    mutant(
+        "ts budget: exhausted when the amount used reaches its cap",
+        "ts/budget.ts",
+        "this.turns_used >= this.max_turns",
+        "this.turns_used > this.max_turns",
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [turns_one_charge_exactly_the_cap] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: exhausted when the amount used reaches its cap",
+        "py/haltrule/budget.py",
+        "self.turns_used >= self.max_turns",
+        "self.turns_used > self.max_turns",
+        [
+            PY_RUNNER_FAILS,
+            "FAIL [turns_one_charge_exactly_the_cap] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: turns reported before time",
+        "ts/budget.ts",
+        "if (this.max_turns !== null && this.turns_used >= this.max_turns) {",
+        "if (this.max_turns !== null && this.turns_used >= this.max_turns && !(this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms)) {",
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [turns_reported_before_time_before_tokens] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: time reported before tokens",
+        "py/haltrule/budget.py",
+        "if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms:",
+        "if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms and not (self.token_budget is not None and self.tokens_used >= self.token_budget):",
+        [PY_RUNNER_FAILS, "FAIL [time_reported_before_tokens] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a cap past 2^53 stays exact",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;',
+        '  if (typeof value === "bigint") n = BigInt(Number(value));',
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [cap_past_the_safe_range_is_exact] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a null cap means no cap, not zero",
+        "py/haltrule/budget.py",
+        "    return None if value is None else _ledger(value, what)",
+        "    return _ledger(0 if value is None else value, what)",
+        [PY_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a zero cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.max_turns !== null && this.turns_used >= this.max_turns) {",
+        "    if (this.max_turns !== null && this.turns_used >= this.max_turns && this.turns_used > 0n) {",
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [zero_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: blank is ASCII whitespace only, never a Unicode trim",
+        "ts/slot.ts",
+        "  if (isBlank(value)) return",
+        '  if (value.trim() === "") return',
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [choice_no_break_space_is_invalid_not_missing] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: blank is ASCII whitespace only, never str.strip()",
+        "py/haltrule/slot.py",
+        '    return text.strip(_ASCII_WHITESPACE) == ""',
+        '    return text.strip() == ""',
+        [
+            PY_RUNNER_FAILS,
+            "FAIL [choice_no_break_space_is_invalid_not_missing] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: length counts scalar values, not UTF-16 units",
+        "ts/slot.ts",
+        "  const length = Array.from(value).length;",
+        "  const length = value.length;",
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [text_length_counts_scalar_values_not_utf16_units] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: length counts scalar values, not bytes",
+        "py/haltrule/slot.py",
+        "    length = len(value)",
+        '    length = len(value.encode("utf-8"))',
+        [
+            PY_RUNNER_FAILS,
+            "FAIL [text_length_counts_scalar_values_not_bytes] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a candidate must match exactly, untrimmed",
+        "ts/slot.ts",
+        "    return candidates.includes(value)",
+        "    return candidates.includes(value.trim())",
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [choice_leading_space_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a candidate must match exactly, unnormalized",
+        "ts/slot.ts",
+        "    return candidates.includes(value)",
+        '    return candidates.includes(value.normalize("NFC"))',
+        [TS_RUNNER_FAILS, "FAIL [choice_hangul_nfd_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: max_length is inclusive",
+        "py/haltrule/slot.py",
+        "    if maximum is not None and length > maximum:",
+        "    if maximum is not None and length >= maximum:",
+        [
+            PY_RUNNER_FAILS,
+            "FAIL [text_exactly_max_length_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: null is missing, not invalid",
+        "py/haltrule/slot.py",
+        '    if value is None:\n        return verdict("warning", "slot_missing", f"slot {name}: no value")\n',
+        "",
+        [PY_RUNNER_FAILS, "FAIL [choice_null_is_missing] field=validate.expect"],
+    ),
+    mutant(
+        "ts verdict: every verdict carries the spec stamp",
+        "ts/verdict.ts",
+        'export const SPEC = "haltrule/0";',
+        'export const SPEC = "haltrule/1";',
+        [
+            TS_RUNNER_FAILS,
+            "FAIL [no_caps_never_exhausted] field=charge.expect",
+            "FAIL [choice_first_candidate_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py verdict: every verdict carries the spec stamp",
+        "py/haltrule/verdict.py",
+        'SPEC = "haltrule/0"',
+        'SPEC = "haltrule/1"',
+        [
+            PY_RUNNER_FAILS,
+            "FAIL [no_caps_never_exhausted] field=charge.expect",
+            "FAIL [choice_first_candidate_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts runner: a verdict is compared without its message",
+        "ts/run-fixtures.ts",
+        "  const { message, ...rest } = result;\n  void message;\n  return rest;",
+        "  return result;",
+        [TS_RUNNER_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a clock import in the policy file",
+        "py/haltrule/budget.py",
+        "from haltrule.verdict import verdict\n",
+        "from haltrule.verdict import verdict\nimport time  # noqa: F401\n",
+        ["py/haltrule/budget.py (static)", "policy code imported 'time'"],
+    ),
+    mutant(
+        "ts slot: a clock read in the policy file",
+        "ts/slot.ts",
+        "export function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        "export const loadedAt = Date.now();\nexport function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        ["ts/slot.ts (static)", "policy code used Date.now"],
+    ),
+    mutant(
+        "check.sh: the seal loads every policy module",
+        "scripts/check.sh",
+        'for part in parts:\n    name = f"haltrule.{part}"',
+        'for part in parts[:-1]:\n    name = f"haltrule.{part}"',
+        ["loaded outside the seal"],
+    ),
+    mutant(
+        "check.sh: the policy file lists are not empty",
+        "scripts/check.sh",
+        'for f in ts/*.ts; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done',
+        'for f in ts/*.tsx; do [ -f "$f" ] && [ "$f" != ts/run-fixtures.ts ] && ts_policy_files+=("$f"); done',
+        ["TypeScript and", "policy files; expected at least"],
     ),
 ]
 

@@ -1,0 +1,83 @@
+/**
+ * Slot — does a value a person or a model filled in satisfy its contract?
+ *
+ * Lifted from three pipelines' checks on submitted values: a spreadsheet
+ * adjudication that accepts only a pick from a closed set, a workflow worker
+ * that rejects a model-filled slot outside its contract before anything is
+ * written, and a hold flow that takes a person's own sentence and checks only
+ * its display contract. Two kinds cover them: `choice`, a value that must be
+ * one of the candidates exactly, and `text`, a value of the person's own
+ * within length bounds. A reference to something that exists is a `choice`
+ * whose candidates are the known identifiers.
+ *
+ * A missing value is a warning: the judgment has not been made yet. A present
+ * value that fails its contract is a halt: it would be written to a ledger as
+ * if it were valid. Missing is null, or a string that is empty or holds only
+ * ASCII whitespace. Comparison is exact — no trimming, no case folding, no
+ * Unicode normalization; a caller that wants those applies them first.
+ * Lengths count Unicode scalar values, so every language counts the same. A
+ * shape beyond length — a UUID, a URL — is the caller's to check, as a
+ * float's rendering is the caller's in a digest.
+ */
+import { verdict, type Verdict } from "./verdict.ts";
+
+export type SlotKind = "choice" | "text";
+
+export interface SlotSpec {
+  name: string;
+  kind: SlotKind;
+  /** choice: the values accepted, compared exactly. */
+  candidates?: readonly string[];
+  /** text: bounds on the length in Unicode scalar values; null or absent for none. */
+  min_length?: number | null;
+  max_length?: number | null;
+}
+
+const ASCII_WHITESPACE = " \t\n\r\f\v";
+
+function isBlank(text: string): boolean {
+  for (const character of text) {
+    if (!ASCII_WHITESPACE.includes(character)) return false;
+  }
+  return true;
+}
+
+function bound(value: number | null | undefined, what: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  throw new TypeError(`${what} must be a non-negative integer, got ${String(value)}`);
+}
+
+export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
+  const name = spec.name;
+  if (spec.kind !== "choice" && spec.kind !== "text") {
+    throw new TypeError(`slot ${name}: unknown kind ${JSON.stringify(spec.kind)}`);
+  }
+  if (spec.kind === "choice" && !Array.isArray(spec.candidates)) {
+    throw new TypeError(`slot ${name}: a choice needs candidates`);
+  }
+  const min = bound(spec.min_length, `slot ${name}: min_length`);
+  const max = bound(spec.max_length, `slot ${name}: max_length`);
+  if (min !== null && max !== null && min > max) {
+    throw new RangeError(`slot ${name}: min_length ${min} exceeds max_length ${max}`);
+  }
+
+  if (value === null || value === undefined) return verdict("warning", "slot_missing", `slot ${name}: no value`);
+  if (typeof value !== "string") return verdict("halt", "slot_invalid", `slot ${name}: a ${typeof value} is not a string`);
+  if (isBlank(value)) return verdict("warning", "slot_missing", `slot ${name}: blank`);
+
+  if (spec.kind === "choice") {
+    const candidates = spec.candidates as readonly string[];
+    return candidates.includes(value)
+      ? verdict("ok", "slot_accepted", `slot ${name}: ${JSON.stringify(value)} is a candidate`)
+      : verdict("halt", "slot_invalid", `slot ${name}: ${JSON.stringify(value)} is not one of ${candidates.length} candidates`);
+  }
+  const length = Array.from(value).length;
+  if (min !== null && length < min) {
+    return verdict("halt", "slot_invalid", `slot ${name}: ${length} characters, fewer than ${min}`);
+  }
+  if (max !== null && length > max) {
+    return verdict("halt", "slot_invalid", `slot ${name}: ${length} characters, more than ${max}`);
+  }
+  return verdict("ok", "slot_accepted", `slot ${name}: ${length} characters`);
+}

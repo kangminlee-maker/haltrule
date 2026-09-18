@@ -3,9 +3,9 @@
 The spec is the product. An implementation is conformant when it passes every fixture in `../fixtures` and
 its output matches the other implementations' byte for byte.
 
-The value model and canonicalization below govern digest inputs. They do not constrain the breaker, which
-takes its arguments as ordinary typed values; passing it a string where it expects a number is out of
-contract and its behavior there is not defined by any fixture.
+The value model and canonicalization below govern digest inputs. They do not constrain the breaker,
+`budget`, or `slot`, which take their arguments as ordinary typed values; passing one a string where it
+expects a number is out of contract and its behavior there is not defined by any fixture.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -50,18 +50,19 @@ its digest covers the quoted, escaped form. A digest of raw text is the caller's
 
 ## Verdict
 
-**Planned.** Every entry point is to return one shape. Until the other parts exist, the breaker and
-`checkpoint` return the shapes they had in the pipelines they came from: `checkpoint` returns its issue list,
-and `canonicalize` and the digest return either their result or `{halt, message}` with a `digest_input_*`
-reason. None of them raises for a verdict; `message` is for people and is not part of conformance.
+Every entry point is to return one shape; `budget` and `slot` return it today. The breaker and `checkpoint`
+still return the shapes they had in the pipelines they came from: `checkpoint` returns its issue list, and
+`canonicalize` and the digest return either their result or `{halt, message}` with a `digest_input_*`
+reason. None of them raises for a verdict; `message` is for people and is not part of conformance, so a
+fixture's expected verdict omits it.
 
 ```
 Verdict {
-  spec:    string    # spec version that produced this verdict
+  spec:    string    # spec version that produced this verdict: "haltrule/0" while the spec is a draft
   verdict: "ok" | "warning" | "halt"
   reason:  string    # from the reason registry; additions only, never redefinitions
   message: string    # for a person reading the artifact
-  resume:  string?   # where the next run should pick up, when that is knowable
+  resume:  string?   # where the next run should pick up, when that is knowable; null when it is not
 }
 ```
 
@@ -90,8 +91,22 @@ not name is not reusable.
   revision, stage-config digest, dependency digests by UTF-16 key order, the caller's validation issues; with
   none, a single `checkpoint_valid`. "Absent" follows JavaScript falsiness (null, `false`, `0`, `""`), and
   values compare with JavaScript `===`. Issue ids and file reads stay with the caller.
-- `budget` — TODO: counters, exhaustion kinds
-- `slot` — TODO: slot kinds (`choice`, `ref`, `text`), validation outcomes
+- `budget` — a ledger of turns, milliseconds, and tokens against the caps `max_turns`, `time_budget_ms`, and
+  `token_budget`, each optional. The caller charges what it measured; `charge` adds it and returns a verdict:
+  `warning` naming the first exhausted resource in the order turns, time, tokens (`budget_turns`,
+  `budget_time`, `budget_tokens`), or `ok` (`budget_ok`). A resource is exhausted when the amount used
+  reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
+  current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
+  additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
+  anything else is out of contract. What to do when exhausted is the caller's.
+- `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
+  and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
+  in Unicode scalar values lies within `min_length`..`max_length`, each optional. A value of null, or a string
+  that is empty or holds only ASCII whitespace, is missing: `warning`, `slot_missing`. A present value that
+  fails its contract is `halt`, `slot_invalid`; one that meets it is `ok`, `slot_accepted`. Comparison is
+  exact — no trimming, no case folding, no Unicode normalization; a shape beyond length is the caller's to
+  check first, as a float's rendering is in a digest. A reference to something that exists is a `choice`
+  whose candidates are the known identifiers.
 
 ## Reason registry
 
@@ -112,6 +127,13 @@ sitting in somebody's artifacts. The breaker's reasons are not registered yet.
 | `dependency_digest_mismatch` | checkpoint | a recorded dependency digest differs from the expected one, or is absent |
 | `validation_issue` | checkpoint | a caller's validation issue that named no reason of its own |
 | `checkpoint_valid` | checkpoint | nothing above applies; the artifact may be reused |
+| `budget_ok` | budget | every capped resource is below its cap |
+| `budget_turns` | budget | the turns used reached `max_turns` |
+| `budget_time` | budget | the milliseconds used reached `time_budget_ms` |
+| `budget_tokens` | budget | the tokens used reached `token_budget` |
+| `slot_accepted` | slot | the value meets the slot's contract |
+| `slot_missing` | slot | no value, or a blank one |
+| `slot_invalid` | slot | a present value that fails the slot's contract |
 
 ## Conformance
 

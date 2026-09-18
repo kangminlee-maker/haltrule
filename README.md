@@ -35,9 +35,9 @@ get a `Verdict` back; your loop decides what to do with it.
 | `budget` | whether a run has exhausted its turns, time, or tokens |
 | `slot` | whether a value filled in by a person or a model satisfies its contract |
 
-Planned, not yet built: every entry point will return one shape, meant to be written straight into your
-artifact. Today the breaker and `checkpoint` still return the shapes they had in the pipelines they were
-lifted from.
+Every entry point will return one shape, meant to be written straight into your artifact. `budget` and
+`slot` return it today; the breaker and `checkpoint` still return the shapes they had in the pipelines they
+were lifted from.
 
 ```
 Verdict { spec, verdict: ok | warning | halt, reason, message, resume }
@@ -61,8 +61,8 @@ gates themselves — and requires the gates to catch every one.
 
 | Language | Status |
 |---|---|
-| TypeScript | breaker, checkpoint implemented |
-| Python | breaker, checkpoint implemented |
+| TypeScript | breaker, checkpoint, budget, slot implemented |
+| Python | breaker, checkpoint, budget, slot implemented |
 | Go | planned, once the spec freezes |
 | Rust | planned, once the spec freezes |
 
