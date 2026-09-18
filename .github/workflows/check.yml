@@ -92,8 +92,8 @@ jobs:
             cat /tmp/mutant-py.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py.txt; then
-            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py.txt || ! grep -qF 'FAIL [trip_at_threshold_three_rate_limit] field=state.tripped' /tmp/mutant-py.txt; then
+            echo "check.sh failed, but python did not report trip_at_threshold_three_rate_limit (state.tripped); the mutation is not what it caught."
             cat /tmp/mutant-py.txt
             exit 1
           fi
@@ -120,8 +120,8 @@ jobs:
             cat /tmp/mutant-ts.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts.txt; then
-            echo "check.sh failed, but not on typescript conformance; the mutation is not what it caught."
+          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts.txt || ! grep -qF 'FAIL [trip_at_threshold_three_rate_limit] field=state.tripped' /tmp/mutant-ts.txt; then
+            echo "check.sh failed, but typescript did not report trip_at_threshold_three_rate_limit (state.tripped); the mutation is not what it caught."
             cat /tmp/mutant-ts.txt
             exit 1
           fi
@@ -151,8 +151,8 @@ jobs:
             cat /tmp/mutant-py-canon.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-canon.txt; then
-            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-canon.txt || ! grep -qF 'FAIL [key_order_non_bmp_before_private_use] field=canonicalize.expect' /tmp/mutant-py-canon.txt; then
+            echo "check.sh failed, but python did not report key_order_non_bmp_before_private_use (canonicalize.expect); the mutation is not what it caught."
             cat /tmp/mutant-py-canon.txt
             exit 1
           fi
@@ -181,8 +181,8 @@ jobs:
             cat /tmp/mutant-py-deps.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-deps.txt; then
-            echo "check.sh failed, but not on python conformance; the mutation is not what it caught."
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-deps.txt || ! grep -qF 'FAIL [dependency_order_utf16_not_code_point] field=checkpoint.expect' /tmp/mutant-py-deps.txt; then
+            echo "check.sh failed, but python did not report dependency_order_utf16_not_code_point (checkpoint.expect); the mutation is not what it caught."
             cat /tmp/mutant-py-deps.txt
             exit 1
           fi
@@ -209,11 +209,71 @@ jobs:
             cat /tmp/mutant-ts-canon.txt
             exit 1
           fi
-          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts-canon.txt; then
-            echo "check.sh failed, but not on typescript conformance; the mutation is not what it caught."
+          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts-canon.txt || ! grep -qF 'FAIL [fraction] field=canonicalize.expect' /tmp/mutant-ts-canon.txt; then
+            echo "check.sh failed, but typescript did not report fraction (canonicalize.expect); the mutation is not what it caught."
             cat /tmp/mutant-ts-canon.txt
             exit 1
           fi
           echo "check.sh caught the TypeScript float mutation, as it must:"
           grep '  FAIL  ' /tmp/mutant-ts-canon.txt
           git checkout -- ts/checkpoint.ts
+
+      # The next two protect fixtures whose value only the runner can build: an
+      # array with a hole, and an integer past Python's int-to-str digit limit.
+      # A runner that quietly built something tamer would pass every gate, so
+      # the policy defect each fixture exists for must still be caught end to end.
+      - name: Let TypeScript skip array holes, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("ts/checkpoint.ts")
+          source = path.read_text()
+          broken = source.replace(
+              "    for (let index = 0; index < value.length; index += 1) {\n      parts.push",
+              "    for (let index = 0; index < value.length; index += 1) {\n      if (!(index in value)) continue;\n      parts.push",
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-ts-holes.txt 2>&1; then
+            echo "check.sh passed with TypeScript dropping array holes. The sparse_array fixture is not pinning hole rejection."
+            cat /tmp/mutant-ts-holes.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  typescript runner exited' /tmp/mutant-ts-holes.txt || ! grep -qF 'FAIL [sparse_array] field=canonicalize.expect' /tmp/mutant-ts-holes.txt; then
+            echo "check.sh failed, but typescript did not report sparse_array (canonicalize.expect); the mutation is not what it caught."
+            cat /tmp/mutant-ts-holes.txt
+            exit 1
+          fi
+          echo "check.sh caught the TypeScript hole mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-ts-holes.txt
+          git checkout -- ts/checkpoint.ts
+
+      - name: Let Python spell out a huge integer in a halt message, then expect check.sh to fail
+        run: |
+          python - <<'PY'
+          import pathlib
+          path = pathlib.Path("py/haltrule/checkpoint.py")
+          source = path.read_text()
+          broken = source.replace(
+              '            else f"a {value.bit_length()}-bit integer"\n',
+              '            else f"{value}"\n',
+              1,
+          )
+          assert broken != source, "the mutation did not apply; update this step"
+          path.write_text(broken)
+          PY
+          if ./scripts/check.sh > /tmp/mutant-py-bigint.txt 2>&1; then
+            echo "check.sh passed with Python raising on a 5001-digit integer. The bigint_5001_digits fixture is not reaching the digit limit."
+            cat /tmp/mutant-py-bigint.txt
+            exit 1
+          fi
+          if ! grep -q '  FAIL  python runner exited' /tmp/mutant-py-bigint.txt || ! grep -qF 'FAIL [bigint_5001_digits] field=canonicalize.raised' /tmp/mutant-py-bigint.txt; then
+            echo "check.sh failed, but python did not report bigint_5001_digits (canonicalize.raised); the mutation is not what it caught."
+            cat /tmp/mutant-py-bigint.txt
+            exit 1
+          fi
+          echo "check.sh caught the Python digit-limit mutation, as it must:"
+          grep '  FAIL  ' /tmp/mutant-py-bigint.txt
+          git checkout -- py/haltrule/checkpoint.py

@@ -113,6 +113,20 @@ def _fail(case_id: str, field: str, expected, actual) -> None:
     )
 
 
+_RAISED = object()
+
+
+def _compute_or_fail(case_id: str, section: str, compute):
+    """A case whose computation raises is a failure of that case, reported
+    under its id - not a crash that hides which case failed, or whether any
+    case ran at all."""
+    try:
+        return compute()
+    except Exception as error:
+        _fail(case_id, f"{section}.raised", None, f"{type(error).__name__}: {error}")
+        return _RAISED
+
+
 def _actual_classify(tc: dict):
     # `message` may be a non-string (e.g. a JSON number) to exercise the
     # classifier's isinstance guard - matches how an untyped caller could
@@ -167,7 +181,9 @@ def run_classify(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
         _case_count += 1
-        actual = _actual_classify(tc)
+        actual = _compute_or_fail(tc["id"], "classify", lambda: _actual_classify(tc))
+        if actual is _RAISED:
+            continue
         if actual != tc["expect"]:
             _fail(tc["id"], "classify.expect", tc["expect"], actual)
 
@@ -176,7 +192,9 @@ def run_backoff(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
         _case_count += 1
-        actual = _actual_backoff(tc)
+        actual = _compute_or_fail(tc["id"], "backoff", lambda: _actual_backoff(tc))
+        if actual is _RAISED:
+            continue
         if actual != tc["expect_ms"]:
             _fail(tc["id"], "backoff.expect_ms", tc["expect_ms"], actual)
 
@@ -185,7 +203,9 @@ def run_state(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
         _case_count += 1
-        actual = _actual_state(tc)
+        actual = _compute_or_fail(tc["id"], "state", lambda: _actual_state(tc))
+        if actual is _RAISED:
+            continue
 
         if actual["returns"] != tc["expect"]["returns"]:
             _fail(tc["id"], "state.returns", tc["expect"]["returns"], actual["returns"])
@@ -285,6 +305,17 @@ def _actual_checkpoint(tc: dict) -> list:
             raise AssertionError(
                 f"[{tc['id']}] validation_issues as a non-list sequence gives a different verdict"
             )
+    # Text is a sequence of characters, never of issues: bytes and bytearray,
+    # which no fixture can spell, must be ignored exactly as absent issues are.
+    if args.get("validation_issues") is None:
+        for text in (b"invalid", bytearray(b"invalid")):
+            if (
+                evaluate_checkpoint_artifact(**dict(args, validation_issues=text))
+                != actual
+            ):
+                raise AssertionError(
+                    f"[{tc['id']}] validation_issues as {type(text).__name__} is not ignored"
+                )
     return actual
 
 
@@ -292,7 +323,11 @@ def run_canonicalize(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
         _case_count += 1
-        actual = _actual_canonicalize(tc)
+        actual = _compute_or_fail(
+            tc["id"], "canonicalize", lambda: _actual_canonicalize(tc)
+        )
+        if actual is _RAISED:
+            continue
         if actual != tc["expect"]:
             _fail(tc["id"], "canonicalize.expect", tc["expect"], actual)
 
@@ -301,7 +336,11 @@ def run_checkpoint(cases: list[dict]) -> None:
     global _case_count
     for tc in cases:
         _case_count += 1
-        actual = _actual_checkpoint(tc)
+        actual = _compute_or_fail(
+            tc["id"], "checkpoint", lambda: _actual_checkpoint(tc)
+        )
+        if actual is _RAISED:
+            continue
         if actual != tc["expect"]:
             _fail(tc["id"], "checkpoint.expect", tc["expect"], actual)
 

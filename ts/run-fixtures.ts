@@ -184,6 +184,20 @@ function fail(caseId: string, field: string, expected: unknown, actual: unknown)
   );
 }
 
+const RAISED = Symbol("raised");
+
+/** A case whose computation throws is a failure of that case, reported under
+ * its id — not a crash that hides which case failed, or whether any case ran
+ * at all. */
+function computeOrFail<T>(caseId: string, section: string, compute: () => T): T | typeof RAISED {
+  try {
+    return compute();
+  } catch (error) {
+    fail(caseId, `${section}.raised`, null, String(error));
+    return RAISED;
+  }
+}
+
 function actualClassify(tc: ClassifyCase): SystemicDispatchFailureClass | null {
   // `message` may be a non-string (e.g. a JSON number) to exercise the
   // classifier's typeof guard — cast through unknown, matching how an
@@ -230,7 +244,8 @@ function actualState(tc: StateCase): StateActual {
 function runClassify(cases: ClassifyCase[]): void {
   for (const tc of cases) {
     caseCount += 1;
-    const actual = actualClassify(tc);
+    const actual = computeOrFail(tc.id, "classify", () => actualClassify(tc));
+    if (actual === RAISED) continue;
     if (!deepEqual(actual, tc.expect)) {
       fail(tc.id, "classify.expect", tc.expect, actual);
     }
@@ -240,7 +255,8 @@ function runClassify(cases: ClassifyCase[]): void {
 function runBackoff(cases: BackoffCase[]): void {
   for (const tc of cases) {
     caseCount += 1;
-    const actual = actualBackoff(tc);
+    const actual = computeOrFail(tc.id, "backoff", () => actualBackoff(tc));
+    if (actual === RAISED) continue;
     if (!deepEqual(actual, tc.expect_ms)) {
       fail(tc.id, "backoff.expect_ms", tc.expect_ms, actual);
     }
@@ -250,7 +266,8 @@ function runBackoff(cases: BackoffCase[]): void {
 function runState(cases: StateCase[]): void {
   for (const tc of cases) {
     caseCount += 1;
-    const actual = actualState(tc);
+    const actual = computeOrFail(tc.id, "state", () => actualState(tc));
+    if (actual === RAISED) continue;
     if (!deepEqual(actual.returns, tc.expect.returns)) {
       fail(tc.id, "state.returns", tc.expect.returns, actual.returns);
     }
@@ -339,7 +356,8 @@ function actualCheckpoint(tc: CheckpointCase): unknown[] {
 function runCanonicalize(cases: CanonicalizeCase[]): void {
   for (const tc of cases) {
     caseCount += 1;
-    const actual = actualCanonicalize(tc);
+    const actual = computeOrFail(tc.id, "canonicalize", () => actualCanonicalize(tc));
+    if (actual === RAISED) continue;
     if (!deepEqual(actual, tc.expect)) {
       fail(tc.id, "canonicalize.expect", tc.expect, actual);
     }
@@ -349,7 +367,8 @@ function runCanonicalize(cases: CanonicalizeCase[]): void {
 function runCheckpoint(cases: CheckpointCase[]): void {
   for (const tc of cases) {
     caseCount += 1;
-    const actual = actualCheckpoint(tc);
+    const actual = computeOrFail(tc.id, "checkpoint", () => actualCheckpoint(tc));
+    if (actual === RAISED) continue;
     if (!deepEqual(actual, tc.expect)) {
       fail(tc.id, "checkpoint.expect", tc.expect, actual);
     }

@@ -41,6 +41,18 @@ total = sum(
 )
 if total == 0:
     sys.exit("the fixture inventory holds no cases")
+ids = [
+    (section, case["id"])
+    for f in sys.argv[1:]
+    for section, cases in json.load(open(f, encoding="utf-8")).items()
+    if isinstance(cases, list)
+    for case in cases
+]
+repeated = sorted({i for i in ids if ids.count(i) > 1})
+if repeated:
+    # Coverage is matched by section and id, so an id two files share would
+    # let a runner that ran one file twice pass for having run both.
+    sys.exit("case ids repeat across the fixture inventory: " + ", ".join(f"{s}/{i}" for s, i in repeated[:5]))
 print(total)
 PY
 }
@@ -58,6 +70,8 @@ for f in sys.argv[2:]:
             want.update((section, case["id"]) for case in cases)
 if not want:
     sys.exit("the fixture inventory holds no cases")
+if max(want.values()) > 1:
+    sys.exit("case ids repeat across the fixture inventory; coverage cannot be matched by id")
 got = collections.Counter()
 for line in open(sys.argv[1], encoding="utf-8"):
     row = json.loads(line)
@@ -89,10 +103,10 @@ ts_line=$(printf '%s\n' "$ts_full" | tail -1)
 py_full=$(python3 py/run_fixtures.py 2>&1)
 py_status=$?
 py_line=$(printf '%s\n' "$py_full" | tail -1)
-inventory_cases=$(fixture_case_count)
+inventory_cases=$(fixture_case_count 2>&1)
 inventory_status=$?
-if [ $inventory_status -ne 0 ] || [ -z "$inventory_cases" ]; then
-  fail "could not count the fixture inventory (exit $inventory_status) — no runner count can be checked against it"
+if [ $inventory_status -ne 0 ] || ! [[ "$inventory_cases" =~ ^[0-9]+$ ]]; then
+  fail "could not count the fixture inventory, so no runner count can be checked against it: $inventory_cases"
   inventory_cases=-1
 fi
 for lang in typescript python; do
@@ -336,7 +350,7 @@ if [ $ts_dump_status -ne 0 ] || [ $py_dump_status -ne 0 ]; then
   echo "--- python --dump output ---"; cat "$py_dump_file"
 elif cmp -s "$ts_dump_file" "$py_dump_file"; then
   # Identical is not enough: two dumps that skip the same section agree.
-  if covered=$(dump_covers_inventory "$ts_dump_file"); then
+  if covered=$(dump_covers_inventory "$ts_dump_file" 2>&1); then
     pass "identical dump covering all $covered fixture cases"
   else
     fail "both --dump outputs are identical but not complete: $covered"
@@ -698,7 +712,7 @@ done
 if [ -n "$seed_bad" ]; then
   fail "python --dump differs by hash seed (seeds:$seed_bad vs seed 0)"
   diff "$seed_dir/0" "$seed_dir/$(printf '%s' "$seed_bad" | awk '{print $1}' | tr -dc 0-9)" 2>/dev/null | head -6
-elif ! covered=$(dump_covers_inventory "$seed_dir/0"); then
+elif ! covered=$(dump_covers_inventory "$seed_dir/0" 2>&1); then
   fail "python --dump under PYTHONHASHSEED=0 is not complete: $covered"
 else
   pass "python --dump identical under PYTHONHASHSEED 0-4, covering all $covered fixture cases"
@@ -778,11 +792,15 @@ elif ! node ts/run-fixtures.ts --dump > "$digest_dir/dump" 2>&1; then
   fail "typescript --dump failed; cannot check digests"
   tail -5 "$digest_dir/dump"
 else
-  digest_split=$(python3 - "$digest_dir" "$CHECKPOINT_FIXTURE_PATH" <<'PY'
+  digest_split=$(python3 - "$digest_dir" "${fixture_files[@]}" <<'PY'
 import json, sys
 
-out_dir, fixture_path = sys.argv[1], sys.argv[2]
-want = sum("canonical" in c["expect"] for c in json.load(open(fixture_path))["canonicalize"])
+out_dir, fixture_paths = sys.argv[1], sys.argv[2:]
+want = sum(
+    "canonical" in c["expect"]
+    for path in fixture_paths
+    for c in json.load(open(path, encoding="utf-8")).get("canonicalize", [])
+)
 written = 0
 with open(f"{out_dir}/expect", "w") as expect:
     for line in open(f"{out_dir}/dump", encoding="utf-8"):
@@ -800,7 +818,7 @@ PY
   if [ $digest_split_status -ne 0 ] || [ -z "$digest_written" ]; then
     fail "could not split canonical forms out of the dump (exit $digest_split_status)"
   elif [ "$digest_written" -eq 0 ] || [ "$digest_written" -ne "$digest_want" ]; then
-    fail "dump held $digest_written canonical forms; the fixture has $digest_want"
+    fail "dump held $digest_written canonical forms; the fixture inventory has $digest_want"
   else
     digest_bad=0
     digest_checked=0

@@ -17,7 +17,8 @@ One JSON file per part, `<part>/v<N>.json`, each naming itself in `fixture_versi
 `checkpoint/v0`). A runner given no path runs every `.json` file under `fixtures/`, picks the part from that
 field, and refuses a version it does not know or a section it does not read, so neither a file nor a
 section it skips can pass as zero cases. The gates count cases from the files themselves and require each
-runner to have run, and dumped, every one.
+runner to have run, and dumped, every one; a case id is therefore unique across all fixture files. A case
+whose computation raises fails under its own id.
 
 Inputs never hold a raw JSON number. Parsers disagree about some — JavaScript reads `1.0` as `1` and
 `9007199254740993` as `9007199254740992` — so two runners would test two different values. A number is

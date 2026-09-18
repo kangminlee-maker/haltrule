@@ -2396,6 +2396,26 @@
       ]
     },
     {
+      "id": "validation_issues_text_is_ignored",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": "invalid"
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "valid",
+          "reason": "checkpoint_valid",
+          "required_resume_from_stage": null,
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
       "id": "validation_issue_defaults",
       "args": {
         "stage_id": "draft",
