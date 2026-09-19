@@ -20,6 +20,12 @@ pass() { printf '  PASS  %s\n' "$1"; }
 # update the mutant's evidence with it.
 fail() { printf '  FAIL  %s\n' "$1"; failed=$((failed + 1)); }
 skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
+# Whether text $1 holds the fixed string $2, and whether one of its lines is
+# exactly $2. No pipe, on purpose: under pipefail, `printf ... | grep -q` is
+# false whenever grep leaves at its first match before printf has finished
+# writing - a check that passed, reported as a FAIL by timing alone.
+holds_text() { case "$1" in *"$2"*) return 0 ;; esac; return 1; }
+holds_line() { case $'\n'"$1"$'\n' in *$'\n'"$2"$'\n'*) return 0 ;; esac; return 1; }
 
 FIXTURE_PATH="fixtures/breaker/v0.json"
 CHECKPOINT_FIXTURE_PATH="fixtures/checkpoint/v0.json"
@@ -304,13 +310,13 @@ corrupt_and_verify() {
   py_out=$(python3 py/run_fixtures.py "$out" 2>&1)
   py_status=$?
 
-  if [ $ts_status -ne 0 ] && printf '%s' "$ts_out" | grep -q 'FAIL \['; then
+  if [ $ts_status -ne 0 ] && holds_text "$ts_out" 'FAIL ['; then
     pass "typescript rejects $desc"
   else
     fail "typescript did not report a mismatch for $desc (exit=$ts_status)"
     printf '%s\n' "$ts_out"
   fi
-  if [ $py_status -ne 0 ] && printf '%s' "$py_out" | grep -q 'FAIL \['; then
+  if [ $py_status -ne 0 ] && holds_text "$py_out" 'FAIL ['; then
     pass "python rejects $desc"
   else
     fail "python did not report a mismatch for $desc (exit=$py_status)"
@@ -420,13 +426,13 @@ refuse_and_verify() {
   ts_status=$?
   py_out=$(python3 py/run_fixtures.py "$out" 2>&1)
   py_status=$?
-  if [ $ts_status -ne 0 ] && printf '%s' "$ts_out" | grep -qF "$expect_text"; then
+  if [ $ts_status -ne 0 ] && holds_text "$ts_out" "$expect_text"; then
     pass "typescript refuses $desc"
   else
     fail "typescript did not refuse $desc (exit=$ts_status)"
     printf '%s\n' "$ts_out" | tail -5
   fi
-  if [ $py_status -ne 0 ] && printf '%s' "$py_out" | grep -qF "$expect_text"; then
+  if [ $py_status -ne 0 ] && holds_text "$py_out" "$expect_text"; then
     pass "python refuses $desc"
   else
     fail "python did not refuse $desc (exit=$py_status)"
@@ -892,7 +898,7 @@ ts_sealed_line=$(printf '%s\n' "$ts_sealed_out" | tail -1)
 ts_refused=$(printf '%s\n' "$ts_sealed_out" | sed -n 's/^haltrule-seal: policy code /&/p' | head -1)
 if [ -n "$ts_refused" ]; then
   fail "typescript policy code reached a refused API under the seal: $ts_refused"
-elif ! printf '%s\n' "$ts_sealed_out" | grep -qxF "$SEAL_MARKER"; then
+elif ! holds_line "$ts_sealed_out" "$SEAL_MARKER"; then
   fail "typescript sealed run carries no seal marker — the seal did not install or did not hold"
   printf '%s\n' "$ts_sealed_out" | tail -3
 elif [ $ts_sealed_status -ne $ts_status ] || [ "$ts_sealed_line" != "$ts_line" ]; then
@@ -1154,7 +1160,7 @@ py_sealed_line=$(printf '%s\n' "$py_sealed_out" | tail -1)
 py_refused=$(printf '%s\n' "$py_sealed_out" | sed -n 's/^haltrule-seal: policy code /&/p' | head -1)
 if [ -n "$py_refused" ]; then
   fail "python policy code reached a refused API under the seal: $py_refused"
-elif ! printf '%s\n' "$py_sealed_out" | grep -qxF "$SEAL_MARKER"; then
+elif ! holds_line "$py_sealed_out" "$SEAL_MARKER"; then
   fail "python sealed run carries no seal marker — the seal did not install or did not hold"
   printf '%s\n' "$py_sealed_out" | tail -3
 elif [ $py_sealed_status -ne $py_status ] || [ "$py_sealed_line" != "$py_line" ]; then
