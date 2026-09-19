@@ -19,6 +19,9 @@ pass() { printf '  PASS  %s\n' "$1"; }
 # when the FAIL lines it names appear. Rewording one fails that suite loudly;
 # update the mutant's evidence with it.
 fail() { printf '  FAIL  %s\n' "$1"; failed=$((failed + 1)); }
+# A count that is not a number must fail its gate: `[ "" -ne 12 ]` is an
+# error, and an error in an elif falls through to the PASS below it.
+is_count() { case "$1" in '' | *[!0-9]*) return 1 ;; esac; return 0; }
 skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
 
 FIXTURE_PATH="fixtures/breaker/v0.json"
@@ -372,8 +375,8 @@ refuse_and_verify wide_number_negative "not exactly representable as a double" "
 # Out-of-contract inputs the parts refuse, per the budget and slot bullets of
 # the spec. A raise fails a fixture, so no fixture can carry these promises;
 # each is called directly, in both languages, and must raise.
-OUT_OF_CONTRACT_PROBES=12
-OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative or boolean, an unknown kind, a choice without candidates, min above max, a spec without a name; budget amounts negative, fractional or boolean, a cap past 2^63 - 1 or boolean"
+OUT_OF_CONTRACT_PROBES=20
+OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative, fractional, boolean or text, an unknown kind, a choice without candidates, min above max, a name missing or not text; budget amounts and caps each negative, fractional, boolean, past 2^63 - 1 or text"
 # Plain JavaScript: node evaluates -e input as is, so no type syntax here.
 ts_probe_out=$(node --input-type=module -e '
 import { validateSlot } from "./ts/slot.ts";
@@ -381,16 +384,24 @@ import { Budget } from "./ts/budget.ts";
 const probes = [
   ["slot bound past 2^53 - 1", () => validateSlot({ name: "t", kind: "text", max_length: 9007199254740992 }, "x")],
   ["slot negative bound", () => validateSlot({ name: "t", kind: "text", min_length: -1 }, "x")],
+  ["slot fractional bound", () => validateSlot({ name: "t", kind: "text", max_length: 1.5 }, "x")],
+  ["slot boolean bound", () => validateSlot({ name: "t", kind: "text", max_length: true }, "x")],
+  ["slot text bound", () => validateSlot({ name: "t", kind: "text", max_length: "3" }, "x")],
   ["slot unknown kind", () => validateSlot({ name: "t", kind: "number" }, "x")],
   ["slot choice without candidates", () => validateSlot({ name: "t", kind: "choice" }, "x")],
   ["slot min_length above max_length", () => validateSlot({ name: "t", kind: "text", min_length: 3, max_length: 2 }, "x")],
-  ["slot boolean bound", () => validateSlot({ name: "t", kind: "text", max_length: true }, "x")],
   ["slot spec without a name", () => validateSlot({ kind: "text" }, "x")],
+  ["slot spec with a non-string name", () => validateSlot({ name: 7, kind: "text" }, "x")],
   ["budget negative charge", () => new Budget().charge({ turns: -1 })],
   ["budget fractional charge", () => new Budget().charge({ ms: 1.5 })],
   ["budget boolean charge", () => new Budget().charge({ turns: true })],
-  ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
+  ["budget charge past 2^63 - 1", () => new Budget().charge({ tokens: 9223372036854775808n })],
+  ["budget text charge", () => new Budget().charge({ turns: "1" })],
+  ["budget negative cap", () => new Budget({ max_turns: -1 })],
+  ["budget fractional cap", () => new Budget({ time_budget_ms: 1.5 })],
   ["budget boolean cap", () => new Budget({ max_turns: true })],
+  ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
+  ["budget text cap", () => new Budget({ max_turns: "1" })],
 ];
 for (const [label, probe] of probes) {
   try {
@@ -408,8 +419,8 @@ if [ $ts_probe_status -ne 0 ]; then
   printf '%s\n' "$ts_probe_out" | tail -5
 elif printf '%s\n' "$ts_probe_out" | grep -q '^accepted: '; then
   fail "typescript accepted an out-of-contract input: $(printf '%s\n' "$ts_probe_out" | sed -n 's/^accepted: //p' | head -1)"
-elif [ "$ts_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
-  fail "typescript out-of-contract probe ran $ts_probe_refused of $OUT_OF_CONTRACT_PROBES probes"
+elif ! is_count "$ts_probe_refused" || [ "$ts_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
+  fail "typescript out-of-contract probe counted '$ts_probe_refused' refusals, not $OUT_OF_CONTRACT_PROBES"
 else
   pass "typescript refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
 fi
@@ -424,16 +435,24 @@ from haltrule.slot import validate_slot  # noqa: E402
 probes = [
     ("slot bound past 2^53 - 1", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 2**53}, "x")),
     ("slot negative bound", lambda: validate_slot({"name": "t", "kind": "text", "min_length": -1}, "x")),
+    ("slot fractional bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 1.5}, "x")),
+    ("slot boolean bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": True}, "x")),
+    ("slot text bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": "3"}, "x")),
     ("slot unknown kind", lambda: validate_slot({"name": "t", "kind": "number"}, "x")),
     ("slot choice without candidates", lambda: validate_slot({"name": "t", "kind": "choice"}, "x")),
     ("slot min_length above max_length", lambda: validate_slot({"name": "t", "kind": "text", "min_length": 3, "max_length": 2}, "x")),
-    ("slot boolean bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": True}, "x")),
     ("slot spec without a name", lambda: validate_slot({"kind": "text"}, "x")),
+    ("slot spec with a non-string name", lambda: validate_slot({"name": 7, "kind": "text"}, "x")),
     ("budget negative charge", lambda: Budget().charge(turns=-1)),
     ("budget fractional charge", lambda: Budget().charge(ms=1.5)),
     ("budget boolean charge", lambda: Budget().charge(turns=True)),
-    ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
+    ("budget charge past 2^63 - 1", lambda: Budget().charge(tokens=2**63)),
+    ("budget text charge", lambda: Budget().charge(turns="1")),
+    ("budget negative cap", lambda: Budget(max_turns=-1)),
+    ("budget fractional cap", lambda: Budget(time_budget_ms=1.5)),
     ("budget boolean cap", lambda: Budget(max_turns=True)),
+    ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
+    ("budget text cap", lambda: Budget(max_turns="1")),
 ]
 for label, probe in probes:
     try:
@@ -450,8 +469,8 @@ if [ $py_probe_status -ne 0 ]; then
   printf '%s\n' "$py_probe_out" | tail -5
 elif printf '%s\n' "$py_probe_out" | grep -q '^accepted: '; then
   fail "python accepted an out-of-contract input: $(printf '%s\n' "$py_probe_out" | sed -n 's/^accepted: //p' | head -1)"
-elif [ "$py_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
-  fail "python out-of-contract probe ran $py_probe_refused of $OUT_OF_CONTRACT_PROBES probes"
+elif ! is_count "$py_probe_refused" || [ "$py_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
+  fail "python out-of-contract probe counted '$py_probe_refused' refusals, not $OUT_OF_CONTRACT_PROBES"
 else
   pass "python refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
 fi
@@ -547,16 +566,33 @@ done
 # the runners' path, a symlink - is a failure, not an invisible module. The
 # bytecode caches are the one exception: Python never imports one without
 # the source it was compiled from, and the source is in the inventory.
-known_files=" py/run_fixtures.py ts/run-fixtures.ts ts/package.json ts/tsconfig.json ${ts_policy_files[*]} ${py_policy_files[*]} "
+known_files=(py/run_fixtures.py ts/run-fixtures.ts ts/package.json ts/tsconfig.json "${ts_policy_files[@]}" "${py_policy_files[@]}")
+# Exact paths, one by one: joined into a string, a file named after two
+# neighbours in it would count as known.
+is_known_file() {
+  local candidate="$1" known
+  for known in "${known_files[@]}"; do [ "$known" = "$candidate" ] && return 0; done
+  return 1
+}
+# The listing goes to a file so that find's own status is seen; a loop fed by
+# a process substitution never learns that the listing failed, and an empty
+# listing has no unknown files in it.
+policy_listing=$(mktemp -t haltrule.XXXXXX)
+find py ts -mindepth 1 \( -type f -o -type l \) ! -path '*/__pycache__/*' ! -path '*/node_modules/*' -print0 > "$policy_listing"
+policy_listing_status=$?
 unknown_files=()
-while IFS= read -r f; do
-  case "$known_files" in
-    *" $f "*) ;;
-    *) unknown_files+=("$f") ;;
-  esac
-done < <(find py ts -mindepth 1 \( -type f -o -type l \) ! -path '*/__pycache__/*' ! -path '*/node_modules/*' | LC_ALL=C sort)
-if [ "${#unknown_files[@]}" -eq 0 ]; then
-  pass "py/ and ts/ hold only the runners, the policy files, and ts/package.json, ts/tsconfig.json"
+listed=0
+runners_listed=0
+while IFS= read -r -d '' f; do
+  listed=$((listed + 1))
+  case "$f" in py/run_fixtures.py | ts/run-fixtures.ts) runners_listed=$((runners_listed + 1)) ;; esac
+  is_known_file "$f" || unknown_files+=("$f")
+done < "$policy_listing"
+rm -f "$policy_listing"
+if [ $policy_listing_status -ne 0 ] || [ "$runners_listed" -ne 2 ]; then
+  fail "could not list py/ and ts/ (find exit $policy_listing_status; $listed entries, $runners_listed of the 2 runners among them): the unknown-file rule checked nothing"
+elif [ "${#unknown_files[@]}" -eq 0 ]; then
+  pass "py/ and ts/ hold only the runners, the policy files, and ts/package.json, ts/tsconfig.json ($listed entries)"
 else
   # An array, not a pipe into a loop: a subshell's fail would not count.
   for f in "${unknown_files[@]}"; do
@@ -850,6 +886,7 @@ import pathlib
 import runpy
 import sys
 import sysconfig
+import types
 
 ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
 REFUSED = ("open", "print", "input", "exec", "eval", "compile", "breakpoint", "hash", "id", "repr")
@@ -893,13 +930,48 @@ SEALED = dict(vars(builtins), __import__=sealed_import, **{n: refuse(n) for n in
 
 sys.path.insert(0, "py")
 
+# An allowlisted standard-library name must resolve to the interpreter's own
+# file. The finders are asked directly, before any policy code runs: what a
+# loaded module says about itself - its __file__, its __spec__ - is its own
+# to rewrite, and sys.modules would answer with exactly that.
+stdlib_roots = tuple(os.path.realpath(sysconfig.get_paths()[key]) + os.sep for key in ("stdlib", "platstdlib"))
+
+
+def resolved_origin(module_name):
+    for finder in sys.meta_path:
+        find_spec = getattr(finder, "find_spec", None)
+        found = find_spec(module_name, None) if find_spec else None
+        if found is not None:
+            return found.origin
+    return None
+
+
+for module_name in sorted(ALLOWED_MODULES - {"haltrule"}):
+    origin = resolved_origin(module_name)
+    if origin in ("built-in", "frozen"):
+        continue
+    if origin is None or not os.path.realpath(origin).startswith(stdlib_roots):
+        record(f"module {module_name} is not the standard library's: {origin}")
+        sys.exit(1)
+
+# No haltrule module may exist before the seal builds them.
+for loaded_name in list(sys.modules):
+    if loaded_name == "haltrule" or loaded_name.startswith("haltrule."):
+        record(f"module {loaded_name} loaded outside the seal")
+        sys.exit(1)
+
 # The package marker first - code there would otherwise run outside the seal -
 # then every policy module, verdict first: the others import it.
 parts = ["verdict"] + sorted(
     path.stem for path in pathlib.Path("py/haltrule").glob("*.py") if path.stem not in ("__init__", "verdict")
 )
 modules = [("haltrule", "py/haltrule/__init__.py")] + [(f"haltrule.{part}", f"py/haltrule/{part}.py") for part in parts]
+# Every module object exists, sealed and registered, before any of them runs:
+# a policy that imports a sibling at load time can then only reach a sealed
+# object, never one the import machinery would build with the real builtins
+# and the importer would keep after the seal replaced it in sys.modules.
 sealed_modules = {}
+specs = {}
 for name, file in modules:
     spec = importlib.util.spec_from_file_location(
         name, file, submodule_search_locations=["py/haltrule"] if name == "haltrule" else None
@@ -909,8 +981,10 @@ for name, file in modules:
     sys.modules[name] = module
     if name != "haltrule":
         setattr(sys.modules["haltrule"], name.rpartition(".")[2], module)
-    spec.loader.exec_module(module)
     sealed_modules[name] = module
+    specs[name] = spec
+for name, module in sealed_modules.items():
+    specs[name].loader.exec_module(module)
     # Self-check in the module's own namespace: `open` there must refuse.
     recording = False
     try:
@@ -929,23 +1003,25 @@ finally:
     # Every policy module the run used - a haltrule name, or any module whose
     # file lies inside this tree, whatever it is called - must be the very
     # object the seal loaded, not one the runtime loaded on its own; what a
-    # module says about its own builtins is not consulted. And an allowlisted
-    # standard-library name must be the standard library's file, not one from
-    # some other directory on the path.
+    # module says about its own builtins is not consulted.
     root = os.path.realpath(os.getcwd()) + os.sep
-    stdlib_roots = tuple(
-        os.path.realpath(sysconfig.get_paths()[key]) + os.sep for key in ("stdlib", "platstdlib")
-    )
     for loaded_name, loaded in list(sys.modules.items()):
         file = getattr(loaded, "__file__", None) or ""
         real = os.path.realpath(file) if file else ""
-        top = loaded_name.split(".")[0]
         if loaded_name == "haltrule" or loaded_name.startswith("haltrule.") or real.startswith(root):
             if sealed_modules.get(loaded_name) is loaded:
                 continue
             record(f"module {loaded_name} loaded outside the seal")
-        elif top in ALLOWED_MODULES and real and not real.startswith(stdlib_roots):
-            record(f"module {loaded_name} is not the standard library's: {file}")
+    # And every module object a policy module holds must be one of those, or
+    # one of the standard-library modules resolved above: sys.modules shows
+    # what is registered now, not what an importer kept from before.
+    trusted = {id(module) for module in sealed_modules.values()}
+    trusted |= {id(sys.modules[n]) for n in ALLOWED_MODULES if n in sys.modules}
+    for holder_name, holder in sealed_modules.items():
+        for held in list(vars(holder).values()):
+            if isinstance(held, types.ModuleType) and id(held) not in trusted:
+                held_name = vars(held).get("__name__", "?")
+                record(f"module {held_name} held by {holder_name} loaded outside the seal")
 PY
 py_sealed_out=$(python3 "$py_seal" 2>&1)
 py_sealed_status=$?
@@ -1037,8 +1113,20 @@ fi
 
 # fixtures/README.md promises ASCII files, so no editor or transport can
 # normalize a test value away (an NFD case silently becoming NFC).
-if [ "${#fixture_files[@]}" -lt 2 ]; then
-  fail "found ${#fixture_files[@]} fixture files; expected at least breaker and checkpoint"
+# The inventory must hold each file the gates name: a listing that lost one
+# would otherwise shrink every count taken against it without a word.
+missing_fixtures=""
+for named_fixture in "$FIXTURE_PATH" "$CHECKPOINT_FIXTURE_PATH" "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH"; do
+  in_inventory=0
+  if [ "${#fixture_files[@]}" -gt 0 ]; then
+    for f in "${fixture_files[@]}"; do
+      if [ "$f" = "$named_fixture" ]; then in_inventory=1; fi
+    done
+  fi
+  if [ $in_inventory -eq 0 ]; then missing_fixtures="$missing_fixtures $named_fixture"; fi
+done
+if [ -n "$missing_fixtures" ]; then
+  fail "the fixture inventory (${#fixture_files[@]} files) is missing:$missing_fixtures"
 else
   non_ascii=$(python3 - "${fixture_files[@]}" <<'PY'
 import sys

@@ -12,7 +12,7 @@ to and there is nothing to restore. A baseline copy must pass every gate first,
 or no failure could be credited to a mutation, and controls prove that the
 suite reports a survivor when there is one.
 
-    python3 scripts/mutants.py [--jobs N] [--only ID-PREFIX]
+    python3 scripts/mutants.py [--jobs N] [--only ID-PREFIX] [--shard I/N]
 
 Standard library only. CI runs every mutant on every push and pull request.
 """
@@ -20,6 +20,7 @@ Standard library only. CI runs every mutant on every push and pull request.
 from __future__ import annotations
 
 import argparse
+import re
 import concurrent.futures
 import dataclasses
 import json
@@ -309,12 +310,24 @@ def main() -> int:
     parser.add_argument(
         "--only", default="", help="run only mutants whose id starts with this"
     )
+    parser.add_argument(
+        "--shard",
+        default="1/1",
+        help="run slice I of N of the selection (every N-th mutant from the I-th), as I/N; the slices of one N cover it exactly once",
+    )
     args = parser.parse_args()
 
-    selected = [m for m in CATALOG if m.id.startswith(args.only)]
     problems = catalog_problems(CATALOG + [SURVIVOR])
-    if not selected:
+    shard = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", args.shard)
+    shard_index, shard_count = (int(shard[1]), int(shard[2])) if shard else (1, 1)
+    if not shard or shard_index > shard_count:
+        problems.append(f"--shard wants I/N with 1 <= I <= N, got {args.shard!r}")
+    matching = [m for m in CATALOG if m.id.startswith(args.only)]
+    selected = matching[shard_index - 1 :: shard_count]
+    if not matching:
         problems.append(f"no mutant id starts with {args.only!r}")
+    elif not selected:
+        problems.append(f"shard {args.shard} of {len(matching)} mutants is empty")
     if problems:
         print("mutants: the catalog is invalid:\n  " + "\n  ".join(problems))
         return 2
@@ -395,8 +408,9 @@ def main() -> int:
             f"CONTROL   {SURVIVOR.id}: expected to survive, got exit {survivor_status}"
         )
 
+    shard_note = f", shard {shard_index} of {shard_count}" if shard_count > 1 else ""
     partial = (
-        f" (partial: {len(selected)} of {len(CATALOG)})"
+        f" (partial: {len(selected)} of {len(CATALOG)}{shard_note})"
         if len(selected) < len(CATALOG)
         else ""
     )
@@ -633,6 +647,13 @@ CATALOG += [
         'if (key !== "fixture_version" && !known.includes(key)) {',
         "if (false) {",
         ["typescript did not refuse a fixture section no runner reads"],
+    ),
+    mutant(
+        "fixtures: the inventory holds every file the gates name",
+        "scripts/check.sh",
+        "done < <(find fixtures -type f -name '*.json' | LC_ALL=C sort)",
+        "done < <(find fixtures -type f -name '*.json' ! -path '*slot*' | LC_ALL=C sort)",
+        ["the fixture inventory (3 files) is missing: fixtures/slot/v0.json"],
     ),
     mutant(
         "fixtures: every fixture file is ASCII",
@@ -1360,6 +1381,8 @@ CATALOG += [
             [
                 "py/run_fixtures.py imports outside the standard library and the policy inventory",
                 "clock_helper: not in the standard library",
+                # and the seal's own location test: a module from inside the tree that it did not load
+                "module clock_helper loaded outside the seal",
             ]
         ),
     ),
@@ -1423,7 +1446,8 @@ CATALOG += [
         tuple(
             [
                 "py/hashlib.py is under the policy directories but the gates cannot read it",
-                "module hashlib loaded outside the seal",
+                # resolved before any policy runs, so the look-alike never executes
+                "module hashlib is not the standard library's",
             ]
         ),
     ),
@@ -1479,7 +1503,7 @@ CATALOG += [
         "check.sh: an allowlisted standard-library name must be the standard library's file",
         "scripts/check.sh",
         'py_sealed_out=$(python3 "$py_seal" 2>&1)',
-        'py_sealed_out=$(look_alike=$(mktemp -d); printf \'from _hashlib import openssl_sha256 as sha256\\n\' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" 2>&1; rm -rf "$look_alike")',
+        """py_sealed_out=$(look_alike=$(mktemp -d); printf '%s\\n' 'import os, sysconfig' 'from _hashlib import openssl_sha256 as sha256' '__file__ = os.path.join(sysconfig.get_paths()["stdlib"], "hashlib.py")' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" 2>&1; rm -rf "$look_alike")""",
         ["module hashlib is not the standard library's"],
     ),
     # --- round-4 third review (library): a name is required, both signs of a
@@ -1554,6 +1578,122 @@ CATALOG += [
         "    if isinstance(value, bool) or not isinstance(value, (int, float)):",
         "    if not isinstance(value, (int, float)):",
         ["python accepted an out-of-contract input: slot boolean bound"],
+    ),
+    # --- round-5 harness review: a module an importer kept from before the
+    # seal replaced it; the whole refusal matrix; exact paths and a checked
+    # listing in the unknown-file rule; counters that must be numbers
+    Mutant(
+        "check.sh: a policy module an importer kept is the seal's own object",
+        (
+            Edit("py/haltrule/zz_probe.py", None, "VALUE = 1\n"),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                "from haltrule import zz_probe  # noqa: F401\nfrom haltrule.verdict import verdict\n",
+            ),
+            Edit(
+                "scripts/check.sh",
+                "    sealed_modules[name] = module\n    specs[name] = spec\nfor name, module in sealed_modules.items():\n    specs[name].loader.exec_module(module)\n",
+                "    spec.loader.exec_module(module)\n    sealed_modules[name] = module\n",
+            ),
+        ),
+        tuple(["module haltrule.zz_probe held by haltrule.budget loaded outside the seal"]),
+    ),
+    mutant(
+        "py budget: a cap is held to the same contract as an amount",
+        "py/haltrule/budget.py",
+        "    return None if value is None else _ledger(value, what)",
+        "    return None if value is None else _ledger(max(value, 0), what)",
+        ["python accepted an out-of-contract input: budget negative cap"],
+    ),
+    mutant(
+        "ts budget: a cap is held to the same contract as an amount",
+        "ts/budget.ts",
+        "  return value === null || value === undefined ? null : ledger(value, what);",
+        '  return value === null || value === undefined ? null : ledger(typeof value === "number" && value < 0 ? 0 : value, what);',
+        ["typescript accepted an out-of-contract input: budget negative cap"],
+    ),
+    mutant(
+        "py budget: a fractional amount is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():",
+        "        if value != value:",
+        ["python accepted an out-of-contract input: budget fractional charge"],
+    ),
+    mutant(
+        "ts budget: a fractional amount is refused",
+        "ts/budget.ts",
+        '  else if (typeof value === "number" && Number.isInteger(value)) n = BigInt(value);',
+        '  else if (typeof value === "number" && Number.isFinite(value)) n = BigInt(Math.trunc(value));',
+        ["typescript accepted an out-of-contract input: budget fractional charge"],
+    ),
+    mutant(
+        "py budget: an amount past 2^63 - 1 is refused",
+        "py/haltrule/budget.py",
+        "    if not 0 <= value <= _LEDGER_MAX:",
+        "    if not 0 <= value:",
+        ["python accepted an out-of-contract input: budget charge past 2^63 - 1"],
+    ),
+    mutant(
+        "ts budget: an amount past 2^63 - 1 is refused",
+        "ts/budget.ts",
+        "  if (n < 0n || n > LEDGER_MAX) throw new RangeError(",
+        "  if (n < 0n) throw new RangeError(",
+        ["typescript accepted an out-of-contract input: budget charge past 2^63 - 1"],
+    ),
+    mutant(
+        "py slot: a fractional bound is refused",
+        "py/haltrule/slot.py",
+        "        if not value.is_integer():",
+        "        if value != value:",
+        ["python accepted an out-of-contract input: slot fractional bound"],
+    ),
+    mutant(
+        "ts slot: a fractional bound is refused",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER) return value;',
+        ["typescript accepted an out-of-contract input: slot fractional bound"],
+    ),
+    mutant(
+        "py slot: a name that is not text is refused",
+        "py/haltrule/slot.py",
+        "    if not isinstance(name, str):",
+        "    if name is None:",
+        ["python accepted an out-of-contract input: slot spec with a non-string name"],
+    ),
+    mutant(
+        "ts slot: a name that is not text is refused",
+        "ts/slot.ts",
+        '  if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        "  if (name === undefined) throw new TypeError(`slot spec without a string name: ${String(name)}`);",
+        ["typescript accepted an out-of-contract input: slot spec with a non-string name"],
+    ),
+    Mutant(
+        "check.sh: the unknown-file rule compares whole paths",
+        (Edit("py/run_fixtures.py ts/run-fixtures.ts", None, "export const PROBE = 1;\n"),),
+        tuple(["py/run_fixtures.py ts/run-fixtures.ts is under the policy directories but the gates cannot read it"]),
+    ),
+    mutant(
+        "check.sh: a listing that failed is not an empty listing",
+        "scripts/check.sh",
+        "find py ts -mindepth 1 \\( -type f -o -type l \\)",
+        "find py-absent ts-absent -mindepth 1 \\( -type f -o -type l \\)",
+        ["could not list py/ and ts/"],
+    ),
+    mutant(
+        "check.sh: the typescript refusal count must be a number",
+        "scripts/check.sh",
+        """ts_probe_refused=$(printf '%s\\n' "$ts_probe_out" | grep -c '^refused: ')""",
+        "ts_probe_refused=$(false)",
+        ["typescript out-of-contract probe counted ''"],
+    ),
+    mutant(
+        "check.sh: the python refusal count must be a number",
+        "scripts/check.sh",
+        """py_probe_refused=$(printf '%s\\n' "$py_probe_out" | grep -c '^refused: ')""",
+        "py_probe_refused=$(false)",
+        ["python out-of-contract probe counted ''"],
     ),
 ]
 
