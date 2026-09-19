@@ -1332,7 +1332,7 @@ CATALOG += [
                 'import { validateSlot, type SlotSpec } from "./slot.ts";\nimport "../helpers/clock.ts";\n',
             ),
         ),
-        tuple(["ts/run-fixtures.ts imports outside the policy inventory"]),
+        tuple(["ts/run-fixtures.ts imports outside the policy inventory: ../helpers/clock.ts -> helpers/clock.ts, not in the policy inventory"]),
     ),
     Mutant(
         "check.sh: the typescript runner executes only the policy inventory (a single-quoted import)",
@@ -1344,7 +1344,7 @@ CATALOG += [
                 "import { validateSlot, type SlotSpec } from \"./slot.ts\";\nimport '../helpers/clock.ts';\n",
             ),
         ),
-        tuple(["ts/run-fixtures.ts imports outside the policy inventory"]),
+        tuple(["ts/run-fixtures.ts imports outside the policy inventory: ../helpers/clock.ts -> helpers/clock.ts, not in the policy inventory"]),
     ),
     Mutant(
         "check.sh: the python runner executes only the policy inventory",
@@ -1356,7 +1356,92 @@ CATALOG += [
                 "from haltrule.slot import validate_slot  # noqa: E402\nimport clock_helper  # noqa: E402,F401\n",
             ),
         ),
-        tuple(["py/run_fixtures.py imports outside the standard library and the policy inventory"]),
+        tuple(
+            [
+                "py/run_fixtures.py imports outside the standard library and the policy inventory",
+                "clock_helper: not in the standard library",
+            ]
+        ),
+    ),
+    # --- round-4 re-review: every branch of the runner import scans has a
+    # mutant only it can satisfy; a file the gates cannot read fails; the
+    # seal trusts its own registry, not a module's word, and reads location
+    Mutant(
+        "check.sh: the typescript runner cannot reach outside the inventory by a dynamic import",
+        (
+            Edit("helpers/clock.ts", None, "export const startedAt = 0;\n"),
+            Edit(
+                "ts/run-fixtures.ts",
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\nconst outside = await import("../helpers/clock.ts");\nvoid outside;\n',
+            ),
+        ),
+        tuple(["ts/run-fixtures.ts imports outside the policy inventory: a dynamic import() or require()"]),
+    ),
+    mutant(
+        "check.sh: the typescript runner cannot reach outside the inventory by a bare specifier",
+        "ts/run-fixtures.ts",
+        'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
+        'import { validateSlot, type SlotSpec } from "./slot.ts";\nimport "typescript";\n',
+        ["ts/run-fixtures.ts imports outside the policy inventory: typescript: neither a node: builtin nor a relative path"],
+    ),
+    mutant(
+        "check.sh: the python runner cannot reach outside the inventory by a relative import",
+        "py/run_fixtures.py",
+        "from haltrule.slot import validate_slot  # noqa: E402\n",
+        "from haltrule.slot import validate_slot  # noqa: E402\nfrom . import clock_helper  # noqa: E402,F401\n",
+        ["py/run_fixtures.py imports outside the standard library and the policy inventory", "a relative import"],
+    ),
+    mutant(
+        "check.sh: the python runner cannot reach outside the inventory through importlib",
+        "py/run_fixtures.py",
+        "from haltrule.slot import validate_slot  # noqa: E402\n",
+        "from haltrule.slot import validate_slot  # noqa: E402\nimport importlib  # noqa: E402,F401\n",
+        ["py/run_fixtures.py imports outside the standard library and the policy inventory", "importlib loads modules the inventory cannot name"],
+    ),
+    mutant(
+        "check.sh: the python runner cannot import a haltrule module outside the inventory",
+        "py/run_fixtures.py",
+        "from haltrule.slot import validate_slot  # noqa: E402\n",
+        "from haltrule.slot import validate_slot  # noqa: E402\nimport haltrule.evil  # noqa: E402,F401\n",
+        ["py/run_fixtures.py imports outside the standard library and the policy inventory", "haltrule.evil -> py/haltrule/evil.py, not in the policy inventory"],
+    ),
+    Mutant(
+        "check.sh: a file the gates cannot read under the policy directories fails",
+        (Edit("py/haltrule/evil.pyc", None, "not bytecode, but the gates cannot know that\n"),),
+        tuple(["py/haltrule/evil.pyc is under the policy directories but the gates cannot read it"]),
+    ),
+    Mutant(
+        "check.sh: a sibling shadowing a standard-library module on the runners' path",
+        (
+            Edit(
+                "py/hashlib.py",
+                None,
+                "from _hashlib import openssl_sha256 as sha256  # noqa: F401\nimport time\n\nLOADED_AT = time.time()\n",
+            ),
+        ),
+        tuple(
+            [
+                "py/hashlib.py is under the policy directories but the gates cannot read it",
+                "module hashlib loaded outside the seal",
+            ]
+        ),
+    ),
+    Mutant(
+        "check.sh: a module that names itself sealed is still one the seal did not load",
+        (
+            Edit(
+                "py/haltrule/sub/__init__.py",
+                None,
+                'import sys\n\n__builtins__ = sys.modules["haltrule"].__dict__["__builtins__"]\n',
+            ),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                "from haltrule import sub  # noqa: F401\nfrom haltrule.verdict import verdict\n",
+            ),
+        ),
+        tuple(["module haltrule.sub loaded outside the seal"]),
     ),
 ]
 

@@ -97,7 +97,8 @@ PY
 # hidden files and subdirectories included, so a new part is under gates 4
 # and 5 the day it is added, with nothing to remember to list and nothing a
 # name can hide. Python's package marker is a policy file too: the sealed run
-# loads it, so the gates read it.
+# loads it, so the gates read it. Gate 4 then refuses any other file under
+# py/ or ts/: what the gates cannot read must not be there.
 ts_policy_files=()
 while IFS= read -r f; do ts_policy_files+=("$f"); done < <(find ts -type f -name '*.ts' ! -path ts/run-fixtures.ts ! -path '*/node_modules/*' | LC_ALL=C sort)
 py_policy_files=()
@@ -451,9 +452,32 @@ else
 fi
 done
 
+# Nothing else lives under the policy directories. A file the gates cannot
+# read - a compiled module, a sibling that shadows a standard-library name on
+# the runners' path, a symlink - is a failure, not an invisible module. The
+# bytecode caches are the one exception: Python never imports one without
+# the source it was compiled from, and the source is in the inventory.
+known_files=" py/run_fixtures.py ts/run-fixtures.ts ts/package.json ts/tsconfig.json ${ts_policy_files[*]} ${py_policy_files[*]} "
+unknown_files=()
+while IFS= read -r f; do
+  case "$known_files" in
+    *" $f "*) ;;
+    *) unknown_files+=("$f") ;;
+  esac
+done < <(find py ts -mindepth 1 \( -type f -o -type l \) ! -path '*/__pycache__/*' ! -path '*/node_modules/*' | LC_ALL=C sort)
+if [ "${#unknown_files[@]}" -eq 0 ]; then
+  pass "py/ and ts/ hold only the runners, the policy files, and ts/package.json, ts/tsconfig.json"
+else
+  # An array, not a pipe into a loop: a subshell's fail would not count.
+  for f in "${unknown_files[@]}"; do
+    fail "$f is under the policy directories but the gates cannot read it: neither a runner, a policy file, nor a known config"
+  done
+fi
+
 # The runners execute nothing but that inventory: a policy imported from
 # anywhere else - a file the discovery above did not list - would run with
-# gates 4 and 5 never having read it.
+# gates 4 and 5 never having read it. The FAIL line carries the first hit,
+# so each branch of the scan has evidence only it can produce.
 ts_runner_out=$(python3 - "${ts_policy_files[@]}" <<'PY'
 import os, re, sys
 inventory = set(sys.argv[1:])
@@ -482,8 +506,8 @@ if [ $ts_runner_status -ne 0 ]; then
 elif [ -z "$ts_runner_out" ]; then
   pass "ts/run-fixtures.ts imports only node: builtins and files in the policy inventory"
 else
-  fail "ts/run-fixtures.ts imports outside the policy inventory"
-  printf '%s\n' "$ts_runner_out"
+  fail "ts/run-fixtures.ts imports outside the policy inventory: $(printf '%s\n' "$ts_runner_out" | head -1)"
+  printf '%s\n' "$ts_runner_out" | tail -n +2
 fi
 
 py_runner_out=$(python3 - "${py_policy_files[@]}" <<'PY'
@@ -522,8 +546,8 @@ if [ $py_runner_status -ne 0 ]; then
 elif [ -z "$py_runner_out" ]; then
   pass "py/run_fixtures.py imports only the standard library and modules in the policy inventory"
 else
-  fail "py/run_fixtures.py imports outside the standard library and the policy inventory"
-  printf '%s\n' "$py_runner_out"
+  fail "py/run_fixtures.py imports outside the standard library and the policy inventory: $(printf '%s\n' "$py_runner_out" | head -1)"
+  printf '%s\n' "$py_runner_out" | tail -n +2
 fi
 
 echo "5. determinism — no clock, timer, randomness, or I/O in the policy files"
@@ -784,6 +808,7 @@ parts = ["verdict"] + sorted(
     path.stem for path in pathlib.Path("py/haltrule").glob("*.py") if path.stem not in ("__init__", "verdict")
 )
 modules = [("haltrule", "py/haltrule/__init__.py")] + [(f"haltrule.{part}", f"py/haltrule/{part}.py") for part in parts]
+sealed_modules = {}
 for name, file in modules:
     spec = importlib.util.spec_from_file_location(
         name, file, submodule_search_locations=["py/haltrule"] if name == "haltrule" else None
@@ -794,6 +819,7 @@ for name, file in modules:
     if name != "haltrule":
         setattr(sys.modules["haltrule"], name.rpartition(".")[2], module)
     spec.loader.exec_module(module)
+    sealed_modules[name] = module
     # Self-check in the module's own namespace: `open` there must refuse.
     recording = False
     try:
@@ -809,11 +835,16 @@ sys.argv = ["py/run_fixtures.py"]
 try:
     runpy.run_path("py/run_fixtures.py", run_name="__main__")
 finally:
-    # Every policy module the run used, the package included, must be one the
-    # seal loaded.
+    # Every policy module the run used - a haltrule name, or any module whose
+    # file lies inside this tree, whatever it is called - must be the very
+    # object the seal loaded, not one the runtime loaded on its own; what a
+    # module says about its own builtins is not consulted.
+    root = os.path.realpath(os.getcwd()) + os.sep
     for loaded_name, loaded in list(sys.modules.items()):
-        if loaded_name == "haltrule" or loaded_name.startswith("haltrule."):
-            if vars(loaded).get("__builtins__") is SEALED:
+        file = getattr(loaded, "__file__", None) or ""
+        inside = bool(file) and os.path.realpath(file).startswith(root)
+        if loaded_name == "haltrule" or loaded_name.startswith("haltrule.") or inside:
+            if sealed_modules.get(loaded_name) is loaded:
                 continue
             record(f"module {loaded_name} loaded outside the seal")
 PY
