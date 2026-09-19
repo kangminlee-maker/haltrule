@@ -100,8 +100,8 @@ not name is not reusable.
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
   additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else — negative, fractional, NaN or an infinity, boolean, text, past 2^63 − 1 — is refused with an
-  exception. What to do when exhausted is the caller's.
+  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused with
+  an exception. What to do when exhausted is the caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in

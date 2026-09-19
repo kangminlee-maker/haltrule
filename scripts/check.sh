@@ -41,11 +41,16 @@ listing_failures=""
 list_files() {
   local into=$1 listing find_status f
   shift
-  listing=$(mktemp -t haltrule.XXXXXX)
+  if ! listing=$(mktemp -t haltrule.XXXXXX); then
+    listing_failures="$listing_failures $into (mktemp failed)"
+    return
+  fi
   find "$@" -print0 > "$listing"
   find_status=$?
-  if [ $find_status -ne 0 ] || ! LC_ALL=C sort -z -o "$listing" "$listing"; then
+  if [ $find_status -ne 0 ]; then
     listing_failures="$listing_failures $into (find exit $find_status)"
+  elif ! LC_ALL=C sort -z -o "$listing" "$listing"; then
+    listing_failures="$listing_failures $into (sort failed)"
   fi
   while IFS= read -r -d '' f; do eval "$into+=(\"\$f\")"; done < "$listing"
   rm -f "$listing"
@@ -398,9 +403,10 @@ refuse_and_verify wide_number_negative "not exactly representable as a double" "
 
 # Out-of-contract inputs the parts refuse, per the budget and slot bullets of
 # the spec. A raise fails a fixture, so no fixture can carry these promises;
-# each is called directly, in both languages, and must raise.
-OUT_OF_CONTRACT_PROBES=26
-OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative, fractional, not finite, boolean or text, an unknown kind, a choice without candidates, min above max, a name missing or not text; budget amounts and caps each negative, fractional, not finite, boolean, past 2^63 - 1 or text"
+# each is called directly, in both languages, and must raise. Bounds share one
+# validator, and so do amounts and caps: a class is probed on one field of each.
+OUT_OF_CONTRACT_PROBES=29
+OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative, fractional, NaN or either infinity, boolean or a string, an unknown kind, a choice without candidates, min above max, a name missing or not a string; budget amounts and caps each negative, fractional, NaN or either infinity, boolean, past 2^63 - 1 or a string"
 # Plain JavaScript: node evaluates -e input as is, so no type syntax here.
 ts_probe_out=$(node --input-type=module -e '
 import { validateSlot } from "./ts/slot.ts";
@@ -411,8 +417,9 @@ const probes = [
   ["slot fractional bound", () => validateSlot({ name: "t", kind: "text", max_length: 1.5 }, "x")],
   ["slot NaN bound", () => validateSlot({ name: "t", kind: "text", max_length: NaN }, "x")],
   ["slot infinite bound", () => validateSlot({ name: "t", kind: "text", max_length: Infinity }, "x")],
+  ["slot negative infinite bound", () => validateSlot({ name: "t", kind: "text", min_length: -Infinity }, "x")],
   ["slot boolean bound", () => validateSlot({ name: "t", kind: "text", max_length: true }, "x")],
-  ["slot text bound", () => validateSlot({ name: "t", kind: "text", max_length: "3" }, "x")],
+  ["slot string bound", () => validateSlot({ name: "t", kind: "text", max_length: "3" }, "x")],
   ["slot unknown kind", () => validateSlot({ name: "t", kind: "number" }, "x")],
   ["slot choice without candidates", () => validateSlot({ name: "t", kind: "choice" }, "x")],
   ["slot min_length above max_length", () => validateSlot({ name: "t", kind: "text", min_length: 3, max_length: 2 }, "x")],
@@ -422,16 +429,18 @@ const probes = [
   ["budget fractional charge", () => new Budget().charge({ ms: 1.5 })],
   ["budget NaN charge", () => new Budget().charge({ ms: NaN })],
   ["budget infinite charge", () => new Budget().charge({ ms: Infinity })],
+  ["budget negative infinite charge", () => new Budget().charge({ turns: -Infinity })],
   ["budget boolean charge", () => new Budget().charge({ turns: true })],
   ["budget charge past 2^63 - 1", () => new Budget().charge({ tokens: 9223372036854775808n })],
-  ["budget text charge", () => new Budget().charge({ turns: "1" })],
+  ["budget string charge", () => new Budget().charge({ turns: "1" })],
   ["budget negative cap", () => new Budget({ max_turns: -1 })],
   ["budget fractional cap", () => new Budget({ time_budget_ms: 1.5 })],
   ["budget NaN cap", () => new Budget({ time_budget_ms: NaN })],
   ["budget infinite cap", () => new Budget({ time_budget_ms: Infinity })],
+  ["budget negative infinite cap", () => new Budget({ max_turns: -Infinity })],
   ["budget boolean cap", () => new Budget({ max_turns: true })],
   ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
-  ["budget text cap", () => new Budget({ max_turns: "1" })],
+  ["budget string cap", () => new Budget({ max_turns: "1" })],
 ];
 for (const [label, probe] of probes) {
   try {
@@ -470,8 +479,9 @@ probes = [
     ("slot fractional bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 1.5}, "x")),
     ("slot NaN bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": float("nan")}, "x")),
     ("slot infinite bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": float("inf")}, "x")),
+    ("slot negative infinite bound", lambda: validate_slot({"name": "t", "kind": "text", "min_length": float("-inf")}, "x")),
     ("slot boolean bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": True}, "x")),
-    ("slot text bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": "3"}, "x")),
+    ("slot string bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": "3"}, "x")),
     ("slot unknown kind", lambda: validate_slot({"name": "t", "kind": "number"}, "x")),
     ("slot choice without candidates", lambda: validate_slot({"name": "t", "kind": "choice"}, "x")),
     ("slot min_length above max_length", lambda: validate_slot({"name": "t", "kind": "text", "min_length": 3, "max_length": 2}, "x")),
@@ -481,16 +491,18 @@ probes = [
     ("budget fractional charge", lambda: Budget().charge(ms=1.5)),
     ("budget NaN charge", lambda: Budget().charge(ms=float("nan"))),
     ("budget infinite charge", lambda: Budget().charge(ms=float("inf"))),
+    ("budget negative infinite charge", lambda: Budget().charge(turns=float("-inf"))),
     ("budget boolean charge", lambda: Budget().charge(turns=True)),
     ("budget charge past 2^63 - 1", lambda: Budget().charge(tokens=2**63)),
-    ("budget text charge", lambda: Budget().charge(turns="1")),
+    ("budget string charge", lambda: Budget().charge(turns="1")),
     ("budget negative cap", lambda: Budget(max_turns=-1)),
     ("budget fractional cap", lambda: Budget(time_budget_ms=1.5)),
     ("budget NaN cap", lambda: Budget(time_budget_ms=float("nan"))),
     ("budget infinite cap", lambda: Budget(time_budget_ms=float("inf"))),
+    ("budget negative infinite cap", lambda: Budget(max_turns=float("-inf"))),
     ("budget boolean cap", lambda: Budget(max_turns=True)),
     ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
-    ("budget text cap", lambda: Budget(max_turns="1")),
+    ("budget string cap", lambda: Budget(max_turns="1")),
 ]
 for label, probe in probes:
     try:
@@ -815,11 +827,13 @@ rm -f "$ts_static_js"
 
 # 5b. Python, static: an import allowlist, and no reference at all - called or
 # not - to a builtin that does I/O, evaluates code, or reaches the builtins.
+# The allowlist is written once, here, and handed to this scan and to the seal.
+PY_ALLOWED_MODULES="__future__ dataclasses hashlib math typing haltrule"
 for py_file in "${py_policy_files[@]}"; do
-py_clock_out=$(python3 - "$py_file" <<'PY'
+py_clock_out=$(python3 - "$py_file" "$PY_ALLOWED_MODULES" <<'PY'
 import ast, sys
 
-ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
+ALLOWED_MODULES = set(sys.argv[2].split())
 FORBIDDEN_NAMES = {
     "open", "print", "input", "exec", "eval", "compile", "__import__", "breakpoint",
     "__builtins__", "getattr", "setattr", "delattr", "globals", "vars", "locals",
@@ -866,8 +880,12 @@ done
 # run - so a conformance failure is reported once, by gate 1, not again here.
 # A seal inside the process it watches is not a sandbox: it closes the routes
 # named here and found in review, and code written to escape it may find
-# another. It is one of three layers, with the static scans above and the
-# behavioural check below.
+# another. It is one of three layers. The static scans (5a, 5b) refuse what
+# can be read off the source: imports, forbidden names, and the attributes
+# that lead from an object back to the runtime. The seal refuses at run time
+# what a name alone cannot show: a global reached without being written, code
+# built from a string, a module swapped under its name. The behavioural check
+# (5e) catches an output that moves with the hash seed, whatever produced it.
 SEAL_MARKER="haltrule-seal: installed"
 
 ts_seal=$(mktemp -t haltrule.XXXXXX)
@@ -900,17 +918,36 @@ Object.defineProperty(globalThis, "crypto", {
 process.hrtime = Object.assign(refuse("process.hrtime"), { bigint: refuse("process.hrtime.bigint") });
 process.uptime = refuse("process.uptime");
 // Code built from a string runs with every global in reach, whatever the
-// static scan allowed by name. The constructors that build it refuse, and
-// they are reached through any function at all - `f.constructor` - so it is
-// the prototypes that are sealed, not a name.
+// static scan allowed by name. It is the capability that is sealed, by every
+// way to it: the four constructors where any function finds them -
+// `f.constructor` - and the global bindings, which the global object hands to
+// whoever reaches it without writing its name.
 for (const sample of [function () {}, async function () {}, function* () {}, async function* () {}]) {
   Object.defineProperty(Object.getPrototypeOf(sample), "constructor", { value: refuse("a function constructor") });
 }
+globalThis.Function = refuse("a function constructor");
 globalThis.eval = refuse("eval");
+// What differs from one process to the next, beyond the clocks above.
+for (const name of ["pid", "ppid"]) Object.defineProperty(process, name, { get: refuse(`process.${name}`) });
+for (const name of ["memoryUsage", "cpuUsage", "resourceUsage"]) process[name] = refuse(`process.${name}`);
+// And the doors from the process object to every built-in module - the file
+// system, the operating system - that gate 4 closes to an import statement.
+for (const name of ["getBuiltinModule", "binding", "_linkedBinding", "dlopen"]) process[name] = refuse(`process.${name}`);
+// node's own module loader reads the environment for every module it loads,
+// so the environment answers node and refuses everyone else: the caller is
+// the frame above the trap, and only a node:internal frame is let through.
+const realEnv = process.env;
+const readByNodeItself = () => (String(new Error().stack).split("\n")[3] ?? "").includes("node:internal/");
+const envTrap = (answer) => (...args) => (readByNodeItself() ? answer(...args) : refuse("process.env")());
+Object.defineProperty(process, "env", {
+  value: new Proxy(realEnv, { get: envTrap(Reflect.get), has: envTrap(Reflect.has), ownKeys: envTrap(Reflect.ownKeys) }),
+});
 // Self-check in this process: every probe must throw before the marker prints.
 const probes = [
   () => Date.now(), () => new Date(), () => Math.random(), () => performance.now(), () => setTimeout(() => {}, 0),
   () => (() => 0).constructor("return 0"), () => (async () => 0).constructor("return 0"),
+  () => globalThis.Function("return 0"), () => process.pid, () => process.env.HOME, () => process.memoryUsage(),
+  () => process.getBuiltinModule("node:fs"),
 ];
 if (probes.every((probe) => { try { probe(); return false; } catch { return true; } })) {
   recording = true;
@@ -930,7 +967,7 @@ elif [ $ts_sealed_status -ne $ts_status ] || [ "$ts_sealed_line" != "$ts_line" ]
   fail "typescript: sealing changed the outcome under the seal: exit=$ts_sealed_status '$ts_sealed_line' vs unsealed exit=$ts_status '$ts_line'"
   printf '%s\n' "$ts_sealed_out" | grep -m3 'sealed:' || printf '%s\n' "$ts_sealed_out" | tail -3
 else
-  pass "typescript (sealed run) same outcome as unsealed with Date, performance, Math.random, timers, fetch, Web Crypto randomness, process clocks, and code built from strings refusing"
+  pass "typescript (sealed run) same outcome as unsealed with Date, performance, Math.random, timers, fetch, Web Crypto randomness, process clocks and per-process state, and code built from strings refusing"
 fi
 rm -f "$ts_seal"
 
@@ -939,14 +976,32 @@ cat > "$py_seal" <<'PY'
 import builtins
 import importlib.util
 import os
-import pathlib
 import runpy
 import sys
 import sysconfig
 import types
 
-ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
+# argv: the module allowlist, then the policy inventory gate 0 listed - the
+# seal builds exactly those files, so no gate reads one set and runs another.
+ALLOWED_MODULES = set(sys.argv[1].split())
+POLICY_FILES = sys.argv[2:]
 REFUSED = ("open", "print", "input", "exec", "eval", "compile", "breakpoint", "hash", "id", "repr")
+# What policy code may take from each standard-library module: names, not
+# modules, and only ones that evaluate nothing. A public function can carry
+# the whole runtime with it - typing.get_type_hints evaluates a string with
+# the real builtins - so a name is absent until someone adds it here on
+# purpose. Attribute reach past these names is recorded and refused; reach
+# through a listed object's own attributes (__globals__ and the like) is the
+# static scan's to refuse, by FORBIDDEN_ATTRIBUTES.
+SURFACE_NAMES = {
+    "__future__": {"annotations"},
+    "dataclasses": {"dataclass", "field"},
+    "hashlib": {"sha256"},
+    "math": {"ceil", "floor", "trunc", "isfinite", "isinf", "isnan", "inf", "nan"},
+    "typing": {"Any", "Final", "Iterable", "Literal", "Mapping", "Optional", "Sequence", "Tuple", "Union"},
+}
+if set(SURFACE_NAMES) != ALLOWED_MODULES - {"haltrule"}:
+    sys.exit(f"the seal's surfaces {sorted(SURFACE_NAMES)} do not match the allowlist {sorted(ALLOWED_MODULES)}")
 
 
 # Each refusal is recorded on stderr as it happens, before it raises: policy
@@ -966,9 +1021,6 @@ def refuse(what):
         raise RuntimeError(f"sealed: policy code used {what}")
 
     return sealed
-
-
-real_import = builtins.__import__
 
 
 def sealed_import(name, globals=None, locals=None, fromlist=(), level=0):
@@ -1016,19 +1068,17 @@ def resolved_spec(module_name):
 
 
 def surface_of(module_name, module):
-    """What policy code gets for a standard-library import: the module's public
-    values, and none of the modules it happens to have imported itself -
-    `typing.sys` would otherwise hand over the whole runtime."""
+    """What policy code gets for a standard-library import: the listed names
+    and nothing else. The values are the module's own objects, shared, not
+    copies."""
     surface = types.ModuleType(module_name)
-    public = vars(module).get("__all__") or [n for n in vars(module) if not n.startswith("_")]
-    for attribute in public:
-        value = vars(module).get(attribute)
-        if attribute in vars(module) and not isinstance(value, types.ModuleType):
-            setattr(surface, attribute, value)
+    for attribute in sorted(SURFACE_NAMES[module_name]):
+        if attribute in vars(module):
+            setattr(surface, attribute, vars(module)[attribute])
 
     def beyond_the_surface(attribute):
-        record(f"reached {module_name}.{attribute}, which is not part of its public surface")
-        raise AttributeError(f"sealed: {module_name}.{attribute} is not part of its public surface")
+        record(f"reached {module_name}.{attribute}, which is not on the seal's list for {module_name}")
+        raise AttributeError(f"sealed: {module_name}.{attribute} is not on the seal's list for {module_name}")
 
     surface.__getattr__ = beyond_the_surface
     return surface
@@ -1058,11 +1108,17 @@ for loaded_name in list(sys.modules):
         record(f"module {loaded_name} loaded outside the seal")
         sys.exit(1)
 
-# The package marker first - code there would otherwise run outside the seal -
-# then every policy module, in name order; one that another imports runs when
-# that import happens.
-parts = sorted(path.stem for path in pathlib.Path("py/haltrule").glob("*.py") if path.stem != "__init__")
-modules = [("haltrule", "py/haltrule/__init__.py")] + [(f"haltrule.{part}", f"py/haltrule/{part}.py") for part in parts]
+# Every file of the policy inventory, by dotted name, a package before what it
+# holds - code in a package marker would otherwise run outside the seal; one
+# that another imports runs when that import happens.
+def dotted(file):
+    name = file[len("py/") : -len(".py")].replace("/", ".")
+    return name[: -len(".__init__")] if name.endswith(".__init__") else name
+
+
+modules = sorted((dotted(file), file) for file in POLICY_FILES)
+if not modules or modules[0][0] != "haltrule":
+    sys.exit(f"the policy inventory does not start with the haltrule package: {POLICY_FILES[:3]}")
 # Every module object exists, sealed and registered, before any of them runs:
 # a policy that imports a sibling at load time can then only reach a sealed
 # object, never one the import machinery would build with the real builtins
@@ -1070,6 +1126,7 @@ modules = [("haltrule", "py/haltrule/__init__.py")] + [(f"haltrule.{part}", f"py
 sealed_modules = {}
 specs = {}
 started = set()
+finished = set()
 
 
 def run_sealed(name):
@@ -1083,7 +1140,13 @@ def run_sealed(name):
     if parent in sealed_modules:
         run_sealed(parent)
     module = sealed_modules[name]
-    specs[name].loader.exec_module(module)
+    try:
+        specs[name].loader.exec_module(module)
+    except BaseException as error:
+        # An importer that catches this would go on with half a module that
+        # never met the self-check below; the record outlives the catch.
+        record(f"module {name} failed while loading: {type(error).__name__}")
+        raise
     # Self-check in the module's own namespace: `open` there must refuse.
     recording = False
     try:
@@ -1093,21 +1156,27 @@ def run_sealed(name):
     else:
         sys.exit(f"{name} loaded without the seal")
     recording = True
+    finished.add(name)
 
 
 for name, file in modules:
     spec = importlib.util.spec_from_file_location(
-        name, file, submodule_search_locations=["py/haltrule"] if name == "haltrule" else None
+        name, file, submodule_search_locations=[os.path.dirname(file)] if file.endswith("/__init__.py") else None
     )
     module = importlib.util.module_from_spec(spec)
     module.__dict__["__builtins__"] = SEALED
     sys.modules[name] = module
-    if name != "haltrule":
-        setattr(sys.modules["haltrule"], name.rpartition(".")[2], module)
+    parent = name.rpartition(".")[0]
+    if parent:
+        if parent not in sealed_modules:
+            sys.exit(f"{file} lies in a directory that is not a package of the policy inventory")
+        setattr(sealed_modules[parent], name.rpartition(".")[2], module)
     sealed_modules[name] = module
     specs[name] = spec
 for name in sealed_modules:
     run_sealed(name)
+if finished != set(sealed_modules):
+    sys.exit(f"sealed modules that never finished loading: {sorted(set(sealed_modules) - finished)}")
 
 print("haltrule-seal: installed", file=sys.stderr)
 sys.argv = ["py/run_fixtures.py"]
@@ -1136,13 +1205,18 @@ finally:
     # read back from a sys.modules that policy code could have written to.
     trusted = {id(module) for module in sealed_modules.values()}
     trusted |= {id(surface) for surface in surfaces.values()}
+    whole = {id(module): module_name for module_name, module in pinned.items()}
     for holder_name, holder in sealed_modules.items():
         for held in list(vars(holder).values()):
-            if isinstance(held, types.ModuleType) and id(held) not in trusted:
+            if not isinstance(held, types.ModuleType) or id(held) in trusted:
+                continue
+            if id(held) in whole:
+                record(f"{holder_name} holds module {whole[id(held)]} itself, not the names the seal hands out")
+            else:
                 held_name = vars(held).get("__name__", "?")
                 record(f"module {held_name} held by {holder_name} loaded outside the seal")
 PY
-py_sealed_out=$(python3 "$py_seal" 2>&1)
+py_sealed_out=$(python3 "$py_seal" "$PY_ALLOWED_MODULES" "${py_policy_files[@]}" 2>&1)
 py_sealed_status=$?
 py_sealed_line=$(printf '%s\n' "$py_sealed_out" | tail -1)
 py_refused=$(printf '%s\n' "$py_sealed_out" | sed -n 's/^haltrule-seal: policy code /&/p' | head -1)
@@ -1344,42 +1418,63 @@ else
   skip "tsc" "typescript not installed locally; CI installs it"
 fi
 
-echo "9. mutation suite — CI runs every catalog mutant exactly once"
+echo "9. mutation shards — the workflow names slices 1/N..N/N, and those slices hold every catalog mutant once"
 # Each CI job runs one slice and sees nothing of the others, so this job reads
-# the workflow: its matrix must name 1/N..N/N once each and hand every entry
-# to --shard as it is, and those N slices must hold the whole catalog.
+# the workflow. The mutation job is read as a block: its matrix must have the
+# one key shard, naming every slice once, handed to --shard as it is; nothing
+# in the job may drop a slice or excuse its failure (exclude, include, if,
+# continue-on-error); and no other job may run the suite. mutants.py owns the
+# I/N grammar and proves the named slices hold the catalog. Whether GitHub
+# then ran the jobs is not something a script in the repository can see.
 ci_shards_out=$(python3 - .github/workflows/check.yml <<'PY' 2>&1
 import re, sys
 
-text = open(sys.argv[1], encoding="utf-8").read()
-rows = re.findall(r"^\s*shard:\s*\[(.*)\]\s*$", text, flags=re.M)
+JOB = "gates-detect-a-defect"
+lines = open(sys.argv[1], encoding="utf-8").read().splitlines()
+starts = [i for i, line in enumerate(lines) if line == f"  {JOB}:"]
+if len(starts) != 1:
+    sys.exit(f"found {len(starts)} jobs named {JOB}, not 1")
+first = starts[0]
+last = next((i for i in range(first + 1, len(lines)) if re.match(r"^  [^\s#]", lines[i])), len(lines))
+code = lambda rows: [row for row in rows if not row.lstrip().startswith("#")]
+block, outside = code(lines[first:last]), code(lines[:first] + lines[last:])
+if any("mutants.py" in row for row in outside):
+    sys.exit(f"mutants.py is run outside the {JOB} job")
+for key in ("exclude", "include", "if", "continue-on-error"):
+    if any(re.match(rf"^\s*(- )?{key}\s*:", row) for row in block):
+        sys.exit(f"the {JOB} job uses {key}:, which can drop a slice or excuse its failure")
+matrix = [i for i, row in enumerate(block) if re.match(r"^\s*matrix:\s*$", row)]
+if len(matrix) != 1:
+    sys.exit(f"found {len(matrix)} matrix blocks in the {JOB} job, not 1")
+depth = len(block[matrix[0]]) - len(block[matrix[0]].lstrip())
+keys = []
+for row in block[matrix[0] + 1 :]:
+    if row.strip() and len(row) - len(row.lstrip()) <= depth:
+        break
+    found = re.match(r"^\s*([A-Za-z_][\w-]*)\s*:", row)
+    if found and len(row) - len(row.lstrip()) == depth + 2:
+        keys.append(found[1])
+if keys != ["shard"]:
+    sys.exit(f"the matrix of the {JOB} job has the keys {keys}, not just shard")
+rows = [found[1] for row in block if (found := re.match(r"^\s*shard:\s*\[(.*)\]\s*$", row))]
 if len(rows) != 1:
-    sys.exit(f"found {len(rows)} shard matrix rows, not 1")
-entries = [entry.strip().strip("\x22\x27") for entry in rows[0].split(",")]
-parsed = [re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", entry) for entry in entries]
-if not all(parsed):
-    sys.exit(f"shard entries are not all I/N: {entries}")
-counts = sorted({int(m[2]) for m in parsed})
-if len(counts) != 1:
-    sys.exit(f"shard entries name more than one N: {entries}")
-if sorted(int(m[1]) for m in parsed) != list(range(1, counts[0] + 1)):
-    sys.exit(f"shard entries are not 1/{counts[0]}..{counts[0]}/{counts[0]} once each: {entries}")
-runs = re.findall(r"^\s*run:\s*python3 scripts/mutants\.py\s+(.*?)\s*$", text, flags=re.M)
+    sys.exit(f"found {len(rows)} one-line shard lists in the {JOB} job, not 1")
+runs = [found[1] for row in block if (found := re.match(r"^\s*run:\s*python3 scripts/mutants\.py\s+(.*?)\s*$", row))]
 if runs != ["--shard ${{ matrix.shard }}"]:
     sys.exit(f"the mutation step does not hand each matrix entry to --shard as it is: {runs}")
-print(counts[0])
+print(",".join(entry.strip().strip("\x22\x27") for entry in rows[0].split(",")))
 PY
 )
 ci_shards_status=$?
-if [ $ci_shards_status -ne 0 ] || ! is_count "$ci_shards_out"; then
-  fail "the CI shard matrix does not run every slice once: $ci_shards_out"
+if [ $ci_shards_status -ne 0 ] || [ -z "$ci_shards_out" ]; then
+  fail "the workflow does not name every mutation slice once in one job: $ci_shards_out"
 else
   shards_control_out=$(python3 scripts/mutants.py --shards-control "$ci_shards_out" 2>&1)
   shards_control_status=$?
   if [ $shards_control_status -ne 0 ]; then
-    fail "the $ci_shards_out CI shards do not hold every catalog mutant exactly once: $(printf '%s\n' "$shards_control_out" | tail -1)"
+    fail "the shards the workflow names ($ci_shards_out) do not hold every catalog mutant exactly once: $(printf '%s\n' "$shards_control_out" | tail -1)"
   else
-    pass "CI runs shards 1/$ci_shards_out..$ci_shards_out/$ci_shards_out, and $(printf '%s\n' "$shards_control_out" | tail -1 | sed 's/^mutants: //')"
+    pass "the workflow names $ci_shards_out in one job with nothing that drops or excuses a slice, and $(printf '%s\n' "$shards_control_out" | tail -1 | sed 's/^mutants: //')"
   fi
 fi
 

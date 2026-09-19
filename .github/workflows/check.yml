@@ -50,8 +50,10 @@ jobs:
   # It checks the unmutated tree first and proves it can report a survivor.
   # The catalog runs as interleaved slices, one job per entry of the matrix
   # below: each checks every anchor and the baseline itself. check.sh (gate 9)
-  # requires the entries to be 1/N..N/N and the N slices to hold every mutant
-  # exactly once, so a slice dropped here fails the gates job.
+  # reads this job: the entries must be 1/N..N/N once each and reach --shard
+  # unchanged, the N slices must hold every mutant exactly once, and the job
+  # may not use exclude, include, if or continue-on-error, which could drop a
+  # slice or excuse its failure. It checks what this file says, not what ran.
   gates-detect-a-defect:
     runs-on: ubuntu-latest
     strategy:

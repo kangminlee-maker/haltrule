@@ -67,6 +67,14 @@ def _copied_breaker_fixture() -> str:
 
 
 TS_RUNNER_FAILS = "  FAIL  typescript runner exited"
+# The global object, reached through a getter on Object.prototype: no forbidden
+# name is written and no code is built from a string, so only the sealed run
+# can see what is taken from it.
+TS_GLOBAL_REACH = (
+    "declare const haltruleReach: { Date: { now(): number }; Function: (code: string) => () => number;"
+    " process: { pid: number; env: Record<string, string | undefined> } };\n"
+    'Object.defineProperty(Object.prototype, "haltruleReach", { get() { return this; }, configurable: true });\n'
+)
 PY_RUNNER_FAILS = "  FAIL  python runner exited"
 
 CATALOG: list[Mutant] = []  # filled below
@@ -304,6 +312,27 @@ def control_problems(image: Path) -> list[str]:
 # -------------------------------------------------------------------- shards
 
 
+def parse_shard(text: str) -> tuple[int, int] | None:
+    """I/N with 1 <= I <= N - the one place this grammar is read."""
+    found = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", text)
+    if not found or int(found[1]) > int(found[2]):
+        return None
+    return int(found[1]), int(found[2])
+
+
+def named_shards_problems(entries: list[str]) -> tuple[int, list[str]]:
+    """The shard count the entries share, and why they are not 1/N..N/N once each."""
+    parsed = [parse_shard(entry) for entry in entries]
+    if not entries or not all(parsed):
+        return 0, [f"shard entries are not all I/N with 1 <= I <= N: {entries}"]
+    counts = sorted({count for _, count in parsed})
+    if len(counts) != 1:
+        return 0, [f"shard entries name more than one N: {entries}"]
+    if sorted(index for index, _ in parsed) != list(range(1, counts[0] + 1)):
+        return counts[0], [f"shard entries are not 1/{counts[0]}..{counts[0]}/{counts[0]} once each: {entries}"]
+    return counts[0], []
+
+
 def shard_slices(items: list, count: int) -> list[list]:
     """The `count` interleaved slices: slice i holds items i, i + count, ..."""
     return [items[first::count] for first in range(count)]
@@ -338,30 +367,34 @@ def main() -> int:
     )
     parser.add_argument(
         "--shards-control",
-        type=int,
-        default=0,
-        metavar="N",
-        help="run nothing: check that the N shards hold every catalog mutant exactly once",
+        default="",
+        metavar="1/N,...,N/N",
+        help="run nothing: check that these shard entries are 1/N..N/N once each and that the N shards hold every catalog mutant exactly once",
     )
     args = parser.parse_args()
 
     if args.shards_control:
         problems = catalog_problems(CATALOG + [SURVIVOR])
-        problems += shard_problems(CATALOG, args.shards_control)
+        count, named = named_shards_problems(args.shards_control.split(","))
+        problems += named
+        if count and not named:
+            problems += shard_problems(CATALOG, count)
         if problems:
             print("mutants: " + "\n  ".join(problems))
             return 2
         print(
-            f"mutants: {args.shards_control} shards hold each of the {len(CATALOG)} catalog mutants exactly once"
+            f"mutants: the {count} named shards hold each of the {len(CATALOG)} catalog mutants exactly once"
         )
         return 0
 
     problems = catalog_problems(CATALOG + [SURVIVOR])
-    shard = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", args.shard)
-    shard_index, shard_count = (int(shard[1]), int(shard[2])) if shard else (1, 1)
-    if not shard or shard_index > shard_count:
+    shard = parse_shard(args.shard)
+    shard_index, shard_count = shard or (1, 1)
+    if not shard:
         problems.append(f"--shard wants I/N with 1 <= I <= N, got {args.shard!r}")
     matching = [m for m in CATALOG if m.id.startswith(args.only)]
+    # check.sh (gate 9) runs this control over the whole catalog; here it
+    # covers the selection actually being split, which --only can narrow.
     problems += shard_problems(matching, shard_count)
     selected = shard_slices(matching, shard_count)[shard_index - 1] if shard else []
     if not matching:
@@ -757,7 +790,8 @@ CATALOG += [
         "export function canonicalize(value: unknown)",
         # the global object, reached through a getter: no forbidden name is
         # written and no code is built from a string
-        'declare const haltruleReach: { Date: { now(): number } };\nObject.defineProperty(Object.prototype, "haltruleReach", { get() { return this; }, configurable: true });\nexport const loadedAt = haltruleReach.Date.now();\nexport function canonicalize(value: unknown)',
+        TS_GLOBAL_REACH
+        + 'export const loadedAt = haltruleReach.Date.now();\nexport function canonicalize(value: unknown)',
         ["policy code used Date.now"],
         ["(static)"],
     ),
@@ -840,7 +874,7 @@ CATALOG += [
             Edit(
                 "ts/checkpoint.ts",
                 "export function canonicalize(value: unknown)",
-                'declare const haltruleReach: { Date: { now(): number } };\nObject.defineProperty(Object.prototype, "haltruleReach", { get() { return this; }, configurable: true });\nexport function canonicalize(value: unknown)',
+                TS_GLOBAL_REACH + "export function canonicalize(value: unknown)",
             ),
             Edit(
                 "ts/checkpoint.ts",
@@ -1374,9 +1408,9 @@ CATALOG += [
     mutant(
         "check.sh: the seal loads the package marker too",
         "scripts/check.sh",
-        'modules = [("haltrule", "py/haltrule/__init__.py")] + [',
-        "import haltrule  # noqa: E402\nmodules = [",
-        ["module haltrule loaded outside the seal"],
+        "modules = sorted((dotted(file), file) for file in POLICY_FILES)\n",
+        'modules = sorted((dotted(file), file) for file in POLICY_FILES if not file.endswith("/__init__.py"))\n',
+        ["python sealed run carries no seal marker"],
     ),
     Mutant(
         "check.sh: a hidden policy file is under the gates too",
@@ -1503,7 +1537,7 @@ CATALOG += [
         ),
     ),
     Mutant(
-        "check.sh: a module that names itself sealed is still one the seal did not load",
+        "check.sh: a policy subpackage is built by the seal, whatever it says of its own builtins",
         (
             Edit(
                 "py/haltrule/sub/__init__.py",
@@ -1516,8 +1550,9 @@ CATALOG += [
                 "from haltrule import sub  # noqa: F401\nfrom haltrule.verdict import verdict\n",
             ),
         ),
-        # the seal hands out only what it built: the package never loads under it
-        tuple(["policy code imported 'haltrule.sub', which the seal did not build"]),
+        # the seal builds the whole inventory, so the package loads sealed and
+        # its import of sys is refused like any other
+        tuple(["policy code imported 'sys'"]),
     ),
     # --- round-4 re-review: refusals the spec requires are probed directly,
     # since a raise can never be a fixture expectation
@@ -1554,8 +1589,8 @@ CATALOG += [
     mutant(
         "check.sh: an allowlisted standard-library name must be the standard library's file",
         "scripts/check.sh",
-        'py_sealed_out=$(python3 "$py_seal" 2>&1)',
-        """py_sealed_out=$(look_alike=$(mktemp -d); printf '%s\\n' 'import os, sysconfig' 'from _hashlib import openssl_sha256 as sha256' '__file__ = os.path.join(sysconfig.get_paths()["stdlib"], "hashlib.py")' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" 2>&1; rm -rf "$look_alike")""",
+        'py_sealed_out=$(python3 "$py_seal" "$PY_ALLOWED_MODULES" "${py_policy_files[@]}" 2>&1)',
+        """py_sealed_out=$(look_alike=$(mktemp -d); printf '%s\\n' 'import os, sysconfig' 'from _hashlib import openssl_sha256 as sha256' '__file__ = os.path.join(sysconfig.get_paths()["stdlib"], "hashlib.py")' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" "$PY_ALLOWED_MODULES" "${py_policy_files[@]}" 2>&1; rm -rf "$look_alike")""",
         ["module hashlib is not the standard library's"],
     ),
     # --- round-4 third review (library): a name is required, both signs of a
@@ -1648,7 +1683,7 @@ CATALOG += [
             Edit(
                 "scripts/check.sh",
                 '    if name not in sealed_modules:\n        record(f"imported {name!r}, which the seal did not build")\n        raise ImportError(f"sealed: policy code imported {name!r}, which the seal did not build")\n',
-                "    if name not in sealed_modules or fromlist:\n        return real_import(name, globals, locals, fromlist, level)\n",
+                "    if name not in sealed_modules or fromlist:\n        return builtins.__import__(name, globals, locals, fromlist, level)\n",
             ),
             Edit(
                 "scripts/check.sh",
@@ -1763,7 +1798,7 @@ CATALOG += [
         "py/haltrule/budget.py",
         "from haltrule.verdict import verdict\n",
         'import typing\n\nfrom haltrule.verdict import verdict\n\n_stamp = typing.sys.modules["os"].getpid()\n',
-        ["reached typing.sys, which is not part of its public surface"],
+        ["reached typing.sys, which is not on the seal's list for typing"],
     ),
     mutant(
         "ts determinism: no code built from a string through a function's constructor",
@@ -1777,7 +1812,7 @@ CATALOG += [
         "scripts/check.sh",
         "        return surfaces[name]\n",
         "        return pinned[name]\n",
-        ["module math held by haltrule.breaker loaded outside the seal"],
+        ["haltrule.breaker holds module math itself, not the names the seal hands out"],
     ),
     Mutant(
         "check.sh: a standard-library name still answers with the pinned object",
@@ -1868,21 +1903,127 @@ CATALOG += [
         ".github/workflows/check.yml",
         '        shard: ["1/3", "2/3", "3/3"]\n',
         '        shard: ["1/3", "2/3"]\n',
-        ["the CI shard matrix does not run every slice once", "are not 1/3..3/3 once each"],
+        ["the shards the workflow names (1/3,2/3) do not hold every catalog mutant exactly once", "are not 1/3..3/3 once each"],
     ),
     mutant(
         "ci: each matrix entry reaches --shard as it is",
         ".github/workflows/check.yml",
         "        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}\n",
         "        run: python3 scripts/mutants.py --shard 1/3\n",
-        ["the CI shard matrix does not run every slice once", "does not hand each matrix entry to --shard as it is"],
+        ["the workflow does not name every mutation slice once in one job", "does not hand each matrix entry to --shard as it is"],
     ),
     mutant(
         "mutants.py: the shards hold every mutant exactly once",
         "scripts/mutants.py",
         "    return [items[first::count] for first in range(count)]\n",
         "    return [items[first + 1 :: count] for first in range(count)]\n",
-        ["CI shards do not hold every catalog mutant exactly once"],
+        ["the shards the workflow names (1/3,2/3,3/3) do not hold every catalog mutant exactly once"],
+    ),
+    # --- round-7 nine-lens review (another model): a listed name, not a public
+    # one; the capability, not the route; the job, not two lines of it
+    mutant(
+        "py determinism: no string evaluated through a public function of an allowlisted module",
+        "py/haltrule/budget.py",
+        "from haltrule.verdict import verdict\n",
+        "import typing\n\nfrom haltrule.verdict import verdict\n\n\n"
+        "def _probe(x: \"__import__('os').getpid()\") -> None:\n    return None\n\n\n"
+        "_stamp = typing.get_type_hints(_probe, globalns={})\n",
+        ["reached typing.get_type_hints, which is not on the seal's list for typing"],
+    ),
+    mutant(
+        "ts determinism: no code built from a string through the global Function",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        TS_GLOBAL_REACH
+        + 'export const stamp = haltruleReach.Function("return 1")();\nexport function canonicalize(value: unknown)',
+        ["policy code used a function constructor"],
+        ["(static)"],
+    ),
+    mutant(
+        "ts determinism: no process id read through the global object",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        TS_GLOBAL_REACH + "export const stamp = haltruleReach.process.pid;\nexport function canonicalize(value: unknown)",
+        ["policy code used process.pid"],
+        ["(static)"],
+    ),
+    mutant(
+        "ts determinism: no environment read through the global object",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        TS_GLOBAL_REACH + "export const stamp = haltruleReach.process.env.HOME;\nexport function canonicalize(value: unknown)",
+        ["policy code used process.env"],
+        ["(static)"],
+    ),
+    mutant(
+        "ts determinism: no built-in module taken from the process object",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        TS_GLOBAL_REACH.replace("process: {", "process: { getBuiltinModule(name: string): unknown;")
+        + 'export const stamp = haltruleReach.process.getBuiltinModule("node:os");\nexport function canonicalize(value: unknown)',
+        ["policy code used process.getBuiltinModule"],
+        ["(static)"],
+    ),
+    Mutant(
+        "check.sh: a sibling that fails while loading is on record even when its importer catches it",
+        (
+            Edit("py/haltrule/zz_broken.py", None, '"""A sibling that cannot load."""\n\nraise RuntimeError("broken")\n'),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                "from haltrule.verdict import verdict\n\ntry:\n    from haltrule import zz_broken\nexcept RuntimeError:\n    zz_broken = None\n",
+            ),
+        ),
+        tuple(["module haltrule.zz_broken failed while loading: RuntimeError"]),
+    ),
+    mutant(
+        "check.sh: a listing whose sort failed says so",
+        "scripts/check.sh",
+        '  elif ! LC_ALL=C sort -z -o "$listing" "$listing"; then\n',
+        "  elif ! false; then\n",
+        ["could not list every file: fixture_files (sort failed)"],
+    ),
+    mutant(
+        "py budget: negative infinity is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n",
+        '        if value == float("-inf"):\n            return 0\n        if not value.is_integer():\n',
+        ["python accepted an out-of-contract input: budget negative infinite charge"],
+    ),
+    mutant(
+        "ts budget: negative infinity is refused",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;\n',
+        '  if (value === -Infinity) n = 0n;\n  else if (typeof value === "bigint") n = value;\n',
+        ["typescript accepted an out-of-contract input: budget negative infinite charge"],
+    ),
+    mutant(
+        "ci: no slice is excluded from the matrix",
+        ".github/workflows/check.yml",
+        '        shard: ["1/3", "2/3", "3/3"]\n',
+        '        shard: ["1/3", "2/3", "3/3"]\n        exclude:\n          - shard: "3/3"\n',
+        ["the workflow does not name every mutation slice once in one job", "uses exclude:"],
+    ),
+    mutant(
+        "ci: a failing slice is not excused",
+        ".github/workflows/check.yml",
+        "      - name: Every mutant must make check.sh fail with its own evidence\n",
+        "      - name: Every mutant must make check.sh fail with its own evidence\n        continue-on-error: true\n",
+        ["the workflow does not name every mutation slice once in one job", "uses continue-on-error:"],
+    ),
+    mutant(
+        "ci: the mutation job is not switched off",
+        ".github/workflows/check.yml",
+        "  gates-detect-a-defect:\n    runs-on: ubuntu-latest\n",
+        "  gates-detect-a-defect:\n    if: false\n    runs-on: ubuntu-latest\n",
+        ["the workflow does not name every mutation slice once in one job", "uses if:"],
+    ),
+    mutant(
+        "ci: the matrix has no second key",
+        ".github/workflows/check.yml",
+        '        shard: ["1/3", "2/3", "3/3"]\n',
+        '        shard: ["1/3", "2/3", "3/3"]\n        flavour: ["a"]\n',
+        ["the workflow does not name every mutation slice once in one job", "not just shard"],
     ),
 ]
 
