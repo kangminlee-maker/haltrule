@@ -1443,6 +1443,36 @@ CATALOG += [
         ),
         tuple(["module haltrule.sub loaded outside the seal"]),
     ),
+    # --- round-4 re-review: refusals the spec requires are probed directly,
+    # since a raise can never be a fixture expectation
+    mutant(
+        "py slot: a bound past 2^53 - 1 is refused",
+        "py/haltrule/slot.py",
+        "_BOUND_MAX = 2**53 - 1",
+        "_BOUND_MAX = 2**63 - 1",
+        ["python accepted an out-of-contract input: slot bound past 2^53 - 1"],
+    ),
+    mutant(
+        "ts slot: a bound past 2^53 - 1 is refused",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;',
+        ["typescript accepted an out-of-contract input: slot bound past 2^53 - 1"],
+    ),
+    mutant(
+        "py budget: a negative amount is refused",
+        "py/haltrule/budget.py",
+        "    if not 0 <= value <= _LEDGER_MAX:",
+        "    if not value <= _LEDGER_MAX:",
+        ["python accepted an out-of-contract input: budget negative charge"],
+    ),
+    mutant(
+        "ts budget: a negative amount is refused",
+        "ts/budget.ts",
+        "  if (n < 0n || n > LEDGER_MAX) throw new RangeError(",
+        "  if (n > LEDGER_MAX) throw new RangeError(",
+        ["typescript accepted an out-of-contract input: budget negative charge"],
+    ),
 ]
 
 

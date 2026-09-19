@@ -98,7 +98,8 @@ not name is not reusable.
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
   additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else is out of contract. What to do when exhausted is the caller's.
+  anything else — negative, fractional, past 2^63 − 1 — is refused with an exception. What to do when
+  exhausted is the caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
@@ -108,7 +109,8 @@ not name is not reusable.
   exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar
   values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
-  are the known identifiers.
+  are the known identifiers. A spec outside the contract — an unknown `kind`, a `choice` without
+  `candidates`, `min_length` above `max_length`, a bound outside 0..2^53 − 1 — is refused with an exception.
 
 ## Reason registry
 

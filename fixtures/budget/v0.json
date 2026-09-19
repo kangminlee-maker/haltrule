@@ -104,6 +104,38 @@
       }
     },
     {
+      "id": "cap_at_two_pow_53_as_a_number",
+      "budget": {
+        "max_turns": {
+          "$number": "9007199254740992"
+        },
+        "time_budget_ms": null,
+        "token_budget": null
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
       "id": "turns_exhausted_when_used_reaches_cap",
       "budget": {
         "max_turns": {

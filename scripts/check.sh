@@ -366,6 +366,84 @@ refuse_and_verify unknown_section "unknown fixture section"  "a fixture section 
 refuse_and_verify unknown_kind    "unknown \$unsupported kind" "an \$unsupported kind no runner builds"
 refuse_and_verify wide_number     "not exactly representable as a double" "a \$number integer literal a double cannot hold"
 
+# Out-of-contract inputs the parts refuse, per the budget and slot bullets of
+# the spec. A raise fails a fixture, so no fixture can carry these promises;
+# each is called directly, in both languages, and must raise.
+OUT_OF_CONTRACT_PROBES=8
+OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1 or negative, an unknown kind, a choice without candidates, min above max; budget amounts negative or fractional, a cap past 2^63 - 1"
+ts_probe_out=$(node --input-type=module -e '
+import { validateSlot } from "./ts/slot.ts";
+import { Budget } from "./ts/budget.ts";
+const probes = [
+  ["slot bound past 2^53 - 1", () => validateSlot({ name: "t", kind: "text", max_length: 9007199254740992 }, "x")],
+  ["slot negative bound", () => validateSlot({ name: "t", kind: "text", min_length: -1 }, "x")],
+  ["slot unknown kind", () => validateSlot({ name: "t", kind: "number" }, "x")],
+  ["slot choice without candidates", () => validateSlot({ name: "t", kind: "choice" }, "x")],
+  ["slot min_length above max_length", () => validateSlot({ name: "t", kind: "text", min_length: 3, max_length: 2 }, "x")],
+  ["budget negative charge", () => new Budget().charge({ turns: -1 })],
+  ["budget fractional charge", () => new Budget().charge({ ms: 1.5 })],
+  ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
+];
+for (const [label, probe] of probes) {
+  try {
+    probe();
+    console.log(`accepted: ${label}`);
+  } catch (error) {
+    if (!(error instanceof TypeError || error instanceof RangeError)) throw error;
+    console.log(`refused: ${label}`);
+  }
+}' 2>&1)
+ts_probe_status=$?
+ts_probe_refused=$(printf '%s\n' "$ts_probe_out" | grep -c '^refused: ')
+if [ $ts_probe_status -ne 0 ]; then
+  fail "typescript out-of-contract probe crashed (exit $ts_probe_status)"
+  printf '%s\n' "$ts_probe_out" | tail -5
+elif printf '%s\n' "$ts_probe_out" | grep -q '^accepted: '; then
+  fail "typescript accepted an out-of-contract input: $(printf '%s\n' "$ts_probe_out" | sed -n 's/^accepted: //p' | head -1)"
+elif [ "$ts_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
+  fail "typescript out-of-contract probe ran $ts_probe_refused of $OUT_OF_CONTRACT_PROBES probes"
+else
+  pass "typescript refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
+fi
+
+py_probe_out=$(python3 - <<'PY' 2>&1
+import sys
+
+sys.path.insert(0, "py")
+from haltrule.budget import Budget  # noqa: E402
+from haltrule.slot import validate_slot  # noqa: E402
+
+probes = [
+    ("slot bound past 2^53 - 1", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 2**53}, "x")),
+    ("slot negative bound", lambda: validate_slot({"name": "t", "kind": "text", "min_length": -1}, "x")),
+    ("slot unknown kind", lambda: validate_slot({"name": "t", "kind": "number"}, "x")),
+    ("slot choice without candidates", lambda: validate_slot({"name": "t", "kind": "choice"}, "x")),
+    ("slot min_length above max_length", lambda: validate_slot({"name": "t", "kind": "text", "min_length": 3, "max_length": 2}, "x")),
+    ("budget negative charge", lambda: Budget().charge(turns=-1)),
+    ("budget fractional charge", lambda: Budget().charge(ms=1.5)),
+    ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
+]
+for label, probe in probes:
+    try:
+        probe()
+        print(f"accepted: {label}")
+    except (TypeError, ValueError):
+        print(f"refused: {label}")
+PY
+)
+py_probe_status=$?
+py_probe_refused=$(printf '%s\n' "$py_probe_out" | grep -c '^refused: ')
+if [ $py_probe_status -ne 0 ]; then
+  fail "python out-of-contract probe crashed (exit $py_probe_status)"
+  printf '%s\n' "$py_probe_out" | tail -5
+elif printf '%s\n' "$py_probe_out" | grep -q '^accepted: '; then
+  fail "python accepted an out-of-contract input: $(printf '%s\n' "$py_probe_out" | sed -n 's/^accepted: //p' | head -1)"
+elif [ "$py_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
+  fail "python out-of-contract probe ran $py_probe_refused of $OUT_OF_CONTRACT_PROBES probes"
+else
+  pass "python refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
+fi
+
 echo "3. parity — the two runners' actual output matches byte for byte"
 # --dump prints each case's ACTUAL result (never the fixture's expectation)
 # as one canonical JSON line. This is the check the README and spec promise
