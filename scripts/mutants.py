@@ -1473,6 +1473,15 @@ CATALOG += [
         "  if (n > LEDGER_MAX) throw new RangeError(",
         ["typescript accepted an out-of-contract input: budget negative charge"],
     ),
+    # The look-alike lives outside the tree, as an environment's would: inside
+    # the tree the location check would name it first.
+    mutant(
+        "check.sh: an allowlisted standard-library name must be the standard library's file",
+        "scripts/check.sh",
+        'py_sealed_out=$(python3 "$py_seal" 2>&1)',
+        'py_sealed_out=$(look_alike=$(mktemp -d); printf \'from _hashlib import openssl_sha256 as sha256\\n\' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" 2>&1; rm -rf "$look_alike")',
+        ["module hashlib is not the standard library's"],
+    ),
 ]
 
 

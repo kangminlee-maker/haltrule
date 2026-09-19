@@ -837,6 +837,7 @@ import os
 import pathlib
 import runpy
 import sys
+import sysconfig
 
 ALLOWED_MODULES = {"__future__", "dataclasses", "hashlib", "math", "typing", "haltrule"}
 REFUSED = ("open", "print", "input", "exec", "eval", "compile", "breakpoint", "hash", "id", "repr")
@@ -916,15 +917,23 @@ finally:
     # Every policy module the run used - a haltrule name, or any module whose
     # file lies inside this tree, whatever it is called - must be the very
     # object the seal loaded, not one the runtime loaded on its own; what a
-    # module says about its own builtins is not consulted.
+    # module says about its own builtins is not consulted. And an allowlisted
+    # standard-library name must be the standard library's file, not one from
+    # some other directory on the path.
     root = os.path.realpath(os.getcwd()) + os.sep
+    stdlib_roots = tuple(
+        os.path.realpath(sysconfig.get_paths()[key]) + os.sep for key in ("stdlib", "platstdlib")
+    )
     for loaded_name, loaded in list(sys.modules.items()):
         file = getattr(loaded, "__file__", None) or ""
-        inside = bool(file) and os.path.realpath(file).startswith(root)
-        if loaded_name == "haltrule" or loaded_name.startswith("haltrule.") or inside:
+        real = os.path.realpath(file) if file else ""
+        top = loaded_name.split(".")[0]
+        if loaded_name == "haltrule" or loaded_name.startswith("haltrule.") or real.startswith(root):
             if sealed_modules.get(loaded_name) is loaded:
                 continue
             record(f"module {loaded_name} loaded outside the seal")
+        elif top in ALLOWED_MODULES and real and not real.startswith(stdlib_roots):
+            record(f"module {loaded_name} is not the standard library's: {file}")
 PY
 py_sealed_out=$(python3 "$py_seal" 2>&1)
 py_sealed_status=$?
