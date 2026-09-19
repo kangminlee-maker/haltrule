@@ -1482,6 +1482,79 @@ CATALOG += [
         'py_sealed_out=$(look_alike=$(mktemp -d); printf \'from _hashlib import openssl_sha256 as sha256\\n\' > "$look_alike/hashlib.py"; PYTHONPATH="$look_alike" python3 "$py_seal" 2>&1; rm -rf "$look_alike")',
         ["module hashlib is not the standard library's"],
     ),
+    # --- round-4 third review (library): a name is required, both signs of a
+    # wide literal, a lone surrogate after a pair, the largest allowed bound,
+    # booleans
+    mutant(
+        "ts slot: a spec needs a string name",
+        "ts/slot.ts",
+        '  if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        '  if (typeof name !== "string" && name !== undefined) throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        ["typescript accepted an out-of-contract input: slot spec without a name"],
+    ),
+    mutant(
+        "py slot: a spec needs a string name",
+        "py/haltrule/slot.py",
+        "    if not isinstance(name, str):",
+        "    if name is not None and not isinstance(name, str):",
+        ["python accepted an out-of-contract input: slot spec without a name"],
+    ),
+    mutant(
+        "ts runner: a negative $number a double cannot hold is refused too",
+        "ts/run-fixtures.ts",
+        "const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;",
+        "const INTEGER_LITERAL = /^(0|[1-9][0-9]*)$/;",
+        ["typescript did not refuse a negative $number integer literal a double cannot hold"],
+    ),
+    mutant(
+        "py runner: a negative $number a double cannot hold is refused too",
+        "py/run_fixtures.py",
+        '_INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")',
+        '_INTEGER_LITERAL = re.compile(r"(0|[1-9][0-9]*)")',
+        ["python did not refuse a negative $number integer literal a double cannot hold"],
+    ),
+    mutant(
+        "ts slot: the surrogate scan continues past a valid pair",
+        "ts/slot.ts",
+        "        continue;",
+        "        return false;",
+        [TS_RUNNER_FAILS, "FAIL [text_lone_surrogate_after_a_pair_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: the surrogate scan reads the whole string",
+        "py/haltrule/slot.py",
+        "    return any(0xD800 <= ord(character) <= 0xDFFF for character in text)",
+        "    return any(0xD800 <= ord(character) <= 0xDFFF for character in text[:1])",
+        [PY_RUNNER_FAILS, "FAIL [text_lone_surrogate_after_a_pair_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: the largest allowed bound is allowed",
+        "py/haltrule/slot.py",
+        "    if not 0 <= value <= _BOUND_MAX:",
+        "    if not 0 <= value < _BOUND_MAX:",
+        [PY_RUNNER_FAILS, "FAIL [text_max_length_at_the_largest_allowed_bound_accepted] field=validate.raised"],
+    ),
+    mutant(
+        "ts slot: the largest allowed bound is allowed",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER) return value;',
+        [TS_RUNNER_FAILS, "FAIL [text_max_length_at_the_largest_allowed_bound_accepted] field=validate.raised"],
+    ),
+    mutant(
+        "py budget: a boolean is not a count",
+        "py/haltrule/budget.py",
+        "    if isinstance(value, bool) or not isinstance(value, (int, float)):",
+        "    if not isinstance(value, (int, float)):",
+        ["python accepted an out-of-contract input: budget boolean charge"],
+    ),
+    mutant(
+        "py slot: a boolean is not a bound",
+        "py/haltrule/slot.py",
+        "    if isinstance(value, bool) or not isinstance(value, (int, float)):",
+        "    if not isinstance(value, (int, float)):",
+        ["python accepted an out-of-contract input: slot boolean bound"],
+    ),
 ]
 
 

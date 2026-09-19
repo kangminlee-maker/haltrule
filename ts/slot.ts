@@ -68,6 +68,7 @@ function bound(value: number | null | undefined, what: string): number | null {
 
 export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
   const name = spec.name;
+  if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);
   if (spec.kind !== "choice" && spec.kind !== "text") {
     throw new TypeError(`slot ${name}: unknown kind ${JSON.stringify(spec.kind)}`);
   }

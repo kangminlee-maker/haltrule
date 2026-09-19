@@ -66,8 +66,10 @@ def validate_slot(spec: Mapping[str, Any], value: Any) -> dict[str, Any]:
     choice `candidates` (strings, compared exactly), for a text `min_length`
     and `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1; None
     for none)."""
-    name = spec["name"]
-    kind = spec["kind"]
+    name = spec.get("name")
+    if not isinstance(name, str):
+        raise TypeError(f"slot spec without a string name: {name!r}")
+    kind = spec.get("kind")
     if kind not in ("choice", "text"):
         raise TypeError(f"slot {name}: unknown kind {kind!r}")
     candidates = spec.get("candidates")

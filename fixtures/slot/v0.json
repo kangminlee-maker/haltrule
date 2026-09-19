@@ -656,6 +656,34 @@
       }
     },
     {
+      "id": "text_lone_surrogate_after_a_pair_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": "\ud83d\ude00\ud800",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_lone_surrogate_before_a_pair_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": "\udc00\ud83d\ude00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
       "id": "text_both_bounds_below_min_is_invalid",
       "spec": {
         "name": "note",
@@ -768,6 +796,40 @@
         }
       },
       "value": "abcd",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_max_length_at_the_largest_allowed_bound_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_length": {
+          "$number": "9007199254740991"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_min_length_at_the_largest_allowed_bound_is_never_met",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "9007199254740991"
+        }
+      },
+      "value": "x",
       "expect": {
         "spec": "haltrule/0",
         "verdict": "halt",

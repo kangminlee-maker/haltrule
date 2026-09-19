@@ -319,6 +319,8 @@ elif kind == "unknown_kind":
     fixtures["canonicalize"][0]["input"] = {"$unsupported": "no_such_kind"}
 elif kind == "wide_number":
     fixtures["canonicalize"][0]["input"] = {"$number": "9007199254740993"}
+elif kind == "wide_number_negative":
+    fixtures["canonicalize"][0]["input"] = {"$number": "-9007199254740993"}
 elif kind == "unknown_section":
     fixtures["canonicalize_extra"] = [
         {"id": "never_read", "input": None, "expect": {"canonical": "WRONG", "digest": "sha256:WRONG"}}
@@ -365,12 +367,14 @@ refuse_and_verify unknown_version "unknown fixture_version"  "an unknown fixture
 refuse_and_verify unknown_section "unknown fixture section"  "a fixture section no runner reads"
 refuse_and_verify unknown_kind    "unknown \$unsupported kind" "an \$unsupported kind no runner builds"
 refuse_and_verify wide_number     "not exactly representable as a double" "a \$number integer literal a double cannot hold"
+refuse_and_verify wide_number_negative "not exactly representable as a double" "a negative \$number integer literal a double cannot hold"
 
 # Out-of-contract inputs the parts refuse, per the budget and slot bullets of
 # the spec. A raise fails a fixture, so no fixture can carry these promises;
 # each is called directly, in both languages, and must raise.
-OUT_OF_CONTRACT_PROBES=8
-OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1 or negative, an unknown kind, a choice without candidates, min above max; budget amounts negative or fractional, a cap past 2^63 - 1"
+OUT_OF_CONTRACT_PROBES=12
+OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative or boolean, an unknown kind, a choice without candidates, min above max, a spec without a name; budget amounts negative, fractional or boolean, a cap past 2^63 - 1 or boolean"
+# Plain JavaScript: node evaluates -e input as is, so no type syntax here.
 ts_probe_out=$(node --input-type=module -e '
 import { validateSlot } from "./ts/slot.ts";
 import { Budget } from "./ts/budget.ts";
@@ -380,9 +384,13 @@ const probes = [
   ["slot unknown kind", () => validateSlot({ name: "t", kind: "number" }, "x")],
   ["slot choice without candidates", () => validateSlot({ name: "t", kind: "choice" }, "x")],
   ["slot min_length above max_length", () => validateSlot({ name: "t", kind: "text", min_length: 3, max_length: 2 }, "x")],
+  ["slot boolean bound", () => validateSlot({ name: "t", kind: "text", max_length: true }, "x")],
+  ["slot spec without a name", () => validateSlot({ kind: "text" }, "x")],
   ["budget negative charge", () => new Budget().charge({ turns: -1 })],
   ["budget fractional charge", () => new Budget().charge({ ms: 1.5 })],
+  ["budget boolean charge", () => new Budget().charge({ turns: true })],
   ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
+  ["budget boolean cap", () => new Budget({ max_turns: true })],
 ];
 for (const [label, probe] of probes) {
   try {
@@ -419,9 +427,13 @@ probes = [
     ("slot unknown kind", lambda: validate_slot({"name": "t", "kind": "number"}, "x")),
     ("slot choice without candidates", lambda: validate_slot({"name": "t", "kind": "choice"}, "x")),
     ("slot min_length above max_length", lambda: validate_slot({"name": "t", "kind": "text", "min_length": 3, "max_length": 2}, "x")),
+    ("slot boolean bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": True}, "x")),
+    ("slot spec without a name", lambda: validate_slot({"kind": "text"}, "x")),
     ("budget negative charge", lambda: Budget().charge(turns=-1)),
     ("budget fractional charge", lambda: Budget().charge(ms=1.5)),
+    ("budget boolean charge", lambda: Budget().charge(turns=True)),
     ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
+    ("budget boolean cap", lambda: Budget(max_turns=True)),
 ]
 for label, probe in probes:
     try:
