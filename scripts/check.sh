@@ -28,6 +28,7 @@ FIXTURE_PATH="fixtures/breaker/v0.json"
 CHECKPOINT_FIXTURE_PATH="fixtures/checkpoint/v0.json"
 BUDGET_FIXTURE_PATH="fixtures/budget/v0.json"
 SLOT_FIXTURE_PATH="fixtures/slot/v0.json"
+PROTOCOL_FIXTURE_PATH="fixtures/protocol/v0.json"
 
 # Every fixture file, found the way both runners find theirs when given no path:
 # each .json under fixtures/. Gates count against this inventory, never against
@@ -135,6 +136,7 @@ fixture_for_target() {
     canonicalize_*|checkpoint_*) printf '%s\n' "$CHECKPOINT_FIXTURE_PATH" ;;
     charge_*) printf '%s\n' "$BUDGET_FIXTURE_PATH" ;;
     validate_*) printf '%s\n' "$SLOT_FIXTURE_PATH" ;;
+    result_line_*) printf '%s\n' "$PROTOCOL_FIXTURE_PATH" ;;
     *) printf '%s\n' "$FIXTURE_PATH" ;;
   esac
 }
@@ -244,6 +246,14 @@ elif target == "charge_used":
 elif target == "validate_verdict":
     case = fixtures["validate"][0]
     case["expect"]["verdict"] = "halt" if case["expect"]["verdict"] != "halt" else "ok"
+elif target == "result_line_text":
+    # The smallest wrong line there is: two members of a map, swapped.
+    case = next(c for c in fixtures["result_line"] if c["expect"].get("line") == '{"1":"one","10":"ten","2":"two"}')
+    case["expect"]["line"] = '{"1":"one","2":"two","10":"ten"}'
+elif target == "result_line_refused_to_line":
+    next(c for c in fixtures["result_line"] if "refused" in c["expect"])["expect"] = {"line": "1.5"}
+elif target == "result_line_line_to_refused":
+    next(c for c in fixtures["result_line"] if "line" in c["expect"])["expect"] = {"refused": True}
 else:
     sys.exit(f"unknown corruption target: {target}")
 
@@ -313,6 +323,9 @@ corrupt_and_verify charge_verdict          "a corrupted charge verdict"
 corrupt_and_verify charge_missing_verdict  "a missing charge verdict"
 corrupt_and_verify charge_used             "a corrupted charge ledger"
 corrupt_and_verify validate_verdict        "a corrupted validate verdict"
+corrupt_and_verify result_line_text            "a result line with two members swapped"
+corrupt_and_verify result_line_refused_to_line "a refused result rewritten as a line"
+corrupt_and_verify result_line_line_to_refused "a result line rewritten as a refusal"
 
 ts_missing_out=$(node ts/run-fixtures.ts /nonexistent/fixture.json 2>&1)
 ts_missing_status=$?
@@ -353,6 +366,10 @@ elif kind == "wide_number":
     fixtures["canonicalize"][0]["input"] = {"$number": "9007199254740993"}
 elif kind == "wide_number_negative":
     fixtures["canonicalize"][0]["input"] = {"$number": "-9007199254740993"}
+elif kind.startswith("number_literal:"):
+    fixtures["canonicalize"][0]["input"] = {"$number": kind.split(":", 1)[1]}
+elif kind.startswith("bigint_literal:"):
+    fixtures["canonicalize"][0]["input"] = {"$bigint": kind.split(":", 1)[1]}
 elif kind == "unknown_section":
     fixtures["canonicalize_extra"] = [
         {"id": "never_read", "input": None, "expect": {"canonical": "WRONG", "digest": "sha256:WRONG"}}
@@ -400,6 +417,18 @@ refuse_and_verify unknown_section "unknown fixture section"  "a fixture section 
 refuse_and_verify unknown_kind    "unknown \$unsupported kind" "an \$unsupported kind no runner builds"
 refuse_and_verify wide_number     "not exactly representable as a double" "a \$number integer literal a double cannot hold"
 refuse_and_verify wide_number_negative "not exactly representable as a double" "a negative \$number integer literal a double cannot hold"
+# A literal is read by the grammar in fixtures/README.md, not by whatever a
+# language's own number parser takes. Each literal here is one a parser reads
+# and the grammar does not: Python's float reads "1_0" (as 10), "nan" and
+# " 7 "; JavaScript's Number reads "0x10" (as 16), "" (as 0) and " 7 "; both
+# read "01". Python's int reads "1_0", JavaScript's BigInt reads "0x10" and
+# "" - and "1.0" is a number, not an integer.
+for loose_literal in "1_0" "0x10" "" " 7 " "nan" "01"; do
+  refuse_and_verify "number_literal:$loose_literal" "is outside the fixture grammar" "the \$number literal '$loose_literal'"
+done
+for loose_literal in "1_0" "0x10" "" "1.0"; do
+  refuse_and_verify "bigint_literal:$loose_literal" "is outside the fixture grammar" "the \$bigint literal '$loose_literal'"
+done
 
 # Out-of-contract inputs the parts refuse, per the budget and slot bullets of
 # the spec. A raise fails a fixture, so no fixture can carry these promises;
@@ -1290,18 +1319,23 @@ else
   if [ "$checkpoint_n" -ge 20 ]; then pass "checkpoint: $checkpoint_n cases (>= 20)"; else fail "checkpoint: only $checkpoint_n cases (need >= 20)"; fi
 fi
 
-part_counts=$(python3 - "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH" <<'PY'
+part_counts=$(python3 - "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH" "$PROTOCOL_FIXTURE_PATH" <<'PY'
 import json, sys
-print(len(json.load(open(sys.argv[1]))["charge"]), len(json.load(open(sys.argv[2]))["validate"]))
+print(
+    len(json.load(open(sys.argv[1]))["charge"]),
+    len(json.load(open(sys.argv[2]))["validate"]),
+    len(json.load(open(sys.argv[3]))["result_line"]),
+)
 PY
 )
 part_counts_status=$?
 if [ $part_counts_status -ne 0 ] || [ -z "$part_counts" ]; then
-  fail "could not read fixture case counts from $BUDGET_FIXTURE_PATH and $SLOT_FIXTURE_PATH (exit $part_counts_status)"
+  fail "could not read fixture case counts from $BUDGET_FIXTURE_PATH, $SLOT_FIXTURE_PATH and $PROTOCOL_FIXTURE_PATH (exit $part_counts_status)"
 else
-  read -r charge_n validate_n <<< "$part_counts"
+  read -r charge_n validate_n result_line_n <<< "$part_counts"
   if [ "$charge_n" -ge 30 ]; then pass "charge: $charge_n cases (>= 30)"; else fail "charge: only $charge_n cases (need >= 30)"; fi
   if [ "$validate_n" -ge 40 ]; then pass "validate: $validate_n cases (>= 40)"; else fail "validate: only $validate_n cases (need >= 40)"; fi
+  if [ "$result_line_n" -ge 30 ]; then pass "result_line: $result_line_n cases (>= 30)"; else fail "result_line: only $result_line_n cases (need >= 30)"; fi
 fi
 
 # fixtures/README.md promises ASCII files, so no editor or transport can
@@ -1309,7 +1343,7 @@ fi
 # The inventory must hold each file the gates name: a listing that lost one
 # would otherwise shrink every count taken against it without a word.
 missing_fixtures=""
-for named_fixture in "$FIXTURE_PATH" "$CHECKPOINT_FIXTURE_PATH" "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH"; do
+for named_fixture in "$FIXTURE_PATH" "$CHECKPOINT_FIXTURE_PATH" "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH" "$PROTOCOL_FIXTURE_PATH"; do
   in_inventory=0
   if [ "${#fixture_files[@]}" -gt 0 ]; then
     for f in "${fixture_files[@]}"; do

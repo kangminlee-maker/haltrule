@@ -1,7 +1,8 @@
 # haltrule spec (draft)
 
 The spec is the product. An implementation is conformant when it passes every fixture in `../fixtures` and
-its output matches the other implementations' byte for byte.
+its output matches the other implementations' byte for byte — in the result-line format
+`../fixtures/README.md` defines, so that "the same bytes" does not depend on anyone's JSON library.
 
 The value model and canonicalization below govern digest inputs. They do not constrain the breaker,
 `budget`, or `slot`, which take their arguments as ordinary typed values. An argument outside a part's
@@ -85,7 +86,52 @@ not name is not reusable.
 
 ## Parts
 
-- `breaker` — TODO: policy fields, classification contract, backoff schedule, dead-letter entry
+- `breaker` — the policy of a dispatch loop's circuit breaker: which failures say the provider is down, how
+  long to wait before a retry, and when a batch should stop. It holds no clock and does no waiting; the loop,
+  the retries and what is persisted are the caller's. Its numbers are integers within ±(2^53 − 1). The three
+  fixture sections are its three entry points.
+  - **`classify`** takes a failure message and answers `rate_limit`, `auth`, `transport`, or null — null
+    meaning the failure is the item's own and says nothing about the provider. A message that is not a
+    non-empty string is null. Otherwise the message is lowercased by Unicode's full default case conversion
+    (U+212A KELVIN SIGN becomes `k`; U+0130 becomes `i` followed by U+0307, so it is not the `i` inside a
+    pattern) and the classes are tried in that order: the first with a pattern occurring anywhere in the
+    lowercased message wins. A pattern is a plain substring — `429` matches inside `14290`.
+    - `rate_limit`: `429`, `rate limit`, `limit reached`, `rate_limit`, `too many requests`, `overloaded`,
+      `selected model is at capacity`, `session limit`, `usage limit`, `quota`, `retry-after`, `retry_after`
+    - `auth`: `401`, `403`, `unauthorized`, `forbidden`, `invalid api key`, `invalid x-api-key`,
+      `authentication`, `not logged in`
+    - `transport`: `stream disconnected before completion`, `connection reset by peer`,
+      `error sending request`, `failed to connect to websocket`, `transport channel closed`,
+      `http/request failed`, `request failed after`, `timed out`, `timeout`, `econnrefused`, `econnreset`,
+      `etimedout`, `socket hang up`, `fetch failed`
+  - **`backoff`** is the delay in milliseconds before retry `attempt + 1`, with no jitter: `cap_ms` when
+    `initial_ms` is zero or less, otherwise `min(cap_ms, initial_ms × 2^max(0, attempt))`. The doubling is
+    exact. A port computes it in integers and stops at the cap, so a product past its integer type is the cap
+    and never an overflow; the references compute it in doubles, where a power of two times an integer in
+    range is exact until it is infinite, which is the same thing.
+  - **`state`** is one batch. It is made from a policy — `enabled`, `systemic_threshold` (an integer of at
+    least 1), `concurrent` (optional, off by default), and `per_call_max_attempts`, `backoff_initial_ms` and
+    `backoff_cap_ms`, which are carried for the caller's loop and read by nothing here — and holds four
+    things: the completed item ids, the dead-letter entries, the pending entries, and the trip, null until it
+    is set. The caller reports each item's final outcome, after its own retries:
+    - `success`: the id is completed. Then, unless the batch has tripped or `concurrent` is on, every pending
+      entry moves to the dead letter in the order it became pending — the provider answered, so those
+      failures were the items' own.
+    - `skipped`: the id is completed and nothing else changes. An item that made no call proves nothing about
+      the provider.
+    - `failure`, with an entry of `item_id`, `failure_class`, `failure_message` and `attempt_count`: an entry
+      whose class is null goes to the dead letter, every time it is reported. Any other entry becomes pending
+      unless one with its `item_id` already is — the first is kept. Then, if the policy is enabled, the batch
+      has not tripped, and the number pending has reached `systemic_threshold`, the batch trips: the trip is
+      this entry's `failure_class`, the number pending as `consecutive_item_count`, and the `threshold`. That
+      one report answers with the trip; every other report answers null.
+    - After the trip nothing leaves the pending entries: a success no longer moves them and a failure still
+      joins them. They are the outage's victims, to be dispatched again, not written off. With `concurrent`
+      on the same holds before the trip, so which items end where does not depend on the order they finished
+      in; the trip's `failure_class` is still that of whichever entry crossed the threshold.
+
+    An id may be completed twice, and completed and dead-lettered both. What is neither at the end is
+    incomplete; the caller works that out from its own list of items.
 - `checkpoint` — `canonicalize` and the digest above, and a reuse verdict over one recorded artifact. The
   caller passes the artifact (or null when it does not exist), the stage it belongs to, what it expects
   now — contract revision, stage-config digest, dependency digests — and optionally its own validation
@@ -149,4 +195,6 @@ A port is conformant when:
 1. every fixture passes;
 2. corrupting one expected value in a fixture makes the runner fail (the instrument is checked, not trusted);
 3. its dependency list is empty, except SHA-256 where the standard library does not provide it;
-4. its canonical output for the shared vectors is identical to the other implementations'.
+4. its canonical output for the shared vectors is identical to the other implementations': its runner
+   writes one result line per case, as `../fixtures/README.md` defines them, and passes that format's own
+   vectors (`protocol/v0`).

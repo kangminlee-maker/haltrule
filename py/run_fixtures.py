@@ -93,15 +93,58 @@ def _to_plain(value):
     return value
 
 
+_SAFE_INTEGER = 2**53 - 1
+
+
+def _utf16_units(key: str) -> bytes:
+    return key.encode("utf-16-be", "surrogatepass")
+
+
+def _result_string(text: str) -> str:
+    # json.dumps escapes as the protocol says, except that it leaves a lone
+    # surrogate as it is - which no UTF-8 stream can carry.
+    escaped = json.dumps(text, ensure_ascii=False)
+    return "".join(
+        f"\\u{ord(ch):04x}" if 0xD800 <= ord(ch) <= 0xDFFF else ch for ch in escaped
+    )
+
+
 def _canonical_json(value) -> str:
-    """RFC-8785-ish canonical form (sorted keys, no insignificant
-    whitespace) so a --dump line is byte-identical to the TS runner's for
-    the same actual result. Must stay in lockstep with the TS runner's
-    `canonicalStringify`.
+    """A result line, as fixtures/README.md defines it; fixtures/protocol/v0.json
+    holds its vectors. Written out member by member: `sort_keys` orders keys by
+    code point, and the protocol orders them by UTF-16 code unit.
     """
-    # ensure_ascii=False: JSON.stringify writes non-ASCII as itself, and the
-    # canonical strings in a --dump line carry non-ASCII text.
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return _result_string(value)
+    if isinstance(value, float):
+        if not value.is_integer():  # false for NaN and the infinities too
+            raise ValueError(
+                f"a result holds the number {value!r}; a result number is an integer within +/-(2^53 - 1)"
+            )
+        value = int(value)
+    if isinstance(value, int):
+        if abs(value) > _SAFE_INTEGER:
+            raise ValueError(
+                f"a result holds the number {value}; a result number is an integer within +/-(2^53 - 1)"
+            )
+        return str(value)
+    if isinstance(value, list):
+        return "[" + ",".join(_canonical_json(item) for item in value) + "]"
+    if type(value) is dict:
+        if not all(isinstance(key, str) for key in value):
+            raise ValueError("a result holds a map with a key that is not a string")
+        members = (
+            f"{_result_string(key)}:{_canonical_json(value[key])}"
+            for key in sorted(value, key=_utf16_units)
+        )
+        return "{" + ",".join(members) + "}"
+    raise ValueError(
+        f"a result holds a value a result line cannot carry: {type(value).__name__}"
+    )
 
 
 def _fail(case_id: str, field: str, expected, actual) -> None:
@@ -230,6 +273,12 @@ def run_state(cases: list[dict]) -> None:
 
 
 _INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")
+# The JSON number grammar, plus the three values JSON cannot spell. float() and
+# int() read more than this - "1_0", " 7 ", "nan" - and JavaScript's Number()
+# and BigInt() read other things again - "0x10", "" - so neither decides.
+_NUMBER_LITERAL = re.compile(
+    r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?|NaN|Infinity|-Infinity"
+)
 
 
 def _exactly_representable(value: int) -> bool:
@@ -266,6 +315,10 @@ def _decode_fixture_value(value):
     if len(value) == 1:
         ((key, inner),) = value.items()
         if key == "$number" and isinstance(inner, str):
+            if not _NUMBER_LITERAL.fullmatch(inner):
+                raise ValueError(
+                    f"$number literal {json.dumps(inner)} is outside the fixture grammar"
+                )
             if not _INTEGER_LITERAL.fullmatch(inner):
                 return float(inner)
             value = int(inner)
@@ -278,11 +331,11 @@ def _decode_fixture_value(value):
                 )
             return value
         if key == "$bigint" and isinstance(inner, str):
-            return (
-                _int_from_literal(inner)
-                if _INTEGER_LITERAL.fullmatch(inner)
-                else int(inner)
-            )
+            if not _INTEGER_LITERAL.fullmatch(inner):
+                raise ValueError(
+                    f"$bigint literal {json.dumps(inner)} is outside the fixture grammar"
+                )
+            return _int_from_literal(inner)
         if key == "$unsupported":
             if inner in ("undefined", "instance"):
                 return object()
@@ -500,11 +553,48 @@ def dump_validate(cases: list[dict]) -> None:
         )
 
 
+def _actual_result_line(tc: dict) -> dict:
+    """The protocol's own vectors: what the serializer writes for a value,
+    against a line written by hand from fixtures/README.md."""
+    value = _decode_fixture_value(tc["value"])
+    try:
+        return {"line": _canonical_json(value)}
+    except ValueError:
+        return {"refused": True}
+
+
+def run_result_line(cases: list[dict]) -> None:
+    global _case_count
+    for tc in cases:
+        _case_count += 1
+        actual = _compute_or_fail(
+            tc["id"], "result_line", lambda tc=tc: _actual_result_line(tc)
+        )
+        if actual is _RAISED:
+            continue
+        if actual != tc["expect"]:
+            _fail(tc["id"], "result_line.expect", tc["expect"], actual)
+
+
+def dump_result_line(cases: list[dict]) -> None:
+    for tc in cases:
+        print(
+            _canonical_json(
+                {
+                    "section": "result_line",
+                    "id": tc["id"],
+                    "actual": _actual_result_line(tc),
+                }
+            )
+        )
+
+
 _SECTIONS = {
     "breaker/v0": ("classify", "backoff", "state"),
     "checkpoint/v0": ("canonicalize", "checkpoint"),
     "budget/v0": ("charge",),
     "slot/v0": ("validate",),
+    "protocol/v0": ("result_line",),
 }
 
 
@@ -544,6 +634,11 @@ def run_file(fixtures: dict, dump: bool) -> None:
             dump_validate(fixtures["validate"])
         else:
             run_validate(fixtures["validate"])
+    elif version == "protocol/v0":
+        if dump:
+            dump_result_line(fixtures["result_line"])
+        else:
+            run_result_line(fixtures["result_line"])
     else:
         raise ValueError(f"unknown fixture_version {version!r}")
 
@@ -551,7 +646,7 @@ def run_file(fixtures: dict, dump: bool) -> None:
 def main() -> None:
     # A --dump line carries non-ASCII text; write it as UTF-8 whatever the
     # locale says, as node does.
-    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     args = sys.argv[1:]
     dump = "--dump" in args
     positional = [a for a in args if a != "--dump"]

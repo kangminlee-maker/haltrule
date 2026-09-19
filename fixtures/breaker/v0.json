@@ -210,6 +210,26 @@
       "id": "precedence_rate_limit_over_transport",
       "message": "429 too many requests: connection reset by peer",
       "expect": "rate_limit"
+    },
+    {
+      "id": "classify_kelvin_sign_folds_to_k",
+      "message": "soc\u212aet hang up",
+      "expect": "transport"
+    },
+    {
+      "id": "classify_dotted_capital_i_is_not_a_plain_i",
+      "message": "T\u0130MEOUT",
+      "expect": null
+    },
+    {
+      "id": "classify_dotted_capital_i_after_a_match",
+      "message": "QUOTA\u0130",
+      "expect": "rate_limit"
+    },
+    {
+      "id": "classify_pattern_inside_a_longer_number",
+      "message": "item 14290 rejected by the schema",
+      "expect": "rate_limit"
     }
   ],
   "backoff": [
@@ -289,6 +309,41 @@
       "initial_ms": 777,
       "cap_ms": 12432,
       "expect_ms": 12432
+    },
+    {
+      "id": "backoff_attempt_past_double_range",
+      "attempt": 1100,
+      "initial_ms": 1,
+      "cap_ms": 30000,
+      "expect_ms": 30000
+    },
+    {
+      "id": "backoff_attempt_at_integer_ceiling",
+      "attempt": 9007199254740991,
+      "initial_ms": 1000,
+      "cap_ms": 30000,
+      "expect_ms": 30000
+    },
+    {
+      "id": "backoff_everything_at_integer_ceiling",
+      "attempt": 0,
+      "initial_ms": 9007199254740991,
+      "cap_ms": 9007199254740991,
+      "expect_ms": 9007199254740991
+    },
+    {
+      "id": "backoff_doubling_past_integer_ceiling_is_capped",
+      "attempt": 1,
+      "initial_ms": 4503599627370497,
+      "cap_ms": 9007199254740991,
+      "expect_ms": 9007199254740991
+    },
+    {
+      "id": "backoff_negative_cap_is_returned_as_given",
+      "attempt": 2,
+      "initial_ms": 1000,
+      "cap_ms": -5,
+      "expect_ms": -5
     }
   ],
   "state": [

@@ -166,7 +166,23 @@ interface SlotFixtureFile {
   validate: ValidateCase[];
 }
 
-type FixtureFile = BreakerFixtureFile | CheckpointFixtureFile | BudgetFixtureFile | SlotFixtureFile;
+interface ResultLineCase {
+  id: string;
+  value: unknown;
+  expect: { line: string } | { refused: true };
+}
+
+interface ProtocolFixtureFile {
+  fixture_version: "protocol/v0";
+  result_line: ResultLineCase[];
+}
+
+type FixtureFile =
+  | BreakerFixtureFile
+  | CheckpointFixtureFile
+  | BudgetFixtureFile
+  | SlotFixtureFile
+  | ProtocolFixtureFile;
 
 let failureCount = 0;
 let caseCount = 0;
@@ -189,25 +205,48 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
-/** RFC-8785-ish canonical form (sorted keys, no insignificant whitespace) so
- * a --dump line is byte-identical to the Python runner's for the same
- * actual result. Must stay in lockstep with the Python runner's
- * `_canonical_json`. */
-function sortKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (value !== null && typeof value === "object") {
-    const source = value as Record<string, unknown>;
-    const sorted: Record<string, unknown> = {};
-    for (const key of Object.keys(source).sort()) {
-      sorted[key] = sortKeysDeep(source[key]);
-    }
-    return sorted;
-  }
-  return value;
-}
-
+/** A result line, as fixtures/README.md defines it; fixtures/protocol/v0.json
+ * holds its vectors. Written out member by member: JSON.stringify would put
+ * an object's integer-like keys ("2", "10") first, in numeric order, whatever
+ * order they were inserted in. */
 function canonicalStringify(value: unknown): string {
-  return JSON.stringify(sortKeysDeep(value));
+  if (value === null) return "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  // JSON.stringify escapes a string as the protocol says, lone surrogates included.
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`a result holds the number ${value}; a result number is an integer within \u00b1(2^53 - 1)`);
+    }
+    return String(value); // -0 is written "0"
+  }
+  if (typeof value === "bigint") {
+    // An integer is an integer however the language holds it.
+    if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(`a result holds the number ${value}; a result number is an integer within \u00b1(2^53 - 1)`);
+    }
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    const items: string[] = [];
+    // Indexed, so a hole is met as undefined and refused rather than skipped.
+    for (let index = 0; index < value.length; index += 1) items.push(canonicalStringify(value[index]));
+    return `[${items.join(",")}]`;
+  }
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const source = value as Record<string, unknown>;
+    const keys = Object.keys(source);
+    // A symbol key, or a hidden one: writing the map without it would be a different map.
+    if (Reflect.ownKeys(source).length !== keys.length) {
+      throw new Error("a result holds a map with a key that is not an enumerable string");
+    }
+    // The default sort compares UTF-16 code units, which is the protocol's order.
+    const members = keys
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalStringify(source[key])}`);
+    return `{${members.join(",")}}`;
+  }
+  throw new Error(`a result holds a value a result line cannot carry: ${typeof value}`);
 }
 
 function fail(caseId: string, field: string, expected: unknown, actual: unknown): void {
@@ -344,6 +383,10 @@ function runState(cases: StateCase[]): void {
 }
 
 const INTEGER_LITERAL = /^-?(0|[1-9][0-9]*)$/;
+// The JSON number grammar, plus the three values JSON cannot spell. Number()
+// and BigInt() read more than this - "0x10", "", " 7 " - and Python's float()
+// and int() read other things again - "1_0" - so neither decides.
+const NUMBER_LITERAL = /^(-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?|NaN|Infinity|-Infinity)$/;
 
 function exactlyRepresentable(literal: string, decoded: number): boolean {
   try {
@@ -366,6 +409,9 @@ function decodeFixtureValue(value: unknown): unknown {
   if (entries.length === 1) {
     const [key, inner] = entries[0]!;
     if (key === "$number" && typeof inner === "string") {
+      if (!NUMBER_LITERAL.test(inner)) {
+        throw new Error(`$number literal ${JSON.stringify(inner)} is outside the fixture grammar`);
+      }
       const decoded = Number(inner);
       // An integer literal a double cannot hold rounds here and stays exact in
       // Python, so the two runners would test two different values.
@@ -377,6 +423,9 @@ function decodeFixtureValue(value: unknown): unknown {
       return decoded;
     }
     if (key === "$bigint" && typeof inner === "string") {
+      if (!INTEGER_LITERAL.test(inner)) {
+        throw new Error(`$bigint literal ${JSON.stringify(inner)} is outside the fixture grammar`);
+      }
       // The bigint cases exist to reach the implementation's bigint path; the
       // same value as a number would pass every one of them and test nothing.
       const decoded: unknown = BigInt(inner);
@@ -477,6 +526,34 @@ function runValidate(cases: ValidateCase[]): void {
   }
 }
 
+/** The protocol's own vectors: what the serializer above writes for a value,
+ * against a line written by hand from fixtures/README.md. */
+function actualResultLine(tc: ResultLineCase): { line: string } | { refused: true } {
+  const value = decodeFixtureValue(tc.value);
+  try {
+    return { line: canonicalStringify(value) };
+  } catch {
+    return { refused: true };
+  }
+}
+
+function runResultLine(cases: ResultLineCase[]): void {
+  for (const tc of cases) {
+    caseCount += 1;
+    const actual = computeOrFail(tc.id, "result_line", () => actualResultLine(tc));
+    if (actual === RAISED) continue;
+    if (!deepEqual(actual, tc.expect)) {
+      fail(tc.id, "result_line.expect", tc.expect, actual);
+    }
+  }
+}
+
+function dumpResultLine(cases: ResultLineCase[]): void {
+  for (const tc of cases) {
+    console.log(canonicalStringify({ section: "result_line", id: tc.id, actual: actualResultLine(tc) }));
+  }
+}
+
 function dumpClassify(cases: ClassifyCase[]): void {
   for (const tc of cases) {
     console.log(canonicalStringify({ section: "classify", id: tc.id, actual: actualClassify(tc) }));
@@ -524,6 +601,7 @@ const SECTIONS: Record<string, readonly string[]> = {
   "checkpoint/v0": ["canonicalize", "checkpoint"],
   "budget/v0": ["charge"],
   "slot/v0": ["validate"],
+  "protocol/v0": ["result_line"],
 };
 
 function runFile(fixtures: FixtureFile, dump: boolean): void {
@@ -565,6 +643,12 @@ function runFile(fixtures: FixtureFile, dump: boolean): void {
       dumpValidate(fixtures.validate);
     } else {
       runValidate(fixtures.validate);
+    }
+  } else if (fixtures.fixture_version === "protocol/v0") {
+    if (dump) {
+      dumpResultLine(fixtures.result_line);
+    } else {
+      runResultLine(fixtures.result_line);
     }
   } else {
     throw new Error(`unknown fixture_version ${JSON.stringify((fixtures as { fixture_version: unknown }).fixture_version)}`);

@@ -1,0 +1,387 @@
+{
+  "fixture_version": "protocol/v0",
+  "result_line": [
+    {
+      "id": "line_keys_numeric_looking_sort_as_text",
+      "value": {
+        "10": "ten",
+        "2": "two",
+        "1": "one"
+      },
+      "expect": {
+        "line": "{\"1\":\"one\",\"10\":\"ten\",\"2\":\"two\"}"
+      }
+    },
+    {
+      "id": "line_keys_sort_by_utf16_code_unit",
+      "value": {
+        "\ue000": "private use",
+        "\ud800\udc00": "beyond the plane",
+        "\uffff": "last unit"
+      },
+      "expect": {
+        "line": "{\"\ud800\udc00\":\"beyond the plane\",\"\ue000\":\"private use\",\"\uffff\":\"last unit\"}"
+      }
+    },
+    {
+      "id": "line_keys_empty_case_and_prefix",
+      "value": {
+        "b": {
+          "$number": "1"
+        },
+        "a": {
+          "$number": "2"
+        },
+        "B": {
+          "$number": "3"
+        },
+        "": {
+          "$number": "4"
+        },
+        "ab": {
+          "$number": "5"
+        },
+        "a ": {
+          "$number": "6"
+        }
+      },
+      "expect": {
+        "line": "{\"\":4,\"B\":3,\"a\":2,\"a \":6,\"ab\":5,\"b\":1}"
+      }
+    },
+    {
+      "id": "line_keys_are_escaped_like_strings",
+      "value": {
+        "a\"b": "quote",
+        "a\nb": "newline",
+        "a\\b": "backslash"
+      },
+      "expect": {
+        "line": "{\"a\\nb\":\"newline\",\"a\\\"b\":\"quote\",\"a\\\\b\":\"backslash\"}"
+      }
+    },
+    {
+      "id": "line_keys_are_not_normalized",
+      "value": {
+        "\u00e9": "composed",
+        "e\u0301": "decomposed"
+      },
+      "expect": {
+        "line": "{\"e\u0301\":\"decomposed\",\"\u00e9\":\"composed\"}"
+      }
+    },
+    {
+      "id": "line_key_with_lone_surrogate",
+      "value": {
+        "\ud800": "lone",
+        "\ud7ff": "below"
+      },
+      "expect": {
+        "line": "{\"\ud7ff\":\"below\",\"\\ud800\":\"lone\"}"
+      }
+    },
+    {
+      "id": "line_nesting_sorts_maps_and_keeps_list_order",
+      "value": {
+        "z": [
+          {
+            "b": "2",
+            "a": "1"
+          },
+          "x",
+          null
+        ],
+        "a": [
+          [
+            "c",
+            "b"
+          ]
+        ]
+      },
+      "expect": {
+        "line": "{\"a\":[[\"c\",\"b\"]],\"z\":[{\"a\":\"1\",\"b\":\"2\"},\"x\",null]}"
+      }
+    },
+    {
+      "id": "line_empty_containers_and_empty_string",
+      "value": {
+        "m": {},
+        "l": [],
+        "s": ""
+      },
+      "expect": {
+        "line": "{\"l\":[],\"m\":{},\"s\":\"\"}"
+      }
+    },
+    {
+      "id": "line_booleans_and_null",
+      "value": [
+        true,
+        false,
+        null
+      ],
+      "expect": {
+        "line": "[true,false,null]"
+      }
+    },
+    {
+      "id": "line_string_short_escapes",
+      "value": "\"\\/\b\f\n\r\t",
+      "expect": {
+        "line": "\"\\\"\\\\/\\b\\f\\n\\r\\t\""
+      }
+    },
+    {
+      "id": "line_string_other_controls_are_lowercase_hex",
+      "value": "\u0000\u0001\u001f\u007f",
+      "expect": {
+        "line": "\"\\u0000\\u0001\\u001f\u007f\""
+      }
+    },
+    {
+      "id": "line_string_markup_and_separators_are_not_escaped",
+      "value": "<>&'\u2028\u2029",
+      "expect": {
+        "line": "\"<>&'\u2028\u2029\""
+      }
+    },
+    {
+      "id": "line_string_beyond_ascii_is_written_as_itself",
+      "value": "\u00e9\ud55c\ud83d\ude00",
+      "expect": {
+        "line": "\"\u00e9\ud55c\ud83d\ude00\""
+      }
+    },
+    {
+      "id": "line_string_lone_surrogates_are_escaped",
+      "value": [
+        "\ud800",
+        "\udfff",
+        "\udc00\ud800",
+        "\ud83d\ude00"
+      ],
+      "expect": {
+        "line": "[\"\\ud800\",\"\\udfff\",\"\\udc00\\ud800\",\"\ud83d\ude00\"]"
+      }
+    },
+    {
+      "id": "line_integers_at_the_range_ends",
+      "value": [
+        {
+          "$number": "0"
+        },
+        {
+          "$number": "-0"
+        },
+        {
+          "$number": "1"
+        },
+        {
+          "$number": "-1"
+        },
+        {
+          "$number": "9007199254740991"
+        },
+        {
+          "$number": "-9007199254740991"
+        }
+      ],
+      "expect": {
+        "line": "[0,0,1,-1,9007199254740991,-9007199254740991]"
+      }
+    },
+    {
+      "id": "line_integral_floats_are_written_as_integers",
+      "value": [
+        {
+          "$number": "1.0"
+        },
+        {
+          "$number": "-0.0"
+        },
+        {
+          "$number": "1e3"
+        },
+        {
+          "$number": "2.5e1"
+        },
+        {
+          "$number": "1E+2"
+        },
+        {
+          "$number": "100e-2"
+        }
+      ],
+      "expect": {
+        "line": "[1,0,1000,25,100,1]"
+      }
+    },
+    {
+      "id": "line_bigint_within_range_is_an_integer",
+      "value": [
+        {
+          "$bigint": "9007199254740991"
+        },
+        {
+          "$bigint": "-1"
+        }
+      ],
+      "expect": {
+        "line": "[9007199254740991,-1]"
+      }
+    },
+    {
+      "id": "line_fraction_refused",
+      "value": {
+        "$number": "1.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_small_fraction_refused",
+      "value": {
+        "$number": "1e-7"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_nan_refused",
+      "value": {
+        "$number": "NaN"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_infinity_refused",
+      "value": {
+        "$number": "Infinity"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_negative_infinity_refused",
+      "value": {
+        "$number": "-Infinity"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_integer_past_range_refused",
+      "value": {
+        "$number": "9007199254740992"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_negative_integer_past_range_refused",
+      "value": {
+        "$number": "-9007199254740992"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_float_past_range_refused",
+      "value": {
+        "$number": "1e16"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_huge_float_refused",
+      "value": {
+        "$number": "1e308"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_bigint_past_range_refused",
+      "value": {
+        "$bigint": "9007199254740992"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_undefined_refused",
+      "value": {
+        "$unsupported": "undefined"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_instance_refused",
+      "value": {
+        "$unsupported": "instance"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_non_string_key_refused",
+      "value": {
+        "$unsupported": "non_string_key"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_sparse_array_refused",
+      "value": {
+        "$unsupported": "sparse_array"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_nested_unsupported_refused",
+      "value": {
+        "a": [
+          {
+            "$unsupported": "instance"
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "line_refusal_is_of_the_whole_line",
+      "value": {
+        "fine": "kept?",
+        "bad": [
+          {
+            "$number": "1.5"
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    }
+  ]
+}

@@ -2466,6 +2466,68 @@
       ]
     },
     {
+      "id": "validation_issue_detail_keys_that_look_numeric",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "details": {
+              "2": "two",
+              "10": "ten"
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "validation_issue",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "details": {
+            "2": "two",
+            "10": "ten"
+          }
+        }
+      ]
+    },
+    {
+      "id": "validation_issue_detail_keys_beyond_the_plane",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "details": {
+              "\ue000": "private use",
+              "\ud800\udc00": "beyond the plane"
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "validation_issue",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "details": {
+            "\ue000": "private use",
+            "\ud800\udc00": "beyond the plane"
+          }
+        }
+      ]
+    },
+    {
       "id": "validation_issues_not_a_list_are_ignored",
       "args": {
         "stage_id": "draft",
