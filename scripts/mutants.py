@@ -301,6 +301,27 @@ def control_problems(image: Path) -> list[str]:
     return problems
 
 
+# -------------------------------------------------------------------- shards
+
+
+def shard_slices(items: list, count: int) -> list[list]:
+    """The `count` interleaved slices: slice i holds items i, i + count, ..."""
+    return [items[first::count] for first in range(count)]
+
+
+def shard_problems(items: list[Mutant], count: int) -> list[str]:
+    """Empty when the slices hold every item exactly once. Each CI job sees
+    only its own slice, so nothing else would notice one that fell between
+    two of them or landed in both."""
+    held = sorted(m.id for piece in shard_slices(items, count) for m in piece)
+    wanted = sorted(m.id for m in items)
+    if held == wanted:
+        return []
+    return [
+        f"the {count} shards hold {len(held)} mutants ({len(set(held))} distinct), not each of the {len(wanted)} exactly once"
+    ]
+
+
 # ---------------------------------------------------------------------- main
 
 
@@ -315,7 +336,25 @@ def main() -> int:
         default="1/1",
         help="run slice I of N of the selection (every N-th mutant from the I-th), as I/N; the slices of one N cover it exactly once",
     )
+    parser.add_argument(
+        "--shards-control",
+        type=int,
+        default=0,
+        metavar="N",
+        help="run nothing: check that the N shards hold every catalog mutant exactly once",
+    )
     args = parser.parse_args()
+
+    if args.shards_control:
+        problems = catalog_problems(CATALOG + [SURVIVOR])
+        problems += shard_problems(CATALOG, args.shards_control)
+        if problems:
+            print("mutants: " + "\n  ".join(problems))
+            return 2
+        print(
+            f"mutants: {args.shards_control} shards hold each of the {len(CATALOG)} catalog mutants exactly once"
+        )
+        return 0
 
     problems = catalog_problems(CATALOG + [SURVIVOR])
     shard = re.fullmatch(r"([1-9][0-9]*)/([1-9][0-9]*)", args.shard)
@@ -323,7 +362,8 @@ def main() -> int:
     if not shard or shard_index > shard_count:
         problems.append(f"--shard wants I/N with 1 <= I <= N, got {args.shard!r}")
     matching = [m for m in CATALOG if m.id.startswith(args.only)]
-    selected = matching[shard_index - 1 :: shard_count]
+    problems += shard_problems(matching, shard_count)
+    selected = shard_slices(matching, shard_count)[shard_index - 1] if shard else []
     if not matching:
         problems.append(f"no mutant id starts with {args.only!r}")
     elif not selected:
@@ -651,8 +691,8 @@ CATALOG += [
     mutant(
         "fixtures: the inventory holds every file the gates name",
         "scripts/check.sh",
-        "done < <(find fixtures -type f -name '*.json' | LC_ALL=C sort)",
-        "done < <(find fixtures -type f -name '*.json' ! -path '*slot*' | LC_ALL=C sort)",
+        "list_files fixture_files fixtures -type f -name '*.json'\n",
+        "list_files fixture_files fixtures -type f -name '*.json' ! -path '*slot*'\n",
         ["the fixture inventory (3 files) is missing: fixtures/slot/v0.json"],
     ),
     mutant(
@@ -715,7 +755,9 @@ CATALOG += [
         "ts determinism: a clock read the static scan cannot see",
         "ts/checkpoint.ts",
         "export function canonicalize(value: unknown)",
-        'export const loadedAt = Object.getPrototypeOf(function () {}).constructor("return Date.now()")();\nexport function canonicalize(value: unknown)',
+        # the global object, reached through a getter: no forbidden name is
+        # written and no code is built from a string
+        'declare const haltruleReach: { Date: { now(): number } };\nObject.defineProperty(Object.prototype, "haltruleReach", { get() { return this; }, configurable: true });\nexport const loadedAt = haltruleReach.Date.now();\nexport function canonicalize(value: unknown)',
         ["policy code used Date.now"],
         ["(static)"],
     ),
@@ -792,13 +834,22 @@ CATALOG += [
         "function encodeValue(value: unknown, at: string, depth: number): string {\n  try { global.Date.now(); } catch {}\n",
         ["ts/checkpoint.ts (static)", "policy code used Date.now"],
     ),
-    mutant(
+    Mutant(
         "ts determinism: a caught clock read the static scan cannot see",
-        "ts/checkpoint.ts",
-        "function encodeValue(value: unknown, at: string, depth: number): string {\n",
-        'function encodeValue(value: unknown, at: string, depth: number): string {\n  try { Object.getPrototypeOf(function () {}).constructor("return Date.now()")(); } catch {}\n',
-        ["policy code used Date.now"],
-        ["(static)"],
+        (
+            Edit(
+                "ts/checkpoint.ts",
+                "export function canonicalize(value: unknown)",
+                'declare const haltruleReach: { Date: { now(): number } };\nObject.defineProperty(Object.prototype, "haltruleReach", { get() { return this; }, configurable: true });\nexport function canonicalize(value: unknown)',
+            ),
+            Edit(
+                "ts/checkpoint.ts",
+                "function encodeValue(value: unknown, at: string, depth: number): string {\n",
+                "function encodeValue(value: unknown, at: string, depth: number): string {\n  try { haltruleReach.Date.now(); } catch {}\n",
+            ),
+        ),
+        tuple(["policy code used Date.now"]),
+        tuple(["(static)"]),
     ),
     mutant(
         "py determinism: a caught refused import on the canonicalize path",
@@ -1129,14 +1180,14 @@ CATALOG += [
         "check.sh: the seal loads every policy module",
         "scripts/check.sh",
         "for name, file in modules:",
-        "for name, file in modules[:-1]:",
-        ["loaded outside the seal"],
+        'for name, file in [entry for entry in modules if entry[0] != "haltrule.slot"]:',
+        ["module haltrule.slot loaded outside the seal"],
     ),
     mutant(
         "check.sh: the policy file lists are not empty",
         "scripts/check.sh",
-        "find ts -type f -name '*.ts' ! -path ts/run-fixtures.ts",
-        "find ts -type f -name '*.tsx' ! -path ts/run-fixtures.ts",
+        "list_files ts_policy_files ts -type f -name '*.ts' ! -path ts/run-fixtures.ts",
+        "list_files ts_policy_files ts -type f -name '*.tsx' ! -path ts/run-fixtures.ts",
         ["TypeScript and", "policy files; expected at least"],
     ),
     # --- round-4 review: the library contract (lone surrogates, the verdict
@@ -1465,7 +1516,8 @@ CATALOG += [
                 "from haltrule import sub  # noqa: F401\nfrom haltrule.verdict import verdict\n",
             ),
         ),
-        tuple(["module haltrule.sub loaded outside the seal"]),
+        # the seal hands out only what it built: the package never loads under it
+        tuple(["policy code imported 'haltrule.sub', which the seal did not build"]),
     ),
     # --- round-4 re-review: refusals the spec requires are probed directly,
     # since a raise can never be a fixture expectation
@@ -1591,10 +1643,17 @@ CATALOG += [
                 "from haltrule.verdict import verdict\n",
                 "from haltrule import zz_probe  # noqa: F401\nfrom haltrule.verdict import verdict\n",
             ),
+            # the old loader: each module runs as soon as it exists, and a
+            # sibling the seal has not built yet goes to the real import
             Edit(
                 "scripts/check.sh",
-                "    sealed_modules[name] = module\n    specs[name] = spec\nfor name, module in sealed_modules.items():\n    specs[name].loader.exec_module(module)\n",
-                "    spec.loader.exec_module(module)\n    sealed_modules[name] = module\n",
+                '    if name not in sealed_modules:\n        record(f"imported {name!r}, which the seal did not build")\n        raise ImportError(f"sealed: policy code imported {name!r}, which the seal did not build")\n',
+                "    if name not in sealed_modules or fromlist:\n        return real_import(name, globals, locals, fromlist, level)\n",
+            ),
+            Edit(
+                "scripts/check.sh",
+                "    sealed_modules[name] = module\n    specs[name] = spec\n",
+                "    sealed_modules[name] = module\n    specs[name] = spec\n    run_sealed(name)\n",
             ),
         ),
         tuple(["module haltrule.zz_probe held by haltrule.budget loaded outside the seal"]),
@@ -1694,6 +1753,136 @@ CATALOG += [
         """py_probe_refused=$(printf '%s\\n' "$py_probe_out" | grep -c '^refused: ')""",
         "py_probe_refused=$(false)",
         ["python out-of-contract probe counted ''"],
+    ),
+    # --- round-6 nine-lens review: what policy code receives for a standard-
+    # library import is pinned before it runs and is only the public surface;
+    # a sibling runs when first imported; every listing is checked; NaN and
+    # the infinities; the CI shards hold the catalog exactly once
+    mutant(
+        "py determinism: no value read through an allowlisted module's own imports",
+        "py/haltrule/budget.py",
+        "from haltrule.verdict import verdict\n",
+        'import typing\n\nfrom haltrule.verdict import verdict\n\n_stamp = typing.sys.modules["os"].getpid()\n',
+        ["reached typing.sys, which is not part of its public surface"],
+    ),
+    mutant(
+        "ts determinism: no code built from a string through a function's constructor",
+        "ts/checkpoint.ts",
+        'import { createHash } from "node:crypto";\n',
+        'import { createHash } from "node:crypto";\nexport const stamp = (createHash as unknown as { constructor: (code: string) => () => number }).constructor("return process.pid")();\n',
+        ["typescript policy code reached a refused API under the seal", "policy code used a function constructor"],
+    ),
+    mutant(
+        "check.sh: policy code gets a module's public surface, never the module",
+        "scripts/check.sh",
+        "        return surfaces[name]\n",
+        "        return pinned[name]\n",
+        ["module math held by haltrule.breaker loaded outside the seal"],
+    ),
+    Mutant(
+        "check.sh: a standard-library name still answers with the pinned object",
+        (
+            Edit("scripts/check.sh", "        return surfaces[name]\n", "        return pinned[name]\n"),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                'import typing\n\nfrom haltrule.verdict import verdict\n\ntyping.sys.modules["hashlib"] = typing.sys.modules["math"]\n',
+            ),
+        ),
+        tuple(["module hashlib replaced under the seal"]),
+    ),
+    Mutant(
+        "check.sh: the object policy code gets is loaded from the spec that was checked",
+        (
+            Edit(
+                "scripts/check.sh",
+                "pinned = {}\nsurfaces = {}\n",
+                'counterfeit = types.ModuleType("hashlib")\ncounterfeit.sha256 = lambda data=b"": None\nsys.modules["hashlib"] = counterfeit\npinned = {}\nsurfaces = {}\n',
+            ),
+            Edit(
+                "scripts/check.sh",
+                "    module = importlib.util.module_from_spec(spec)\n    sys.modules[module_name] = module\n    spec.loader.exec_module(module)\n    pinned[module_name] = module\n",
+                "    module = sys.modules.get(module_name) or importlib.import_module(module_name)\n    pinned[module_name] = module\n",
+            ),
+        ),
+        tuple(["python: sealing changed the outcome under the seal"]),
+    ),
+    mutant(
+        "check.sh: a sibling runs when it is first imported, whatever its name",
+        "scripts/check.sh",
+        '    run_sealed(name)\n    for part in fromlist or ():\n        if f"{name}.{part}" in sealed_modules:\n            run_sealed(f"{name}.{part}")\n',
+        "",
+        ["python sealed run carries no seal marker"],
+    ),
+    mutant(
+        "check.sh: a listing that failed is not an inventory",
+        "scripts/check.sh",
+        "list_files fixture_files fixtures -type f -name '*.json'\n",
+        "list_files fixture_files fixtures fixtures.absent -type f -name '*.json'\n",
+        ["could not list every file: fixture_files (find exit"],
+    ),
+    mutant(
+        "py budget: an amount that is not finite is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n",
+        '        if value != value or value in (float("inf"), float("-inf")):\n            return 0\n        if not value.is_integer():\n',
+        ["python accepted an out-of-contract input: budget NaN charge"],
+    ),
+    mutant(
+        "ts budget: an amount that is not finite is refused",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;\n',
+        '  if (typeof value === "number" && !Number.isFinite(value)) n = 0n;\n  else if (typeof value === "bigint") n = value;\n',
+        ["typescript accepted an out-of-contract input: budget NaN charge"],
+    ),
+    mutant(
+        "py slot: a bound that is not finite is refused",
+        "py/haltrule/slot.py",
+        "        if not value.is_integer():\n",
+        '        if value != value or value in (float("inf"), float("-inf")):\n            return None\n        if not value.is_integer():\n',
+        ["python accepted an out-of-contract input: slot NaN bound"],
+    ),
+    mutant(
+        "ts slot: a bound that is not finite is refused",
+        "ts/slot.ts",
+        "  if (value === null || value === undefined) return null;\n",
+        '  if (value === null || value === undefined) return null;\n  if (typeof value === "number" && !Number.isFinite(value)) return null;\n',
+        ["typescript accepted an out-of-contract input: slot NaN bound"],
+    ),
+    mutant(
+        "py budget: a refusal is a TypeError or a ValueError, not any exception",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n            raise TypeError(",
+        "        if not value.is_integer():\n            raise ArithmeticError(",
+        ["python met an out-of-contract input with something other than a refusal: budget fractional charge: ArithmeticError"],
+    ),
+    mutant(
+        "ts budget: a refusal is a TypeError or a RangeError, not any error",
+        "ts/budget.ts",
+        "  else throw new TypeError(`${what} must be an integer, got ${String(value)}`);",
+        "  else throw new Error(`${what} must be an integer, got ${String(value)}`);",
+        ["typescript met an out-of-contract input with something other than a refusal: budget fractional charge"],
+    ),
+    mutant(
+        "ci: the matrix names every shard",
+        ".github/workflows/check.yml",
+        '        shard: ["1/3", "2/3", "3/3"]\n',
+        '        shard: ["1/3", "2/3"]\n',
+        ["the CI shard matrix does not run every slice once", "are not 1/3..3/3 once each"],
+    ),
+    mutant(
+        "ci: each matrix entry reaches --shard as it is",
+        ".github/workflows/check.yml",
+        "        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}\n",
+        "        run: python3 scripts/mutants.py --shard 1/3\n",
+        ["the CI shard matrix does not run every slice once", "does not hand each matrix entry to --shard as it is"],
+    ),
+    mutant(
+        "mutants.py: the shards hold every mutant exactly once",
+        "scripts/mutants.py",
+        "    return [items[first::count] for first in range(count)]\n",
+        "    return [items[first + 1 :: count] for first in range(count)]\n",
+        ["CI shards do not hold every catalog mutant exactly once"],
     ),
 ]
 

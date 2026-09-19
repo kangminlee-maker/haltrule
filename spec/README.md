@@ -4,8 +4,10 @@ The spec is the product. An implementation is conformant when it passes every fi
 its output matches the other implementations' byte for byte.
 
 The value model and canonicalization below govern digest inputs. They do not constrain the breaker,
-`budget`, or `slot`, which take their arguments as ordinary typed values; passing one a string where it
-expects a number is out of contract and its behavior there is not defined by any fixture.
+`budget`, or `slot`, which take their arguments as ordinary typed values. An argument outside a part's
+contract — a string where it expects a number — cannot be a fixture case, because a raise is not an
+expectation a fixture can hold: `budget` and `slot` refuse theirs with an exception, as their bullets below
+say and the gates probe directly in both languages; what the breaker does with one is not defined.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -98,8 +100,8 @@ not name is not reusable.
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
   additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else — negative, fractional, boolean, past 2^63 − 1 — is refused with an exception. What to do when
-  exhausted is the caller's.
+  anything else — negative, fractional, NaN or an infinity, boolean, text, past 2^63 − 1 — is refused with an
+  exception. What to do when exhausted is the caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
@@ -110,8 +112,8 @@ not name is not reusable.
   values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
   are the known identifiers. A spec outside the contract — an unknown `kind`, a `choice` without
-  `candidates`, `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean is not
-  one), a spec without a string `name` — is refused with an exception.
+  `candidates`, `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean, a
+  string, NaN, or an infinity is not one), a spec without a string `name` — is refused with an exception.
 
 ## Reason registry
 

@@ -48,15 +48,16 @@ jobs:
   # copy of the tree, and requires check.sh to fail with the evidence that
   # mutant names: which gate caught it and, for a runner, which case and field.
   # It checks the unmutated tree first and proves it can report a survivor.
-  # The catalog runs as three interleaved slices (--shard I/3): each checks
-  # every anchor and the baseline itself, and together they run every mutant
-  # exactly once.
+  # The catalog runs as interleaved slices, one job per entry of the matrix
+  # below: each checks every anchor and the baseline itself. check.sh (gate 9)
+  # requires the entries to be 1/N..N/N and the N slices to hold every mutant
+  # exactly once, so a slice dropped here fails the gates job.
   gates-detect-a-defect:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: ["1/3", "2/3", "3/3"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -73,4 +74,4 @@ jobs:
 
       - name: Every mutant must make check.sh fail with its own evidence
         timeout-minutes: 20
-        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}/3
+        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}
