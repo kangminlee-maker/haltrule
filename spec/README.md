@@ -5,10 +5,15 @@ its output matches the other implementations' byte for byte — in the result-li
 `../fixtures/README.md` defines, so that "the same bytes" does not depend on anyone's JSON library.
 
 The value model and canonicalization below govern digest inputs. They do not constrain the breaker,
-`budget`, or `slot`, which take their arguments as ordinary typed values. An argument outside a part's
-contract — a string where it expects a number — cannot be a fixture case, because a raise is not an
-expectation a fixture can hold: `budget` and `slot` refuse theirs with an exception, as their bullets below
-say and the gates probe directly in both languages; what the breaker does with one is not defined.
+`budget`, or `slot`, which take their arguments as ordinary typed values.
+
+An argument outside a part's contract — a string where it expects a number, a negative amount — is
+**refused**: the call fails in the language's own way (an exception, an error value) and changes nothing, so
+a refused charge leaves the ledger exactly as it was. A refusal is not a verdict and carries no reason. A
+fixture writes it as `{"refused": true}` where the result would be, so every port is held to the same list of
+refused arguments. A port whose types cannot hold such an argument at all has refused it before it ran: its
+runner answers `refused` for that case when it cannot build the argument. `budget` and `slot` refuse as their
+bullets below say; what the breaker does with an argument outside its contract is not defined.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -146,8 +151,9 @@ not name is not reusable.
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
   additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused with
-  an exception. What to do when exhausted is the caller's.
+  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused. A
+  charge is refused whole: every amount is read before any is added. What to do when exhausted is the
+  caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
@@ -159,7 +165,7 @@ not name is not reusable.
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
   are the known identifiers. A spec outside the contract — an unknown `kind`, a `choice` without
   `candidates`, `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean, a
-  string, NaN, or an infinity is not one), a spec without a string `name` — is refused with an exception.
+  string, NaN, or an infinity is not one), a spec without a string `name` — is refused.
 
 ## Reason registry
 

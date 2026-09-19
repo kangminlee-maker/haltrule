@@ -141,12 +141,19 @@ interface StateActual {
 /** A verdict as conformance sees it: without `message`, which is for people. */
 type NormativeVerdict = Omit<Verdict, "message">;
 
+/** What a fixture holds where an argument outside the contract was refused. */
+type Refused = { refused: true };
+
 interface ChargeCase {
   id: string;
   budget: unknown;
   charges: unknown[];
-  /** One verdict per charge, then the ledger, in decimal so 2^63 - 1 survives JSON. */
-  expect: { verdicts: NormativeVerdict[]; used: { turns: string; ms: string; tokens: string } };
+  /** One verdict per charge - or a refusal, which changes nothing - then the
+   * ledger, in decimal so 2^63 - 1 survives JSON. A budget whose caps are
+   * refused is a refusal alone. */
+  expect:
+    | { verdicts: (NormativeVerdict | Refused)[]; used: { turns: string; ms: string; tokens: string } }
+    | Refused;
 }
 
 interface BudgetFixtureFile {
@@ -158,7 +165,7 @@ interface ValidateCase {
   id: string;
   spec: unknown;
   value: unknown;
-  expect: NormativeVerdict;
+  expect: NormativeVerdict | Refused;
 }
 
 interface SlotFixtureFile {
@@ -327,17 +334,40 @@ function normative(result: Verdict): NormativeVerdict {
   return rest;
 }
 
+const REFUSED = Symbol("refused");
+
+/** The part's own refusal of an argument outside its contract - and only
+ * that: decoding the fixture and checking the verdict's shape happen outside
+ * this, so a malformed fixture or verdict is a failure, never a refusal. */
+function orRefused<T>(call: () => T): T | typeof REFUSED {
+  try {
+    return call();
+  } catch (error) {
+    if (error instanceof TypeError || error instanceof RangeError) return REFUSED;
+    throw error;
+  }
+}
+
 function actualCharge(tc: ChargeCase): ChargeCase["expect"] {
-  const budget = new Budget(decodeFixtureValue(tc.budget) as BudgetCaps);
-  const verdicts = tc.charges.map((charge) => normative(budget.charge(decodeFixtureValue(charge) as Charge)));
+  const caps = decodeFixtureValue(tc.budget) as BudgetCaps;
+  const budget = orRefused(() => new Budget(caps));
+  if (budget === REFUSED) return { refused: true };
+  const verdicts = tc.charges.map((encoded): NormativeVerdict | Refused => {
+    const charge = decodeFixtureValue(encoded) as Charge;
+    const result = orRefused(() => budget.charge(charge));
+    return result === REFUSED ? { refused: true } : normative(result);
+  });
   return {
     verdicts,
     used: { turns: String(budget.turns_used), ms: String(budget.ms_used), tokens: String(budget.tokens_used) },
   };
 }
 
-function actualValidate(tc: ValidateCase): NormativeVerdict {
-  return normative(validateSlot(decodeFixtureValue(tc.spec) as SlotSpec, decodeFixtureValue(tc.value)));
+function actualValidate(tc: ValidateCase): NormativeVerdict | Refused {
+  const spec = decodeFixtureValue(tc.spec) as SlotSpec;
+  const value = decodeFixtureValue(tc.value);
+  const result = orRefused(() => validateSlot(spec, value));
+  return result === REFUSED ? { refused: true } : normative(result);
 }
 
 function runClassify(cases: ClassifyCase[]): void {

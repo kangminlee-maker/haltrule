@@ -1501,6 +1501,443 @@
           "tokens": "0"
         }
       }
+    },
+    {
+      "id": "refused_budget_negative_charge",
+      "budget": {},
+      "charges": [
+        {
+          "turns": {
+            "$number": "-1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_fractional_charge",
+      "budget": {},
+      "charges": [
+        {
+          "ms": {
+            "$number": "1.5"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_nan_charge",
+      "budget": {},
+      "charges": [
+        {
+          "ms": {
+            "$number": "NaN"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_infinite_charge",
+      "budget": {},
+      "charges": [
+        {
+          "ms": {
+            "$number": "Infinity"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_negative_infinite_charge",
+      "budget": {},
+      "charges": [
+        {
+          "turns": {
+            "$number": "-Infinity"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_boolean_charge",
+      "budget": {},
+      "charges": [
+        {
+          "turns": true
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_past_2_63_1_charge",
+      "budget": {},
+      "charges": [
+        {
+          "tokens": {
+            "$bigint": "9223372036854775808"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_string_charge",
+      "budget": {},
+      "charges": [
+        {
+          "turns": "1"
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_negative_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "-1"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_fractional_cap",
+      "budget": {
+        "time_budget_ms": {
+          "$number": "1.5"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_nan_cap",
+      "budget": {
+        "time_budget_ms": {
+          "$number": "NaN"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_infinite_cap",
+      "budget": {
+        "time_budget_ms": {
+          "$number": "Infinity"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_negative_infinite_cap",
+      "budget": {
+        "max_turns": {
+          "$number": "-Infinity"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_boolean_cap",
+      "budget": {
+        "max_turns": true
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_past_2_63_1_cap",
+      "budget": {
+        "token_budget": {
+          "$bigint": "9223372036854775808"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_string_cap",
+      "budget": {
+        "max_turns": "1"
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_charge_changes_nothing",
+      "budget": {
+        "max_turns": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "5"
+          },
+          "ms": {
+            "$number": "-1"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_charge_with_the_last_field_bad_changes_nothing",
+      "budget": {},
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$number": "1"
+          },
+          "tokens": "x"
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_charge_between_valid_charges_is_not_counted",
+      "budget": {
+        "max_turns": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "2"
+          }
+        },
+        {
+          "turns": {
+            "$number": "-1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "2"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "4",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_charge_on_an_exhausted_budget_is_still_refused",
+      "budget": {
+        "max_turns": {
+          "$number": "1"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          }
+        },
+        {
+          "turns": {
+            "$number": "-1"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
     }
   ]
 }

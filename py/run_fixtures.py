@@ -409,12 +409,29 @@ def _normative(result: dict) -> dict:
     return {key: value for key, value in result.items() if key != "message"}
 
 
+_REFUSED = object()
+
+
+def _or_refused(call):
+    """The part's own refusal of an argument outside its contract - and only
+    that: decoding the fixture and checking the verdict's shape happen outside
+    this, so a malformed fixture or verdict is a failure, never a refusal."""
+    try:
+        return call()
+    except (TypeError, ValueError):
+        return _REFUSED
+
+
 def _actual_charge(tc: dict) -> dict:
-    budget = Budget(**_decode_fixture_value(tc["budget"]))
-    verdicts = [
-        _normative(budget.charge(**_decode_fixture_value(charge)))
-        for charge in tc["charges"]
-    ]
+    caps = _decode_fixture_value(tc["budget"])
+    budget = _or_refused(lambda: Budget(**caps))
+    if budget is _REFUSED:
+        return {"refused": True}
+    verdicts = []
+    for encoded in tc["charges"]:
+        charge = _decode_fixture_value(encoded)
+        result = _or_refused(lambda charge=charge: budget.charge(**charge))
+        verdicts.append({"refused": True} if result is _REFUSED else _normative(result))
     # The ledger in decimal, so 2^63 - 1 survives JSON in every language.
     return {
         "verdicts": verdicts,
@@ -427,11 +444,10 @@ def _actual_charge(tc: dict) -> dict:
 
 
 def _actual_validate(tc: dict) -> dict:
-    return _normative(
-        validate_slot(
-            _decode_fixture_value(tc["spec"]), _decode_fixture_value(tc["value"])
-        )
-    )
+    spec = _decode_fixture_value(tc["spec"])
+    value = _decode_fixture_value(tc["value"])
+    result = _or_refused(lambda: validate_slot(spec, value))
+    return {"refused": True} if result is _REFUSED else _normative(result)
 
 
 def run_canonicalize(cases: list[dict]) -> None:

@@ -77,9 +77,13 @@ export class Budget {
    * current state, and an exhausted budget stays exhausted.
    */
   charge(charge: Charge = {}): Verdict {
-    this.turns_used = saturatingAdd(this.turns_used, ledger(charge.turns, "turns"));
-    this.ms_used = saturatingAdd(this.ms_used, ledger(charge.ms, "ms"));
-    this.tokens_used = saturatingAdd(this.tokens_used, ledger(charge.tokens, "tokens"));
+    // Every amount is read before any is added: a refused charge changes nothing.
+    const turns = ledger(charge.turns, "turns");
+    const ms = ledger(charge.ms, "ms");
+    const tokens = ledger(charge.tokens, "tokens");
+    this.turns_used = saturatingAdd(this.turns_used, turns);
+    this.ms_used = saturatingAdd(this.ms_used, ms);
+    this.tokens_used = saturatingAdd(this.tokens_used, tokens);
     if (this.max_turns !== null && this.turns_used >= this.max_turns) {
       return verdict("warning", "budget_turns", `turns exhausted: ${this.turns_used} of ${this.max_turns} used`);
     }

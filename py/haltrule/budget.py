@@ -70,9 +70,13 @@ class Budget:
         the first exhausted resource, in the order turns, time, tokens; "ok"
         while every capped resource is below its cap. A charge of nothing
         reports the current state, and an exhausted budget stays exhausted."""
-        self.turns_used = _saturating_add(self.turns_used, _ledger(turns, "turns"))
-        self.ms_used = _saturating_add(self.ms_used, _ledger(ms, "ms"))
-        self.tokens_used = _saturating_add(self.tokens_used, _ledger(tokens, "tokens"))
+        # Every amount is read before any is added: a refused charge changes nothing.
+        turns = _ledger(turns, "turns")
+        ms = _ledger(ms, "ms")
+        tokens = _ledger(tokens, "tokens")
+        self.turns_used = _saturating_add(self.turns_used, turns)
+        self.ms_used = _saturating_add(self.ms_used, ms)
+        self.tokens_used = _saturating_add(self.tokens_used, tokens)
         if self.max_turns is not None and self.turns_used >= self.max_turns:
             return verdict(
                 "warning",

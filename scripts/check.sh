@@ -19,9 +19,6 @@ pass() { printf '  PASS  %s\n' "$1"; }
 # when the FAIL lines it names appear. Rewording one fails that suite loudly;
 # update the mutant's evidence with it.
 fail() { printf '  FAIL  %s\n' "$1"; failed=$((failed + 1)); }
-# A count that is not a number must fail its gate: `[ "" -ne 12 ]` is an
-# error, and an error in an elif falls through to the PASS below it.
-is_count() { case "$1" in '' | *[!0-9]*) return 1 ;; esac; return 0; }
 skip() { printf '  SKIP  %s (%s)\n' "$1" "$2"; skipped=$((skipped + 1)); }
 
 FIXTURE_PATH="fixtures/breaker/v0.json"
@@ -246,6 +243,22 @@ elif target == "charge_used":
 elif target == "validate_verdict":
     case = fixtures["validate"][0]
     case["expect"]["verdict"] = "halt" if case["expect"]["verdict"] != "halt" else "ok"
+elif target == "charge_refused_to_verdict":
+    case = next(c for c in fixtures["charge"] if c["id"] == "refused_budget_negative_charge")
+    case["expect"]["verdicts"][0] = {"spec": "haltrule/0", "verdict": "ok", "reason": "budget_ok", "resume": None}
+elif target == "charge_verdict_to_refused":
+    fixtures["charge"][0]["expect"]["verdicts"][0] = {"refused": True}
+elif target == "charge_refused_budget_to_verdicts":
+    case = next(c for c in fixtures["charge"] if c["expect"] == {"refused": True})
+    case["expect"] = {"verdicts": [], "used": {"turns": "0", "ms": "0", "tokens": "0"}}
+elif target == "charge_used_after_refusal":
+    # the ledger a refused charge would leave if its first amount were kept
+    next(c for c in fixtures["charge"] if c["id"] == "refused_charge_changes_nothing")["expect"]["used"]["turns"] = "5"
+elif target == "validate_refused_to_verdict":
+    case = next(c for c in fixtures["validate"] if c["expect"] == {"refused": True})
+    case["expect"] = {"spec": "haltrule/0", "verdict": "halt", "reason": "slot_invalid", "resume": None}
+elif target == "validate_verdict_to_refused":
+    fixtures["validate"][0]["expect"] = {"refused": True}
 elif target == "result_line_text":
     # The smallest wrong line there is: two members of a map, swapped.
     case = next(c for c in fixtures["result_line"] if c["expect"].get("line") == '{"1":"one","10":"ten","2":"two"}')
@@ -323,6 +336,12 @@ corrupt_and_verify charge_verdict          "a corrupted charge verdict"
 corrupt_and_verify charge_missing_verdict  "a missing charge verdict"
 corrupt_and_verify charge_used             "a corrupted charge ledger"
 corrupt_and_verify validate_verdict        "a corrupted validate verdict"
+corrupt_and_verify charge_refused_to_verdict         "a refused charge rewritten as a verdict"
+corrupt_and_verify charge_verdict_to_refused         "a charge verdict rewritten as a refusal"
+corrupt_and_verify charge_refused_budget_to_verdicts "a refused budget rewritten as one that ran"
+corrupt_and_verify charge_used_after_refusal         "a ledger that kept part of a refused charge"
+corrupt_and_verify validate_refused_to_verdict       "a refused slot spec rewritten as a verdict"
+corrupt_and_verify validate_verdict_to_refused       "a validate verdict rewritten as a refusal"
 corrupt_and_verify result_line_text            "a result line with two members swapped"
 corrupt_and_verify result_line_refused_to_line "a refused result rewritten as a line"
 corrupt_and_verify result_line_line_to_refused "a result line rewritten as a refusal"
@@ -351,10 +370,10 @@ fi
 # runner reads would pass with every case in it wrong; and a mistyped
 # $unsupported kind would otherwise build some value that merely happens to halt.
 malformed_fixture() {
-  python3 - "$1" "$2" "$CHECKPOINT_FIXTURE_PATH" <<'PY'
+  python3 - "$1" "$2" "$CHECKPOINT_FIXTURE_PATH" "$BUDGET_FIXTURE_PATH" <<'PY'
 import json, sys
 
-kind, out_path, fixture_path = sys.argv[1], sys.argv[2], sys.argv[3]
+kind, out_path, fixture_path, budget_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 fixtures = json.load(open(fixture_path))
 if kind == "raw_number":
     fixtures["canonicalize"][0]["input"] = 7
@@ -368,6 +387,11 @@ elif kind == "wide_number_negative":
     fixtures["canonicalize"][0]["input"] = {"$number": "-9007199254740993"}
 elif kind.startswith("number_literal:"):
     fixtures["canonicalize"][0]["input"] = {"$number": kind.split(":", 1)[1]}
+elif kind.startswith("refused_charge_literal:"):
+    # a malformed literal exactly where the case expects a refusal
+    fixtures = json.load(open(budget_path))
+    case = next(c for c in fixtures["charge"] if c["id"] == "refused_budget_negative_charge")
+    case["charges"][0]["turns"] = {"$number": kind.split(":", 1)[1]}
 elif kind.startswith("bigint_literal:"):
     fixtures["canonicalize"][0]["input"] = {"$bigint": kind.split(":", 1)[1]}
 elif kind == "unknown_section":
@@ -426,137 +450,16 @@ refuse_and_verify wide_number_negative "not exactly representable as a double" "
 for loose_literal in "1_0" "0x10" "" " 7 " "nan" "01"; do
   refuse_and_verify "number_literal:$loose_literal" "is outside the fixture grammar" "the \$number literal '$loose_literal'"
 done
+# Where a case expects a refusal, a malformed fixture must still be the runner's
+# error and not the refusal the case was waiting for.
+refuse_and_verify "refused_charge_literal:-1_0" "is outside the fixture grammar" "a malformed literal where a refusal is expected"
 for loose_literal in "1_0" "0x10" "" "1.0"; do
   refuse_and_verify "bigint_literal:$loose_literal" "is outside the fixture grammar" "the \$bigint literal '$loose_literal'"
 done
 
-# Out-of-contract inputs the parts refuse, per the budget and slot bullets of
-# the spec. A raise fails a fixture, so no fixture can carry these promises;
-# each is called directly, in both languages, and must raise. Bounds share one
-# validator, and so do amounts and caps: a class is probed on one field of each.
-OUT_OF_CONTRACT_PROBES=29
-OUT_OF_CONTRACT_LIST="slot bounds past 2^53 - 1, negative, fractional, NaN or either infinity, boolean or a string, an unknown kind, a choice without candidates, min above max, a name missing or not a string; budget amounts and caps each negative, fractional, NaN or either infinity, boolean, past 2^63 - 1 or a string"
-# Plain JavaScript: node evaluates -e input as is, so no type syntax here.
-ts_probe_out=$(node --input-type=module -e '
-import { validateSlot } from "./ts/slot.ts";
-import { Budget } from "./ts/budget.ts";
-const probes = [
-  ["slot bound past 2^53 - 1", () => validateSlot({ name: "t", kind: "text", max_length: 9007199254740992 }, "x")],
-  ["slot negative bound", () => validateSlot({ name: "t", kind: "text", min_length: -1 }, "x")],
-  ["slot fractional bound", () => validateSlot({ name: "t", kind: "text", max_length: 1.5 }, "x")],
-  ["slot NaN bound", () => validateSlot({ name: "t", kind: "text", max_length: NaN }, "x")],
-  ["slot infinite bound", () => validateSlot({ name: "t", kind: "text", max_length: Infinity }, "x")],
-  ["slot negative infinite bound", () => validateSlot({ name: "t", kind: "text", min_length: -Infinity }, "x")],
-  ["slot boolean bound", () => validateSlot({ name: "t", kind: "text", max_length: true }, "x")],
-  ["slot string bound", () => validateSlot({ name: "t", kind: "text", max_length: "3" }, "x")],
-  ["slot unknown kind", () => validateSlot({ name: "t", kind: "number" }, "x")],
-  ["slot choice without candidates", () => validateSlot({ name: "t", kind: "choice" }, "x")],
-  ["slot min_length above max_length", () => validateSlot({ name: "t", kind: "text", min_length: 3, max_length: 2 }, "x")],
-  ["slot spec without a name", () => validateSlot({ kind: "text" }, "x")],
-  ["slot spec with a non-string name", () => validateSlot({ name: 7, kind: "text" }, "x")],
-  ["budget negative charge", () => new Budget().charge({ turns: -1 })],
-  ["budget fractional charge", () => new Budget().charge({ ms: 1.5 })],
-  ["budget NaN charge", () => new Budget().charge({ ms: NaN })],
-  ["budget infinite charge", () => new Budget().charge({ ms: Infinity })],
-  ["budget negative infinite charge", () => new Budget().charge({ turns: -Infinity })],
-  ["budget boolean charge", () => new Budget().charge({ turns: true })],
-  ["budget charge past 2^63 - 1", () => new Budget().charge({ tokens: 9223372036854775808n })],
-  ["budget string charge", () => new Budget().charge({ turns: "1" })],
-  ["budget negative cap", () => new Budget({ max_turns: -1 })],
-  ["budget fractional cap", () => new Budget({ time_budget_ms: 1.5 })],
-  ["budget NaN cap", () => new Budget({ time_budget_ms: NaN })],
-  ["budget infinite cap", () => new Budget({ time_budget_ms: Infinity })],
-  ["budget negative infinite cap", () => new Budget({ max_turns: -Infinity })],
-  ["budget boolean cap", () => new Budget({ max_turns: true })],
-  ["budget cap past 2^63 - 1", () => new Budget({ token_budget: 9223372036854775808n })],
-  ["budget string cap", () => new Budget({ max_turns: "1" })],
-];
-for (const [label, probe] of probes) {
-  try {
-    probe();
-    console.log(`accepted: ${label}`);
-  } catch (error) {
-    if (error instanceof TypeError || error instanceof RangeError) console.log(`refused: ${label}`);
-    else console.log(`crashed: ${label}: ${String(error)}`);
-  }
-}' 2>&1)
-ts_probe_status=$?
-ts_probe_refused=$(printf '%s\n' "$ts_probe_out" | grep -c '^refused: ')
-if [ $ts_probe_status -ne 0 ]; then
-  fail "typescript out-of-contract probe crashed (exit $ts_probe_status)"
-  printf '%s\n' "$ts_probe_out" | tail -5
-elif printf '%s\n' "$ts_probe_out" | grep -q '^accepted: '; then
-  fail "typescript accepted an out-of-contract input: $(printf '%s\n' "$ts_probe_out" | sed -n 's/^accepted: //p' | head -1)"
-elif printf '%s\n' "$ts_probe_out" | grep -q '^crashed: '; then
-  fail "typescript met an out-of-contract input with something other than a refusal: $(printf '%s\n' "$ts_probe_out" | sed -n 's/^crashed: //p' | head -1)"
-elif ! is_count "$ts_probe_refused" || [ "$ts_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
-  fail "typescript out-of-contract probe counted '$ts_probe_refused' refusals, not $OUT_OF_CONTRACT_PROBES"
-else
-  pass "typescript refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
-fi
-
-py_probe_out=$(python3 - <<'PY' 2>&1
-import sys
-
-sys.path.insert(0, "py")
-from haltrule.budget import Budget  # noqa: E402
-from haltrule.slot import validate_slot  # noqa: E402
-
-probes = [
-    ("slot bound past 2^53 - 1", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 2**53}, "x")),
-    ("slot negative bound", lambda: validate_slot({"name": "t", "kind": "text", "min_length": -1}, "x")),
-    ("slot fractional bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": 1.5}, "x")),
-    ("slot NaN bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": float("nan")}, "x")),
-    ("slot infinite bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": float("inf")}, "x")),
-    ("slot negative infinite bound", lambda: validate_slot({"name": "t", "kind": "text", "min_length": float("-inf")}, "x")),
-    ("slot boolean bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": True}, "x")),
-    ("slot string bound", lambda: validate_slot({"name": "t", "kind": "text", "max_length": "3"}, "x")),
-    ("slot unknown kind", lambda: validate_slot({"name": "t", "kind": "number"}, "x")),
-    ("slot choice without candidates", lambda: validate_slot({"name": "t", "kind": "choice"}, "x")),
-    ("slot min_length above max_length", lambda: validate_slot({"name": "t", "kind": "text", "min_length": 3, "max_length": 2}, "x")),
-    ("slot spec without a name", lambda: validate_slot({"kind": "text"}, "x")),
-    ("slot spec with a non-string name", lambda: validate_slot({"name": 7, "kind": "text"}, "x")),
-    ("budget negative charge", lambda: Budget().charge(turns=-1)),
-    ("budget fractional charge", lambda: Budget().charge(ms=1.5)),
-    ("budget NaN charge", lambda: Budget().charge(ms=float("nan"))),
-    ("budget infinite charge", lambda: Budget().charge(ms=float("inf"))),
-    ("budget negative infinite charge", lambda: Budget().charge(turns=float("-inf"))),
-    ("budget boolean charge", lambda: Budget().charge(turns=True)),
-    ("budget charge past 2^63 - 1", lambda: Budget().charge(tokens=2**63)),
-    ("budget string charge", lambda: Budget().charge(turns="1")),
-    ("budget negative cap", lambda: Budget(max_turns=-1)),
-    ("budget fractional cap", lambda: Budget(time_budget_ms=1.5)),
-    ("budget NaN cap", lambda: Budget(time_budget_ms=float("nan"))),
-    ("budget infinite cap", lambda: Budget(time_budget_ms=float("inf"))),
-    ("budget negative infinite cap", lambda: Budget(max_turns=float("-inf"))),
-    ("budget boolean cap", lambda: Budget(max_turns=True)),
-    ("budget cap past 2^63 - 1", lambda: Budget(token_budget=2**63)),
-    ("budget string cap", lambda: Budget(max_turns="1")),
-]
-for label, probe in probes:
-    try:
-        probe()
-        print(f"accepted: {label}")
-    except (TypeError, ValueError):
-        print(f"refused: {label}")
-    except Exception as error:  # noqa: BLE001 - a crash is not a refusal, and the other probes still run
-        print(f"crashed: {label}: {type(error).__name__}")
-PY
-)
-py_probe_status=$?
-py_probe_refused=$(printf '%s\n' "$py_probe_out" | grep -c '^refused: ')
-if [ $py_probe_status -ne 0 ]; then
-  fail "python out-of-contract probe crashed (exit $py_probe_status)"
-  printf '%s\n' "$py_probe_out" | tail -5
-elif printf '%s\n' "$py_probe_out" | grep -q '^accepted: '; then
-  fail "python accepted an out-of-contract input: $(printf '%s\n' "$py_probe_out" | sed -n 's/^accepted: //p' | head -1)"
-elif printf '%s\n' "$py_probe_out" | grep -q '^crashed: '; then
-  fail "python met an out-of-contract input with something other than a refusal: $(printf '%s\n' "$py_probe_out" | sed -n 's/^crashed: //p' | head -1)"
-elif ! is_count "$py_probe_refused" || [ "$py_probe_refused" -ne "$OUT_OF_CONTRACT_PROBES" ]; then
-  fail "python out-of-contract probe counted '$py_probe_refused' refusals, not $OUT_OF_CONTRACT_PROBES"
-else
-  pass "python refuses $OUT_OF_CONTRACT_PROBES out-of-contract inputs: $OUT_OF_CONTRACT_LIST"
-fi
+# An argument outside a part's contract is refused, and that is a fixture
+# outcome ({"refused": true}) every port shares - not a probe written once per
+# language here. Gate 6 holds the list to its size.
 
 echo "3. parity — the two runners' actual output matches byte for byte"
 # --dump prints each case's ACTUAL result (never the fixture's expectation)
@@ -1321,10 +1224,15 @@ fi
 
 part_counts=$(python3 - "$BUDGET_FIXTURE_PATH" "$SLOT_FIXTURE_PATH" "$PROTOCOL_FIXTURE_PATH" <<'PY'
 import json, sys
+charge, validate = json.load(open(sys.argv[1]))["charge"], json.load(open(sys.argv[2]))["validate"]
+refused = {"refused": True}
 print(
-    len(json.load(open(sys.argv[1]))["charge"]),
-    len(json.load(open(sys.argv[2]))["validate"]),
+    len(charge),
+    len(validate),
     len(json.load(open(sys.argv[3]))["result_line"]),
+    # a refused budget, or a charge case holding a refused charge
+    sum(1 for c in charge if c["expect"] == refused or refused in c["expect"].get("verdicts", [])),
+    sum(1 for c in validate if c["expect"] == refused),
 )
 PY
 )
@@ -1332,9 +1240,13 @@ part_counts_status=$?
 if [ $part_counts_status -ne 0 ] || [ -z "$part_counts" ]; then
   fail "could not read fixture case counts from $BUDGET_FIXTURE_PATH, $SLOT_FIXTURE_PATH and $PROTOCOL_FIXTURE_PATH (exit $part_counts_status)"
 else
-  read -r charge_n validate_n result_line_n <<< "$part_counts"
+  read -r charge_n validate_n result_line_n charge_refused_n validate_refused_n <<< "$part_counts"
   if [ "$charge_n" -ge 30 ]; then pass "charge: $charge_n cases (>= 30)"; else fail "charge: only $charge_n cases (need >= 30)"; fi
   if [ "$validate_n" -ge 40 ]; then pass "validate: $validate_n cases (>= 40)"; else fail "validate: only $validate_n cases (need >= 40)"; fi
+  # The arguments each part refuses were 29 probes in this script until they
+  # became cases; the list may grow, and must not quietly shrink.
+  if [ "$charge_refused_n" -ge 20 ]; then pass "charge: $charge_refused_n cases hold a refusal (>= 20)"; else fail "charge: only $charge_refused_n cases hold a refusal (need >= 20)"; fi
+  if [ "$validate_refused_n" -ge 13 ]; then pass "validate: $validate_refused_n cases are refusals (>= 13)"; else fail "validate: only $validate_refused_n cases are refusals (need >= 13)"; fi
   if [ "$result_line_n" -ge 30 ]; then pass "result_line: $result_line_n cases (>= 30)"; else fail "result_line: only $result_line_n cases (need >= 30)"; fi
 fi
 

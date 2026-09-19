@@ -80,6 +80,9 @@ above, never produced by an implementation.
 ## Expectations
 
 A `charge` case runs its charges, in order, against one budget and expects one verdict per charge
-(`verdicts`) and the ledger afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser); a
-`validate` case expects one verdict. An expected verdict omits `message`, which is not part of conformance;
+(`verdicts`) — `{"refused": true}` for a charge the budget refuses, which changes nothing — and the ledger
+afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser), or `{"refused": true}`
+alone when the budget's caps are refused; a `validate` case expects one verdict, or `{"refused": true}` for a
+spec outside the contract. A runner answers `refused` only for the part's own refusal: a fixture it cannot
+decode, or a verdict of the wrong shape, is a failure of the case. An expected verdict omits `message`, which is not part of conformance;
 the runners check that it is present and a string before dropping it.

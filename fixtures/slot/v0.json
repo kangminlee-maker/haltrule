@@ -836,6 +836,176 @@
         "reason": "slot_invalid",
         "resume": null
       }
+    },
+    {
+      "id": "refused_slot_bound_past_2_53_1",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": {
+          "$number": "9007199254740992"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_negative_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "min_length": {
+          "$number": "-1"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_fractional_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": {
+          "$number": "1.5"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_nan_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_infinite_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": {
+          "$number": "Infinity"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_negative_infinite_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "min_length": {
+          "$number": "-Infinity"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_boolean_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": true
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_string_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": "3"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_unknown_kind",
+      "spec": {
+        "name": "t",
+        "kind": "number"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_choice_without_candidates",
+      "spec": {
+        "name": "t",
+        "kind": "choice"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_min_length_above_max_length",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_spec_without_a_name",
+      "spec": {
+        "kind": "text"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_spec_with_a_non_string_name",
+      "spec": {
+        "name": {
+          "$number": "7"
+        },
+        "kind": "text"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
     }
   ]
 }
