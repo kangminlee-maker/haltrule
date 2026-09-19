@@ -480,6 +480,12 @@ def main() -> int:
         print(
             f"CONTROL   {SURVIVOR.id}: expected to survive, got exit {survivor_status}"
         )
+        # A harmless edit failed the gates: some gate is not steady. Say which,
+        # or the run cannot be told from a defect in the suite itself.
+        for line in fail_lines(survivor_output)[:8]:
+            print(f"    saw: {line.strip()}")
+        for line in survivor_output.splitlines()[-12:]:
+            print(f"    tail: {line.rstrip()[:240]}")
 
     shard_note = f", shard {shard_index} of {shard_count}" if shard_count > 1 else ""
     partial = (
