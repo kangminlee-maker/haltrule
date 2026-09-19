@@ -459,7 +459,7 @@ import os, re, sys
 inventory = set(sys.argv[1:])
 source = open("ts/run-fixtures.ts", encoding="utf-8").read()
 hits = []
-for match in re.finditer(r'(?:\bfrom|^\s*import)\s+"([^"]+)"', source, re.MULTILINE):
+for match in re.finditer(r"(?:\bfrom|^\s*import)\s+[\x22\x27]([^\x22\x27]+)[\x22\x27]", source, re.MULTILINE):
     spec = match.group(1)
     if spec.startswith("node:"):
         continue

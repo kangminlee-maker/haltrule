@@ -101,7 +101,8 @@ not name is not reusable.
   anything else is out of contract. What to do when exhausted is the caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
-  in Unicode scalar values lies within `min_length`..`max_length`, each optional. A value of null, or a string
+  in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
+  0..2^53 − 1 (the limit every language shares, as for digest inputs). A value of null, or a string
   that is empty or holds only ASCII whitespace, is missing: `warning`, `slot_missing`. A present value that
   fails its contract is `halt`, `slot_invalid`; one that meets it is `ok`, `slot_accepted`. Comparison is
   exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar

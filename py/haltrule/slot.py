@@ -40,6 +40,11 @@ def _has_lone_surrogate(text: str) -> bool:
     return any(0xD800 <= ord(character) <= 0xDFFF for character in text)
 
 
+# The largest integer every language holds exactly: JavaScript's limit, as for
+# digest inputs.
+_BOUND_MAX = 2**53 - 1
+
+
 def _bound(value: Any, what: str) -> Optional[int]:
     if value is None:
         return None
@@ -49,15 +54,18 @@ def _bound(value: Any, what: str) -> Optional[int]:
         if not value.is_integer():
             raise TypeError(f"{what} must be a non-negative integer, got {value!r}")
         value = int(value)
-    if value < 0:
-        raise TypeError(f"{what} must be a non-negative integer, got {value!r}")
+    if not 0 <= value <= _BOUND_MAX:
+        raise TypeError(
+            f"{what} must be a non-negative integer up to 2^53 - 1, got {value!r}"
+        )
     return value
 
 
 def validate_slot(spec: Mapping[str, Any], value: Any) -> dict[str, Any]:
     """`spec` is a mapping with `name`, `kind` ("choice" or "text"), and for a
     choice `candidates` (strings, compared exactly), for a text `min_length`
-    and `max_length` (bounds in Unicode scalar values; None for none)."""
+    and `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1; None
+    for none)."""
     name = spec["name"]
     kind = spec["kind"]
     if kind not in ("choice", "text"):

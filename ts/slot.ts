@@ -29,7 +29,7 @@ export interface SlotSpec {
   kind: SlotKind;
   /** choice: the values accepted, compared exactly. */
   candidates?: readonly string[];
-  /** text: bounds on the length in Unicode scalar values; null or absent for none. */
+  /** text: bounds on the length in Unicode scalar values, each in 0..2^53 - 1; null or absent for none. */
   min_length?: number | null;
   max_length?: number | null;
 }
@@ -62,8 +62,8 @@ function hasLoneSurrogate(text: string): boolean {
 
 function bound(value: number | null | undefined, what: string): number | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
-  throw new TypeError(`${what} must be a non-negative integer, got ${String(value)}`);
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  throw new TypeError(`${what} must be a non-negative integer up to 2^53 - 1, got ${String(value)}`);
 }
 
 export function validateSlot(spec: SlotSpec, value: unknown): Verdict {

@@ -1323,13 +1323,25 @@ CATALOG += [
         tuple(["ts/.hidden-policy.ts has import(s)/require(s)/re-export(s) beyond ./verdict.ts"]),
     ),
     Mutant(
-        "check.sh: the typescript runner executes only the policy inventory",
+        "check.sh: the typescript runner executes only the policy inventory (a double-quoted import)",
         (
             Edit("helpers/clock.ts", None, "export const startedAt = 0;\n"),
             Edit(
                 "ts/run-fixtures.ts",
                 'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
                 'import { validateSlot, type SlotSpec } from "./slot.ts";\nimport "../helpers/clock.ts";\n',
+            ),
+        ),
+        tuple(["ts/run-fixtures.ts imports outside the policy inventory"]),
+    ),
+    Mutant(
+        "check.sh: the typescript runner executes only the policy inventory (a single-quoted import)",
+        (
+            Edit("helpers/clock.ts", None, "export const startedAt = 0;\n"),
+            Edit(
+                "ts/run-fixtures.ts",
+                'import { validateSlot, type SlotSpec } from "./slot.ts";\n',
+                "import { validateSlot, type SlotSpec } from \"./slot.ts\";\nimport '../helpers/clock.ts';\n",
             ),
         ),
         tuple(["ts/run-fixtures.ts imports outside the policy inventory"]),
