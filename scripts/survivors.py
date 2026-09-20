@@ -1,6 +1,7 @@
 """The off-the-shelf mutation tools, held to one list.
 
-StrykerJS mutates the TypeScript modules, cosmic-ray the Python ones and gremlins the Go ones; each runs the
+StrykerJS mutates the TypeScript modules, cosmic-ray the Python ones, gremlins the Go ones and
+cargo-mutants the Rust ones; each runs the
 shared driver as its only test (stryker.config.json, cosmic-ray.toml, and for Go the bridge test in
 go/adapter, because Go's mutation testers run `go test` where the others take any command). Whatever survives must be, entry for entry, what
 scripts/survivors_accepted.json lists with a reason: a survivor that is not listed is a case the fixtures
@@ -79,6 +80,33 @@ def cosmic_ray_survivors(dump: str) -> tuple[list[str], int]:
     return found, total
 
 
+def cargo_mutants_survivors(report: dict) -> tuple[list[str], int]:
+    """(survivors, mutants run) from a cargo-mutants outcomes.json. A mutant the compiler refuses is
+    no mutant: nothing could have noticed it, and it is not counted. One that timed out is a
+    survivor, which says only that the run was slower than the tool waited, never that a case
+    answered.
+
+    The tool's own one-line name is the entry: file, line, column and the change it made, which
+    is what its own missed.txt prints."""
+    found, total = [], 0
+    for outcome in report["outcomes"]:
+        mutant = (
+            outcome["scenario"].get("Mutant")
+            if isinstance(outcome["scenario"], dict)
+            else None
+        )
+        if mutant is None:
+            continue  # the baseline run, which is not a mutant
+        if outcome["summary"] == "Unviable":
+            continue
+        total += 1
+        if outcome["summary"] == "CaughtMutant":
+            continue  # the run noticed
+        # The tool's own name for the mutant: file, line, column and the change.
+        found.append(f"rust/{mutant['name']}")
+    return found, total
+
+
 def gremlins_survivors(report: dict, module: Path) -> tuple[list[str], int]:
     """(survivors, mutants run) from a gremlins JSON report. A mutant on a line no run reaches is a
     survivor too: nothing would have noticed it. So is one that timed out, which says only that the
@@ -125,9 +153,11 @@ def read_accepted(prefix: str) -> list[str]:
     return [e["survivor"] for e in entries if e["survivor"].startswith(prefix)]
 
 
-def _run(command: list[str], tree: Path, env: dict[str, str]) -> str:
+def _run(
+    command: list[str], tree: Path, env: dict[str, str], ok: tuple[int, ...] = (0,)
+) -> str:
     done = subprocess.run(command, cwd=tree, env=env, capture_output=True, text=True)
-    if done.returncode != 0:
+    if done.returncode not in ok:
         raise SystemExit(
             f"survivors: {' '.join(command)} exited {done.returncode}\n{done.stdout[-2000:]}{done.stderr[-2000:]}"
         )
@@ -141,6 +171,7 @@ def run_tool(language: str) -> tuple[list[str], int]:
             str(ROOT / ".venv" / "bin"),
             str(ROOT / "node_modules" / ".bin"),
             str(ROOT / ".bin"),
+            str(Path.home() / ".cargo" / "bin"),
             env["PATH"],
         ]
     )
@@ -151,6 +182,28 @@ def run_tool(language: str) -> tuple[list[str], int]:
             _run(["stryker", "run", "stryker.config.json"], tree, env)
             report = json.loads((tree / "reports" / "stryker.json").read_text("utf-8"))
             return stryker_survivors(report)
+        if language == "rust":
+            written = tree / "rust" / "mutants.out"
+            # rust/.cargo/mutants.toml says the rest: the whole workspace's tests for every
+            # mutant, and the words for people left alone.
+            _run(
+                [
+                    "cargo",
+                    "mutants",
+                    "--manifest-path",
+                    "rust/Cargo.toml",
+                    "-o",
+                    str(tree / "rust"),
+                ],
+                tree,
+                dict(env, HALTRULE_ROOT=str(tree)),
+                # 2 is "some mutants were missed" and 3 "some timed out", which are
+                # findings and not failures to run. Anything else is a failure to run.
+                ok=(0, 2, 3),
+            )
+            return cargo_mutants_survivors(
+                json.loads((written / "outcomes.json").read_text("utf-8"))
+            )
         if language == "go":
             written = tree / "gremlins.json"
             # The fixtures and the driver stay where they are; only the Go code is mutated.
@@ -326,7 +379,7 @@ def self_test() -> list[str]:
 def main(argv: list[str]) -> int:
     if argv == ["self-test"]:
         problems = self_test()
-    elif argv in (["ts"], ["py"], ["go"]):
+    elif argv in (["ts"], ["py"], ["go"], ["rust"]):
         found, total = run_tool(argv[0])
         problems = compare(found, total, read_accepted(argv[0] + "/"))
         print(

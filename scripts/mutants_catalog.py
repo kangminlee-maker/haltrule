@@ -41,6 +41,8 @@ SURVIVORS_FAIL = (
     "  FAIL  a survivor of the mutation tools that is not on the list fails"
 )
 TS_NO_HOST = "  FAIL  typescript modules compile with no host types"
+RS_FAILS = "  FAIL  rust conforms"
+RS_NO_HOST = "  FAIL  the rust library is no_std"
 TS_NAMES = "  FAIL  typescript modules name no clock"
 PY_NAMES = "  FAIL  python modules import and use only what the allowlists hold"
 
@@ -925,5 +927,44 @@ CATALOG += [
         "\tif len(event.FailureClass) == 0 {\n\t\treturn refused\n\t}\n",
         "",
         [GO_FAILS, "FAIL [report_has_no_failure_class] field=state.expect"],
+    ),
+]
+
+# --- the rust port: what the language keeps, and what a case keeps instead
+CATALOG += [
+    mutant(
+        "rust purity: the library is written without the standard library in it",
+        "rust/haltrule/src/lib.rs",
+        "#![no_std]\n",
+        "",
+        [RS_NO_HOST, "does not say #![no_std]"],
+    ),
+    mutant(
+        "rust purity: the one dependency is the hash, and a second one shows",
+        "rust/haltrule/Cargo.toml",
+        'sha2 = { version = "0.10", default-features = false }\n',
+        'sha2 = { version = "0.10", default-features = false }\nserde_json = "1"\n',
+        [RS_NO_HOST, "depends on serde_json"],
+    ),
+    mutant(
+        "rust adapter: every section is run",
+        "rust/adapter/src/run.rs",
+        "        for raw in &cases {\n",
+        '        for raw in &cases {\n            if section_name == "validate" {\n                continue;\n            }\n',
+        [RS_FAILS, "field=validate.missing"],
+    ),
+    mutant(
+        "rust adapter: a case whose input it can build may not be sat out",
+        "rust/adapter/src/run.rs",
+        "    let mut fields: Inputs = match serde_json::from_str(raw.get()) {\n",
+        '    if section_name == "classify" {\n        parts.insert("unbuildable".to_string(), Value::Bool(true));\n        writeln!(out, "{}", line_for(&parts)).map_err(|err| err.to_string())?;\n        return Ok(());\n    }\n    let mut fields: Inputs = match serde_json::from_str(raw.get()) {\n',
+        [RS_FAILS, "field=classify.unbuildable"],
+    ),
+    mutant(
+        "rust adapter: a value this port cannot hold is sat out, not answered",
+        "rust/adapter/src/decode.rs",
+        "            // Wider than i64, which this language has no integer for.\n            Err(_) => Err(Refusal::Unbuildable),\n",
+        "            Err(_) => Ok(Value::Int(0)),\n",
+        [RS_FAILS, "FAIL [bigint_far_past_min] field=canonicalize.expect"],
     ),
 ]

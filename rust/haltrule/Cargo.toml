@@ -1,0 +1,14 @@
+[package]
+name = "haltrule"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+# SHA-256 is the dependency the spec allows where the language has none of its
+# own, and this is all of it. Without default features it needs no standard
+# library either, so the crate below can be no_std.
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+
+[lints.rust]
+unsafe_code = "forbid"

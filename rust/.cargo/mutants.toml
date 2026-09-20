@@ -1,0 +1,11 @@
+# The test that judges a mutant lives in the adapter and the code it judges
+# lives in the library, so every mutant runs the whole workspace's tests.
+# Without this, a library mutant runs no test at all and is reported as one
+# no case notices.
+test_workspace = true
+
+# Words for people. A verdict's message and a refusal's text are not part of
+# conformance, so no fixture can tell one wording from another - the same
+# reason stryker.config.json and cosmic-ray.toml leave messages.ts and
+# messages.py alone.
+exclude_globs = ["haltrule/src/messages.rs"]

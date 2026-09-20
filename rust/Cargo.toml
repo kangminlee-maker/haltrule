@@ -1,0 +1,10 @@
+# Two crates: the library, which the spec is about, and the adapter, which
+# reads the fixtures and prints one line per case. They are apart so that the
+# library's dependencies can be counted: sha2 and nothing else.
+[workspace]
+resolver = "2"
+members = ["haltrule", "adapter"]
+
+[workspace.package]
+edition = "2021"
+publish = false

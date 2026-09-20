@@ -5139,6 +5139,54 @@
           "actual_contract_revision": true
         }
       ]
+    },
+    {
+      "id": "caller_status_mapped_to_partial",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "half_written"
+        },
+        "status_map": {
+          "ok": "complete",
+          "half_written": "partial"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": "half_written"
+        }
+      ]
+    },
+    {
+      "id": "caller_status_mapped_to_failed",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "gave_up"
+        },
+        "status_map": {
+          "ok": "complete",
+          "gave_up": "failed"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": "gave_up"
+        }
+      ]
     }
   ]
 }

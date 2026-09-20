@@ -1,0 +1,21 @@
+[package]
+name = "adapter"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "rust-adapter"
+path = "src/main.rs"
+
+# The adapter is not the library: it reads files and parses JSON, which is
+# what an adapter is for. Its dependencies say nothing about the spec.
+[dependencies]
+haltrule = { path = "../haltrule" }
+serde_json = { version = "1", features = ["raw_value", "preserve_order"] }
+# A fixture file's sections are read in the order it lists them, because
+# that is the order the driver expects the lines in.
+indexmap = { version = "2", features = ["serde"] }
+
+[lints.rust]
+unsafe_code = "forbid"

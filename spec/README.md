@@ -289,8 +289,10 @@ A port is conformant when:
 2. its dependency list is empty, except SHA-256 where the standard library does not provide it;
 3. its modules cannot reach the host and name nothing that is not a function of its arguments — shown by how
    they are built where the language allows it (the TypeScript modules compile with no host types at all; a
-   Go package can reach only what it imports, so its import list is the whole of what it can reach), by the
-   language's mainstream linter for what is left, and by an allowlist where neither exists (Python).
+   Go package can reach only what it imports, so its import list is the whole of what it can reach; the Rust
+   library is `no_std`, which takes the filesystem, the clock and the process out of the language it is
+   written in), by the language's mainstream linter for what is left, and by an allowlist where none of that
+   exists (Python).
 
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.

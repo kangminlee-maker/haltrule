@@ -9,9 +9,12 @@
 # Every gate here has been seen to fail: scripts/mutants.py plants a defect for
 # each and requires this script to fail with that gate's evidence. Whether the
 # fixtures notice a defect in a port's own modules is asked by the mainstream
-# mutation tools instead: scripts/survivors.py ts, and py.
+# mutation tools instead: scripts/survivors.py ts, py, go and rs.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# Where rustup puts cargo, for a shell that has not been told about it. An
+# installation already on the PATH still wins.
+PATH="$PATH:$HOME/.cargo/bin"
 
 failed=0
 # gate <what a pass shows> <command...>
@@ -42,6 +45,7 @@ gate "a survivor of the mutation tools that is not on the list fails, and so doe
 echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect"
 # Go is compiled: the build is the adapter's own gate, and the binary is what runs.
 gate "the go adapter builds" go build -C go -o ../.bin/go-adapter ./adapter
+gate "the rust adapter builds" cargo build --quiet --manifest-path rust/Cargo.toml
 # Both languages here can build every input, so neither may answer "unbuildable".
 gate "typescript conforms" python3 scripts/conform.py check --every-input node ts/adapter/adapter.ts
 # String hashing is seeded per process; a result that follows set order moves with the seed.
@@ -51,6 +55,9 @@ done
 # Go's strings are UTF-8 and its integers are 64 bits wide, so it answers
 # "unbuildable" for the inputs it cannot be handed; the driver says which.
 gate "go conforms" python3 scripts/conform.py check .bin/go-adapter
+# Rust's strings are UTF-8, its integers are 64 bits wide, and it has no
+# undefined, so it answers "unbuildable" for the same inputs Go cannot be handed.
+gate "rust conforms" python3 scripts/conform.py check rust/target/debug/rust-adapter
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
 gate "typescript modules compile with no host types: ts/tsconfig.json, and ts/host.d.ts is all the host there is" \
@@ -61,6 +68,8 @@ gate "python modules import and use only what the allowlists hold: scripts/py_pu
   findings python3 scripts/py_purity.py py/haltrule/*.py
 gate "go modules import only what the allowlist holds, which is all a go package can reach: scripts/go_purity.py" \
   findings python3 scripts/go_purity.py
+gate "the rust library is no_std, names no std, and declares one dependency: scripts/rs_purity.py" \
+  findings python3 scripts/rs_purity.py
 
 echo "4. lint and types"
 gate "ruff check" findings ruff check --quiet py scripts
@@ -68,6 +77,8 @@ gate "ruff format --check" findings ruff format --check --quiet py scripts
 gate "the typescript adapter type-checks" findings node_modules/.bin/tsc -p ts/adapter/tsconfig.json
 gate "go vet" findings go vet -C go ./...
 gate "gofmt -l" findings gofmt -l go
+gate "cargo clippy" findings cargo clippy --quiet --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+gate "cargo fmt --check" findings cargo fmt --manifest-path rust/Cargo.toml --all --check
 
 echo
 if [ "$failed" -eq 0 ]; then

@@ -15,7 +15,9 @@ jobs:
   # and requires check.sh to fail with the evidence that mutant names.
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Every planted defect builds four ports in its own copy of the tree, and
+    # the Rust one builds its dependencies from cold each time.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -29,6 +31,11 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+      # No floor is claimed for Rust yet, so the gates run on the same stable
+      # toolchain a reader would install today.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - name: Install dev tools
         run: |
           python -m pip install --quiet ruff==0.14.3
@@ -56,6 +63,23 @@ jobs:
         run: npm install --no-save --no-audit --no-fund @stryker-mutator/core@10.0.0
       - name: Every survivor is one the list explains
         run: python3 scripts/survivors.py ts
+
+  mutate-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      # The published binary, because building the tool from source is most of
+      # this job's time.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants@27.1.0
+      - name: Every survivor is one the list explains
+        run: python3 scripts/survivors.py rs
 
   mutate-python:
     runs-on: ubuntu-latest

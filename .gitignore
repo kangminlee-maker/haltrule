@@ -13,3 +13,8 @@ target/
 
 # built binaries a gate makes
 .bin/
+rust/target/
+mutants.out*/
+
+# macOS folder droppings
+.DS_Store
