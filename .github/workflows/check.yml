@@ -81,7 +81,12 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.22"
+      # The tool is newer than the floor the library declares: building it asks
+      # for a toolchain of its own, which `go install` fetches. The mutants
+      # themselves still compile and run on the floor version, as elsewhere.
       - name: Install gremlins
         run: GOBIN="$PWD/.bin" go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+        env:
+          GOTOOLCHAIN: auto
       - name: Every survivor is one the list explains
         run: python3 scripts/survivors.py go
