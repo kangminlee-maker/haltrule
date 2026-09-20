@@ -1,15 +1,16 @@
 """The off-the-shelf mutation tools, held to one list.
 
 StrykerJS mutates the TypeScript modules, cosmic-ray the Python ones, gremlins the Go ones and
-cargo-mutants the Rust ones; each runs the
-shared driver as its only test (stryker.config.json, cosmic-ray.toml, and for Go the bridge test in
-go/adapter, because Go's mutation testers run `go test` where the others take any command). Whatever survives must be, entry for entry, what
+cargo-mutants the Rust ones; each runs the shared driver as its only test. Two of them take any
+command (stryker.config.json, cosmic-ray.toml); the two compiled languages run a test instead, so
+each has a bridge test beside its adapter that does the adapter's work in the test's own process
+and hands the judging to the driver. Whatever survives must be, entry for entry, what
 scripts/survivors_accepted.json lists with a reason: a survivor that is not listed is a case the fixtures
 lack or code that changes nothing, and a listed one that no longer survives is a stale entry. Both fail.
 
 The tools run on a copy of the tree: cosmic-ray mutates files where they lie.
 
-  survivors.py ts | py | go   run the tool on a copy, compare
+  survivors.py ts | py | go | rust   run the tool on a copy, compare
   survivors.py self-test     the comparison itself can fail
 
 Standard library only; the tools are found in node_modules/.bin and, for cosmic-ray, .venv/bin or the PATH.

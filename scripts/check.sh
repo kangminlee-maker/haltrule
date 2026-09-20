@@ -9,7 +9,7 @@
 # Every gate here has been seen to fail: scripts/mutants.py plants a defect for
 # each and requires this script to fail with that gate's evidence. Whether the
 # fixtures notice a defect in a port's own modules is asked by the mainstream
-# mutation tools instead: scripts/survivors.py ts, py, go and rs.
+# mutation tools instead: scripts/survivors.py ts, py, go and rust.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 # Where rustup puts cargo, for a shell that has not been told about it. An

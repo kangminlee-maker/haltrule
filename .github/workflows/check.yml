@@ -79,7 +79,7 @@ jobs:
         with:
           tool: cargo-mutants@27.1.0
       - name: Every survivor is one the list explains
-        run: python3 scripts/survivors.py rs
+        run: python3 scripts/survivors.py rust
 
   mutate-python:
     runs-on: ubuntu-latest
