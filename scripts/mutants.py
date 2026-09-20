@@ -123,7 +123,14 @@ def planned_texts(m: Mutant, tree: Path) -> tuple[dict[str, str], list[str]]:
 
 def snapshot(image: Path, shared_modules: Path) -> None:
     """Copy the working tree as git sees it, untracked-but-not-ignored files
-    included, and give it a private copy of node_modules."""
+    included, and give it a private copy of node_modules.
+
+    Cargo's build directory is NOT shared between the copies, although
+    sharing it would compile the dependencies once instead of once per
+    planted defect, which is most of a run's time. A built binary has one
+    name: two copies building `rust-adapter` into one directory overwrite
+    each other, and a mutant is then judged on another mutant's binary.
+    Measured, and it credited two defects to the wrong mutation."""
     listed = subprocess.run(
         [
             "git",
