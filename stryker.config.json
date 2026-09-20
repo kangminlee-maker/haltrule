@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Run through scripts/survivors.py, which works on a copy of the tree and holds the survivors to scripts/survivors_accepted.json. messages.ts and string literals are left alone: a message's wording is not part of conformance, and every other string a case reaches is compared byte for byte already.",
+  "testRunner": "command",
+  "commandRunner": { "command": "python3 scripts/conform.py check node ts/adapter/adapter.ts" },
+  "coverageAnalysis": "off",
+  "mutate": ["ts/*.ts", "!ts/*.d.ts", "!ts/messages.ts"],
+  "mutator": { "excludedMutations": ["StringLiteral"] },
+  "reporters": ["json"],
+  "jsonReporter": { "fileName": "reports/stryker.json" },
+  "timeoutMS": 30000
+}

@@ -10,8 +10,9 @@
 /** Refuses `value` unless it is a map (not null, not a list) whose every key
  * is one of `fields`. */
 export function checkFields(value: unknown, fields: readonly string[], what: string): void {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`${what} must be a map, got ${value === null ? "null" : typeof value}`);
+  // `instanceof Object` is false for null and for every value that is not an object.
+  if (!(value instanceof Object) || Array.isArray(value)) {
+    throw new TypeError(`${what} must be a map, got ${String(value)}`);
   }
   for (const key of Object.keys(value)) {
     if (!fields.includes(key)) throw new TypeError(`${what} has no field ${JSON.stringify(key)}`);

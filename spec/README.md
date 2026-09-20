@@ -267,3 +267,7 @@ A port is conformant when:
 
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.
+
+The fixtures are held to account in turn. A mainstream mutation tool plants defects in each port's modules,
+and one that no case notices is either a missing case or code that changes nothing; what is left is listed,
+each with its reason, in `../scripts/survivors_accepted.json`.

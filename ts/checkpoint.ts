@@ -37,6 +37,7 @@
  */
 import { createHash } from "node:crypto";
 import { checkFields } from "./contract.ts";
+import { describe } from "./messages.ts";
 
 // ---------------------------------------------------------------- canonicalize
 
@@ -73,21 +74,6 @@ class DigestInputError extends Error {
     this.reason = reason;
   }
 }
-
-/** The seven characters with a two-character escape. Every other code point
- * below U+0020 is written `\u00xx` (lowercase hex); everything else, `/`,
- * U+007F, U+2028 and U+2029 included, is written as itself. This is exactly
- * what `JSON.stringify` does for well-formed strings — the table is spelled
- * out so a port without JSON.stringify can match it. */
-const SHORT_ESCAPES: Readonly<Record<number, string>> = {
-  0x08: "\\b",
-  0x09: "\\t",
-  0x0a: "\\n",
-  0x0c: "\\f",
-  0x0d: "\\r",
-  0x22: '\\"',
-  0x5c: "\\\\",
-};
 
 /**
  * Canonical form of a value: an RFC 8785 subset. Map keys are sorted by
@@ -127,7 +113,13 @@ function encodeValue(value: unknown, at: string, depth: number): string {
   if (typeof value === "number") return encodeNumber(value, at);
   if (typeof value === "bigint") return encodeBigInt(value, at);
   if (typeof value === "string") return encodeString(value, at);
-  if ((Array.isArray(value) || isPlainObject(value)) && depth >= MAX_DEPTH) {
+  if (!Array.isArray(value) && !isPlainObject(value)) {
+    throw new DigestInputError(
+      "digest_input_unsupported",
+      `${at}: ${describe(value)} is outside the digest value model`,
+    );
+  }
+  if (depth >= MAX_DEPTH) {
     throw new DigestInputError(
       "digest_input_unsupported",
       `${at}: nested deeper than ${MAX_DEPTH} lists and maps`,
@@ -142,21 +134,15 @@ function encodeValue(value: unknown, at: string, depth: number): string {
     }
     return `[${parts.join(",")}]`;
   }
-  if (isPlainObject(value)) {
-    if (Object.getOwnPropertySymbols(value).length > 0) {
-      throw new DigestInputError("digest_input_unsupported", `${at}: map has a symbol key`);
-    }
-    // The default sort compares UTF-16 code units, which is the spec's order.
-    const keys = Object.keys(value).sort();
-    const parts = keys.map(
-      (key) => `${encodeString(key, `${at} key`)}:${encodeValue(value[key], `${at}.${key}`, depth + 1)}`,
-    );
-    return `{${parts.join(",")}}`;
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    throw new DigestInputError("digest_input_unsupported", `${at}: map has a symbol key`);
   }
-  throw new DigestInputError(
-    "digest_input_unsupported",
-    `${at}: ${describe(value)} is outside the digest value model`,
+  // The default sort compares UTF-16 code units, which is the spec's order.
+  const keys = Object.keys(value).sort();
+  const parts = keys.map(
+    (key) => `${encodeString(key, `${at} key`)}:${encodeValue(value[key], `${at}.${key}`, depth + 1)}`,
   );
+  return `{${parts.join(",")}}`;
 }
 
 function encodeNumber(value: number, at: string): string {
@@ -186,44 +172,22 @@ function encodeBigInt(value: bigint, at: string): string {
   return value.toString();
 }
 
+/** A string of Unicode scalar values, quoted and escaped as the spec says:
+ * seven two-character escapes, every other code point below U+0020 as
+ * `\u00xx` in lowercase hex, everything else as itself. For a well-formed
+ * string that is exactly what JSON.stringify writes; the spec spells the
+ * table out for a port whose language has no such function. */
 function encodeString(value: string, at: string): string {
-  let out = '"';
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index);
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = index + 1 < value.length ? value.charCodeAt(index + 1) : 0;
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        out += String.fromCharCode(unit, next);
-        index += 1;
-        continue;
-      }
-    }
-    if (unit >= 0xd800 && unit <= 0xdfff) {
-      throw new DigestInputError(
-        "digest_input_unsupported",
-        `${at}: string has an unpaired surrogate at index ${index}`,
-      );
-    }
-    const escaped = SHORT_ESCAPES[unit];
-    if (escaped !== undefined) out += escaped;
-    else if (unit < 0x20) out += `\\u${unit.toString(16).padStart(4, "0")}`;
-    else out += String.fromCharCode(unit);
+  if (!value.isWellFormed()) {
+    throw new DigestInputError("digest_input_unsupported", `${at}: string has an unpaired surrogate`);
   }
-  return `${out}"`;
+  return JSON.stringify(value);
 }
 
+/** A map as JSON.parse and an object literal make one. `instanceof Object` is
+ * false for null and for every value that is not an object. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-function describe(value: unknown): string {
-  if (value === undefined) return "undefined";
-  if (typeof value === "object" && value !== null) {
-    return `an instance of ${value.constructor?.name ?? "an unknown class"}`;
-  }
-  return `a ${typeof value}`;
+  return value instanceof Object && Object.getPrototypeOf(value) === Object.prototype;
 }
 
 // ------------------------------------------------------------ reuse verdict
@@ -390,7 +354,7 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
 
   for (const validationIssue of validationIssues) {
     // A null field is an absent one: the default stands where there is one.
-    const given = Object.entries(validationIssue).filter(([, field]) => field !== null && field !== undefined);
+    const given = Object.entries(validationIssue).filter(([, field]) => field != null);
     issues.push({ ...base("invalid", "validation_issue"), ...Object.fromEntries(given) });
   }
 

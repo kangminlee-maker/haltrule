@@ -1,0 +1,50 @@
+[
+  {
+    "survivor": "ts/budget.ts | EqualityOperator | sum > LEDGER_MAX -> sum >= LEDGER_MAX",
+    "why": "when the sum is the maximum, both answer the maximum"
+  },
+  {
+    "survivor": "ts/checkpoint.ts | ConditionalExpression | error instanceof DigestInputError -> true",
+    "why": "only a bug in the encoder raises anything else, and then there is no right answer to compare"
+  },
+  {
+    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Eq | and len(self._pending_systemic) >= self.policy.systemic_threshold -> and len(self._pending_systemic) == self.policy.systemic_threshold",
+    "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part"
+  },
+  {
+    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Is | and len(self._pending_systemic) >= self.policy.systemic_threshold -> and len(self._pending_systemic) is self.policy.systemic_threshold",
+    "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part (and CPython shares small integers)"
+  },
+  {
+    "survivor": "py/haltrule/checkpoint.py | ReplaceComparisonOperator_GtE_Eq | if isinstance(value, (list, dict)) and depth >= _MAX_DEPTH: -> if isinstance(value, (list, dict)) and depth == _MAX_DEPTH:",
+    "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part"
+  },
+  {
+    "survivor": "py/haltrule/checkpoint.py | ReplaceComparisonOperator_GtE_Is | if isinstance(value, (list, dict)) and depth >= _MAX_DEPTH: -> if isinstance(value, (list, dict)) and depth is _MAX_DEPTH:",
+    "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part (and CPython shares small integers)"
+  },
+  {
+    "survivor": "py/haltrule/checkpoint.py | ReplaceComparisonOperator_Eq_Is | return value is None or value == \"\" -> return value is None or value is \"\"",
+    "why": "CPython has one empty string"
+  },
+  {
+    "survivor": "py/haltrule/budget.py | ReplaceBinaryOperator_Mul_Div | *, -> /,",
+    "why": "the tool reads the keyword-only marker as a multiplication; with / every call by keyword, which is every call a fixture can make, is the same"
+  },
+  {
+    "survivor": "py/haltrule/budget.py | ReplaceBinaryOperator_Mul_Div | def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]: -> def charge(self, /, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+    "why": "the tool reads the keyword-only marker as a multiplication; with / every call by keyword, which is every call a fixture can make, is the same"
+  },
+  {
+    "survivor": "py/haltrule/slot.py | ReplaceBinaryOperator_Mul_Div | *, -> /,",
+    "why": "the tool reads the keyword-only marker as a multiplication; with / every call by keyword, which is every call a fixture can make, is the same"
+  },
+  {
+    "survivor": "py/haltrule/slot.py | ReplaceComparisonOperator_Eq_LtE | if kind == \"choice\" and candidates is None: -> if kind <= \"choice\" and candidates is None:",
+    "why": "kind is one of two words by then, and the other one sorts after this one"
+  },
+  {
+    "survivor": "py/haltrule/slot.py | ReplaceComparisonOperator_Eq_LtE | if kind == \"choice\": -> if kind <= \"choice\":",
+    "why": "kind is one of two words by then, and the other one sorts after this one"
+  }
+]

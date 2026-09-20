@@ -6,39 +6,63 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Three jobs, one per question, side by side. None of the tools is a dependency
+# of the library. A gate whose tool is missing fails; none is skipped.
 jobs:
+  # Do the gates pass, and can each of them fail? scripts/mutants.py plants the
+  # defects no mutation tool makes - in the judges, an adapter, a fixture file,
+  # and the mistakes purity refuses - one at a time, in its own copy of the tree,
+  # and requires check.sh to fail with the evidence that mutant names.
   check:
     runs-on: ubuntu-latest
-    # 218 mutants took 16 minutes on a two-CPU runner; 230 will take about 17.
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
-
       # The spec targets Python 3.10+; 3.12 here is the floor a vendoring
       # project is most likely to be on, not the newest available.
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-
-      # Tools for checking, none of them a dependency of the library. A gate
-      # whose tool is missing fails; none is skipped.
       - name: Install dev tools
         run: |
           python -m pip install --quiet ruff==0.14.3
           npm install --no-save --no-audit --no-fund typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8
-
       - name: The gates
         run: ./scripts/check.sh
-
-      # Proves the gates can fail. A suite that has never been seen to fail is
-      # a claim, not evidence. scripts/mutants.py plants one defect at a time -
-      # in a policy module, an adapter, the driver, a fixture - in its own copy
-      # of the tree, and requires check.sh to fail with the evidence that mutant
-      # names. It checks the unmutated tree first and proves it can report a
-      # survivor.
-      - name: Every mutant must make the gates fail with its own evidence
+      - name: Every planted defect must make the gates fail with its own evidence
         run: python3 scripts/mutants.py
+
+  # Do the fixtures notice a defect in a port's own modules? A mainstream
+  # mutation tool per language plants them, with the shared driver as its only
+  # test, and whatever survives must be exactly scripts/survivors_accepted.json.
+  mutate-typescript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install StrykerJS
+        run: npm install --no-save --no-audit --no-fund @stryker-mutator/core@10.0.0
+      - name: Every survivor is one the list explains
+        run: python3 scripts/survivors.py ts
+
+  mutate-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install cosmic-ray
+        run: python -m pip install --quiet cosmic-ray==8.7.0
+      - name: Every survivor is one the list explains
+        run: python3 scripts/survivors.py py

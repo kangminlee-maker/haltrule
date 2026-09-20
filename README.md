@@ -56,9 +56,10 @@ function, sleep for you, and read the wall clock themselves. This one reads noth
 
 The spec is the product; the implementations are references that prove it is portable. One driver,
 `scripts/conform.py`, judges every language the same way: a port's adapter prints one line per fixture case,
-and the port conforms when those lines are, byte for byte, the lines the fixtures expect. CI also runs
-`scripts/mutants.py`, which plants one defect at a time — in an implementation, an adapter, a fixture, or the
-driver itself — and requires the gates to catch every one.
+and the port conforms when those lines are, byte for byte, the lines the fixtures expect. CI also plants
+defects and requires every one to be caught: a mainstream mutation tool per language plants them in the
+implementations, and `scripts/mutants.py` plants the ones no tool makes — in an adapter, a fixture, the
+driver itself, and the mistakes purity refuses.
 
 | Language | Status |
 |---|---|
@@ -78,17 +79,27 @@ spec/        the contract, in words
 fixtures/    the contract, in cases: one JSON file per part, and the line format's own vectors
 ts/  py/     a port each: the modules, and an adapter that reads the fixtures and prints one line per case
 scripts/     conform.py, the one driver that judges every port; check.sh, the gates; mutants.py, which
-             plants defects and requires the gates to catch them
+             plants the defects no tool makes and requires the gates to catch them; survivors.py, which
+             runs a mainstream mutation tool per language and holds what survives to one short list
 ```
 
 A port is its modules plus an adapter. The adapter holds no expectation and compares nothing, so a new
 language adds one line to `scripts/check.sh` for its adapter and one for its own mainstream purity tools.
 
+Whether the fixtures would notice a defect in a port is asked by that language's mainstream mutation tool -
+StrykerJS for TypeScript, cosmic-ray for Python - with the shared driver as its only test. What survives
+must be, entry for entry, `scripts/survivors_accepted.json`, where each entry says why no case can tell it
+apart. A message's wording is not part of conformance, so the code that only words a message lives in
+`messages.ts` / `messages.py`, which the tools leave alone. A new port adds its tool to
+`scripts/survivors.py`.
+
 ```
-pip install ruff
-npm install --no-save typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8
-./scripts/check.sh            # about a second
-python3 scripts/mutants.py    # every planted defect must fail the gates
+pip install ruff                                     # and, in .venv or on the PATH: pip install cosmic-ray
+npm install --no-save typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8 @stryker-mutator/core@10
+./scripts/check.sh                  # about two seconds
+python3 scripts/mutants.py          # every planted defect must fail the gates: half a minute
+python3 scripts/survivors.py ts     # about 470 mutants: ten seconds on a laptop
+python3 scripts/survivors.py py     # about 730 mutants: over a minute
 ```
 
 ## License

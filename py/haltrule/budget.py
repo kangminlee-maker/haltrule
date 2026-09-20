@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from haltrule.messages import show
 from haltrule.verdict import verdict
 
 # 2^63 - 1: the largest value every port's ledger holds.
@@ -99,9 +100,6 @@ class Budget:
                 "budget_tokens",
                 f"tokens exhausted: {self.tokens_used} of {self.token_budget} used",
             )
-
-        def show(used: int, limit: Optional[int]) -> str:
-            return f"{used} of {'no cap' if limit is None else limit}"
 
         return verdict(
             "ok",

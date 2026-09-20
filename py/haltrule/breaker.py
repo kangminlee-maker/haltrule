@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 SystemicDispatchFailureClass = Literal["rate_limit", "auth", "transport"]
 
@@ -67,8 +67,8 @@ _TRANSPORT_PATTERNS = TRANSIENT_TRANSPORT_MESSAGE_PATTERNS + (
 
 
 def classify_systemic_dispatch_failure(
-    message: str | None,
-) -> SystemicDispatchFailureClass | None:
+    message: Optional[str],
+) -> Optional[SystemicDispatchFailureClass]:
     """Classify a failure message into a systemic dispatch class, or None for
     item-local failures (malformed output, validation rejection, ...) that
     must never trip the batch breaker. Message-based by necessity: providers
@@ -132,13 +132,13 @@ class DispatchBreakerPolicy:
     # items failed systemically, not on their completion order. Sequential
     # callers omit it and keep the poison-vs-systemic-via-later-success
     # attribution.
-    concurrent: bool | None = None
+    concurrent: Optional[bool] = None
 
 
 @dataclass
 class DispatchDeadLetterEntry:
     item_id: str
-    failure_class: SystemicDispatchFailureClass | None
+    failure_class: Optional[SystemicDispatchFailureClass]
     failure_message: str
     attempt_count: int
 
@@ -170,7 +170,7 @@ class DispatchBreakerState:
     def __init__(self, policy: DispatchBreakerPolicy) -> None:
         self.policy = policy
         self._pending_systemic: list[DispatchDeadLetterEntry] = []
-        self._trip: DispatchBreakerTripState | None = None
+        self._trip: Optional[DispatchBreakerTripState] = None
         self._completed: list[str] = []
         self._dead_letter: list[DispatchDeadLetterEntry] = []
 
@@ -216,7 +216,7 @@ class DispatchBreakerState:
 
     def record_item_failure(
         self, entry: DispatchDeadLetterEntry
-    ) -> DispatchBreakerTripState | None:
+    ) -> Optional[DispatchBreakerTripState]:
         """Report an item's FINAL failure (per-item budget exhausted).
         Returns the trip state when this failure crosses the systemic
         threshold.
@@ -254,7 +254,7 @@ class DispatchBreakerState:
             return self._trip
         return None
 
-    def tripped(self) -> DispatchBreakerTripState | None:
+    def tripped(self) -> Optional[DispatchBreakerTripState]:
         return self._trip
 
     def completed_item_ids(self) -> list[str]:

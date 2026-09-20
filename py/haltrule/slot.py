@@ -35,7 +35,7 @@ _ASCII_WHITESPACE = " \t\n\r\f\v"
 
 
 def _is_blank(text: str) -> bool:
-    return text.strip(_ASCII_WHITESPACE) == ""
+    return not text.strip(_ASCII_WHITESPACE)
 
 
 def _has_lone_surrogate(text: str) -> bool:

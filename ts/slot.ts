@@ -47,26 +47,11 @@ function isBlank(text: string): boolean {
   return true;
 }
 
-/** True when a UTF-16 code unit sequence holds a surrogate without its pair. */
-function hasLoneSurrogate(text: string): boolean {
-  for (let index = 0; index < text.length; index += 1) {
-    const unit = text.charCodeAt(index);
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = text.charCodeAt(index + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        index += 1;
-        continue;
-      }
-      return true;
-    }
-    if (unit >= 0xdc00 && unit <= 0xdfff) return true;
-  }
-  return false;
-}
-
-function bound(value: number | null | undefined, what: string): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+/** A bound in 0..2^53 - 1, or `absent` when none is given. */
+function bound(value: unknown, what: string, absent: number): number {
+  if (value == null) return absent;
+  // isSafeInteger is false for whatever is not a number, so it is the type test too.
+  if (Number.isSafeInteger(value) && (value as number) >= 0) return value as number;
   throw new TypeError(`${what} must be a non-negative integer up to 2^53 - 1, got ${String(value)}`);
 }
 
@@ -83,15 +68,16 @@ export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
     throw new TypeError(`slot ${name}: candidates must be a list of strings`);
   }
   if (spec.kind === "choice" && given === null) throw new TypeError(`slot ${name}: a choice needs candidates`);
-  const min = bound(spec.min_length, `slot ${name}: min_length`);
-  const max = bound(spec.max_length, `slot ${name}: max_length`);
-  if (min !== null && max !== null && min > max) {
+  // No bound is the bound every length meets: at least 0, at most infinity.
+  const min = bound(spec.min_length, `slot ${name}: min_length`, 0);
+  const max = bound(spec.max_length, `slot ${name}: max_length`, Infinity);
+  if (min > max) {
     throw new RangeError(`slot ${name}: min_length ${min} exceeds max_length ${max}`);
   }
 
-  if (value === null || value === undefined) return verdict("warning", "slot_missing", `slot ${name}: no value`);
+  if (value == null) return verdict("warning", "slot_missing", `slot ${name}: no value`);
   if (typeof value !== "string") return verdict("halt", "slot_invalid", `slot ${name}: a ${typeof value} is not a string`);
-  if (hasLoneSurrogate(value)) {
+  if (!value.isWellFormed()) {
     return verdict("halt", "slot_invalid", `slot ${name}: not a string of Unicode scalar values (a lone surrogate)`);
   }
   if (isBlank(value)) return verdict("warning", "slot_missing", `slot ${name}: blank`);
@@ -103,10 +89,10 @@ export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
       : verdict("halt", "slot_invalid", `slot ${name}: ${JSON.stringify(value)} is not one of ${candidates.length} candidates`);
   }
   const length = Array.from(value).length;
-  if (min !== null && length < min) {
+  if (length < min) {
     return verdict("halt", "slot_invalid", `slot ${name}: ${length} characters, fewer than ${min}`);
   }
-  if (max !== null && length > max) {
+  if (length > max) {
     return verdict("halt", "slot_invalid", `slot ${name}: ${length} characters, more than ${max}`);
   }
   return verdict("ok", "slot_accepted", `slot ${name}: ${length} characters`);

@@ -7,7 +7,9 @@
 # tools to gate 3.
 #
 # Every gate here has been seen to fail: scripts/mutants.py plants a defect for
-# each and requires this script to fail with that gate's evidence.
+# each and requires this script to fail with that gate's evidence. Whether the
+# fixtures notice a defect in a port's own modules is asked by the mainstream
+# mutation tools instead: scripts/survivors.py ts, and py.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,9 +33,11 @@ findings() {
   return "${PIPESTATUS[0]}"
 }
 
-echo "1. the driver — the one judge can fail"
+echo "1. the judges can fail"
 gate "every corrupted expectation fails under its own id; malformed fixtures and malformed output are refused" \
   python3 scripts/conform.py self-test
+gate "a survivor of the mutation tools that is not on the list fails, and so does a listed one that is gone" \
+  python3 scripts/survivors.py self-test
 
 echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect"
 gate "typescript conforms" python3 scripts/conform.py check node ts/adapter/adapter.ts

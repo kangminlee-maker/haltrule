@@ -1,0 +1,11 @@
+# Run through scripts/survivors.py, which works on a copy of the tree - cosmic-ray mutates files where they
+# lie - and holds the survivors to scripts/survivors_accepted.json. messages.py is left alone: a message's
+# wording is not part of conformance.
+[cosmic-ray]
+module-path = "py/haltrule"
+timeout = 30.0
+excluded-modules = ["py/haltrule/messages.py"]
+test-command = "python3 scripts/conform.py check python3 py/adapter.py"
+
+[cosmic-ray.distributor]
+name = "local"

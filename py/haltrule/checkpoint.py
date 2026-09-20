@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Any, Literal, Mapping, Optional
+from typing import Any, Literal, Mapping, Optional, Union
+
+from haltrule.messages import describe_number
 
 # --------------------------------------------------------------- canonicalize
 
@@ -156,7 +158,7 @@ def _encode_value(value: Any, at: str, depth: int) -> str:
     )
 
 
-def _encode_number(value: int | float, at: str) -> str:
+def _encode_number(value: Union[int, float], at: str) -> str:
     if isinstance(value, float) and (
         not math.isfinite(value) or not value.is_integer()
     ):
@@ -165,15 +167,9 @@ def _encode_number(value: int | float, at: str) -> str:
             f"{at}: {value!r} is not an integer; render it as a string if it belongs in a digest",
         )
     if abs(value) > _MAX_SAFE_INTEGER:
-        # Spelling out an integer past Python's int-to-str digit limit raises,
-        # and a verdict must not, so a long one is described by its size.
-        shown = (
-            f"{value!r}"
-            if isinstance(value, float) or value.bit_length() <= 64
-            else f"a {value.bit_length()}-bit integer"
-        )
         raise _DigestInputError(
-            "digest_input_int_range", f"{at}: {shown} is outside ±(2^53 - 1)"
+            "digest_input_int_range",
+            f"{at}: {describe_number(value)} is outside ±(2^53 - 1)",
         )
     # int() also writes a negative zero float as "0".
     return str(int(value))
