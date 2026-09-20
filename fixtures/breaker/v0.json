@@ -596,6 +596,19 @@
         "$number": "30000"
       },
       "expect": 8
+    },
+    {
+      "id": "backoff_of_exactly_one_millisecond",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": {
+        "$number": "1"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": 1
     }
   ],
   "state": [

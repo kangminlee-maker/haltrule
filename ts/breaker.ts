@@ -79,7 +79,8 @@ const TRANSPORT_PATTERNS = [
 export function classifySystemicDispatchFailure(
   message: string | null | undefined,
 ): SystemicDispatchFailureClass | null {
-  if (typeof message !== "string" || message.length === 0) return null;
+  // An empty message needs no test of its own: it holds no pattern.
+  if (typeof message !== "string") return null;
   const normalized = message.toLowerCase();
   if (RATE_LIMIT_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     return "rate_limit";

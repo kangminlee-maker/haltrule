@@ -2763,6 +2763,27 @@
       "expect": {
         "halt": "digest_input_float"
       }
+    },
+    {
+      "id": "two_low_surrogates_are_not_a_pair",
+      "input": "\udc00\udc01",
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
+    },
+    {
+      "id": "high_surrogate_before_private_use_is_unpaired",
+      "input": "\ud800\ue000",
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
+    },
+    {
+      "id": "last_low_surrogate_alone_is_unpaired",
+      "input": "\udfff",
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
     }
   ],
   "checkpoint": [
@@ -5032,6 +5053,92 @@
       "expect": {
         "refused": true
       }
+    },
+    {
+      "id": "status_true_is_present_not_reusable",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": true
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": true
+        }
+      ]
+    },
+    {
+      "id": "status_negative_number_is_present_not_reusable",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": {
+            "$number": "-1"
+          }
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": -1
+        }
+      ]
+    },
+    {
+      "id": "status_nan_is_missing",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": {
+            "$number": "NaN"
+          }
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "contract_revision_true_is_present_and_mismatched",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "contract_revision": true
+        },
+        "expected_contract_revision": "v2"
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "contract_revision_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": "v2",
+          "actual_contract_revision": true
+        }
+      ]
     }
   ]
 }

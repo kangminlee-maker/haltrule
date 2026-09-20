@@ -379,15 +379,9 @@ def _js_falsy(value: Any) -> bool:
 
     An empty list or dict is truthy in JavaScript, unlike Python.
     """
-    if value is None or value is False:
-        return True
-    if value is True:
-        return False
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float)):  # a bool is an int: False is 0
         return value == 0 or value != value
-    if isinstance(value, str):
-        return value == ""
-    return False
+    return value is None or value == ""
 
 
 def _same_text(recorded: Any, expected: str) -> bool:

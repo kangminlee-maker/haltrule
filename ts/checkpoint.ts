@@ -172,8 +172,8 @@ function encodeNumber(value: number, at: string): string {
       `${at}: ${String(value)} is outside ±(2^53 − 1)`,
     );
   }
-  // Zero is written "0" whichever sign it carries.
-  return value === 0 ? "0" : String(value);
+  // String(-0) is "0": zero is written without a sign.
+  return String(value);
 }
 
 function encodeBigInt(value: bigint, at: string): string {

@@ -1446,6 +1446,126 @@
         "reason": "slot_accepted",
         "resume": null
       }
+    },
+    {
+      "id": "text_highest_scalar_value_is_one_character",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "1"
+        },
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\udbff\udfff",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_lowest_supplementary_scalar_value_is_one_character",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "1"
+        },
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\ud800\udc00",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_neighbours_of_the_surrogate_range_are_characters",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud7ff\ue000",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_high_surrogate_before_a_letter_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud800a",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_high_surrogate_before_private_use_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud800\ue000",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "text_last_low_surrogate_alone_is_invalid",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "1"
+        },
+        "max_length": {
+          "$number": "1"
+        }
+      },
+      "value": "\udfff",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
     }
   ]
 }

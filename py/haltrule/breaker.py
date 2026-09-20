@@ -78,7 +78,8 @@ def classify_systemic_dispatch_failure(
     JSON number from an untyped caller); that is treated the same as a
     non-string, matching the TS `typeof message !== "string"` guard.
     """
-    if not isinstance(message, str) or len(message) == 0:
+    # An empty message needs no test of its own: it holds no pattern.
+    if not isinstance(message, str):
         return None
     normalized = message.lower()
     if any(pattern in normalized for pattern in _RATE_LIMIT_PATTERNS):
@@ -90,41 +91,24 @@ def classify_systemic_dispatch_failure(
     return None
 
 
-def _to_float_or_inf(value: int | float) -> float:
-    """Convert to float the way a JS `number` already is one: a magnitude
-    that would not fit in float64 becomes a signed infinity instead of
-    raising, matching what an int-to-double cast does in every other
-    language. Python's `float()` is the odd one out here - it raises
-    OverflowError instead - so this is the only place that needs to know
-    about it.
-    """
-    try:
-        return float(value)
-    except OverflowError:
-        return math.inf if value > 0 else -math.inf
-
-
 def dispatch_backoff_delay_ms(*, attempt: int, initial_ms: int, cap_ms: int) -> int:
     """Capped exponential backoff (no jitter - deterministic for replay/tests).
 
     `attempt` is 0-based: delay before retry #1 is initial_ms.
 
-    Ported to match the TS float64 arithmetic byte-for-byte, including its
-    overflow behavior: `attempt`, `initial_ms` and `cap_ms` are cast to float
-    up front and the exponent is computed in float, so a huge `attempt`
-    overflows to +inf the same way `2 ** attempt` does in JS. Without this,
-    Python's arbitrary-precision ints compute `2 ** attempt` exactly - which
-    for an `attempt` near the spec's 2^53-1 ceiling never finishes - and
-    multiplying that bignum back into a float raises OverflowError instead of
-    saturating.
+    Computed in float64, as TypeScript computes it: the spec's numbers are
+    integers within +/-(2^53 - 1), which a float holds exactly, and a power of
+    two times one of them is exact until it is infinite. Python's exact
+    `2 ** attempt` would never finish for an `attempt` near that ceiling, and
+    `2.0 ** attempt` raises where JavaScript answers infinity.
     """
-    exponent = max(0.0, _to_float_or_inf(attempt))
+    exponent = max(0.0, float(attempt))
     try:
         power = 2.0**exponent
     except OverflowError:
         power = math.inf
-    exponential = _to_float_or_inf(initial_ms) * power
-    bounded = min(_to_float_or_inf(cap_ms), exponential)
+    exponential = float(initial_ms) * power
+    bounded = min(float(cap_ms), exponential)
     if math.isfinite(bounded) and bounded > 0:
         return math.floor(bounded)
     return cap_ms

@@ -9,7 +9,8 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 218 mutants took 16 minutes on a two-CPU runner; 230 will take about 17.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
