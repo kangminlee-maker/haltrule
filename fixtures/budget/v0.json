@@ -1938,6 +1938,548 @@
           "tokens": "0"
         }
       }
+    },
+    {
+      "id": "spec_budget_double_two_pow_63_amount_refused",
+      "budget": {},
+      "charges": [
+        {
+          "tokens": {
+            "$number": "9223372036854775808"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "9223372036854775808.0"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_order_outranks_chronology",
+      "budget": {
+        "max_turns": {
+          "$number": "2"
+        },
+        "time_budget_ms": {
+          "$number": "10"
+        },
+        "token_budget": {
+          "$number": "0"
+        }
+      },
+      "charges": [
+        {},
+        {
+          "ms": {
+            "$number": "10"
+          }
+        },
+        {
+          "turns": {
+            "$number": "2"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_time",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "2",
+          "ms": "10",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_largest_double_below_two_pow_63_then_the_cap_by_addition",
+      "budget": {
+        "token_budget": {
+          "$bigint": "9223372036854775807"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "9223372036854774784.0"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1022"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_tokens",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "9223372036854775807"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_double_two_pow_63_cap_refused",
+      "budget": {
+        "max_turns": {
+          "$number": "9.223372036854775808e18"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_budget_false_cap_is_refused_not_absent",
+      "budget": {
+        "max_turns": false
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_budget_falsy_amounts_are_refused_not_zero",
+      "budget": {
+        "max_turns": {
+          "$number": "3"
+        }
+      },
+      "charges": [
+        {
+          "turns": false
+        },
+        {
+          "ms": ""
+        },
+        {
+          "tokens": []
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_one_below_ledger_max_is_not_exhausted",
+      "budget": {
+        "max_turns": {
+          "$bigint": "9223372036854775807"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$bigint": "9223372036854775805"
+          }
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "9223372036854775806",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_negative_zero_is_zero",
+      "budget": {
+        "max_turns": {
+          "$number": "-0.0"
+        }
+      },
+      "charges": [
+        {
+          "turns": {
+            "$number": "-0"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "warning",
+            "reason": "budget_turns",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "spec_budget_negative_bigint_amount_refused",
+      "budget": {},
+      "charges": [
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "ms": {
+            "$bigint": "-1"
+          }
+        },
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_cap_the_contract_does_not_name",
+      "budget": {
+        "max_turn": {
+          "$number": "3"
+        }
+      },
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_caps_not_a_map",
+      "budget": [
+        {
+          "$number": "3"
+        }
+      ],
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_budget_caps_text",
+      "budget": "3",
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_charge_field_the_contract_does_not_name",
+      "budget": {
+        "token_budget": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        {
+          "tokens": {
+            "$number": "4"
+          },
+          "token": {
+            "$number": "4"
+          }
+        },
+        {
+          "tokens": {
+            "$number": "4"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "4"
+        }
+      }
+    },
+    {
+      "id": "refused_charge_not_a_map",
+      "budget": {
+        "max_turns": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        "1",
+        [
+          {
+            "$number": "1"
+          }
+        ],
+        null,
+        {
+          "$number": "1"
+        },
+        {
+          "turns": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "null_amount_is_nothing_used",
+      "budget": {
+        "max_turns": {
+          "$number": "2"
+        },
+        "time_budget_ms": null
+      },
+      "charges": [
+        {
+          "turns": null,
+          "ms": null,
+          "tokens": null
+        },
+        {
+          "turns": {
+            "$number": "1"
+          },
+          "tokens": null
+        }
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "1",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
+    },
+    {
+      "id": "refused_budget_caps_empty_list",
+      "budget": [],
+      "charges": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_charge_empty_list",
+      "budget": {
+        "max_turns": {
+          "$number": "10"
+        }
+      },
+      "charges": [
+        [],
+        {}
+      ],
+      "expect": {
+        "verdicts": [
+          {
+            "refused": true
+          },
+          {
+            "spec": "haltrule/0",
+            "verdict": "ok",
+            "reason": "budget_ok",
+            "resume": null
+          }
+        ],
+        "used": {
+          "turns": "0",
+          "ms": "0",
+          "tokens": "0"
+        }
+      }
     }
   ]
 }

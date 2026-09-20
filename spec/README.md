@@ -4,16 +4,24 @@ The spec is the product. An implementation is conformant when it passes every fi
 its output matches the other implementations' byte for byte — in the result-line format
 `../fixtures/README.md` defines, so that "the same bytes" does not depend on anyone's JSON library.
 
-The value model and canonicalization below govern digest inputs. They do not constrain the breaker,
-`budget`, or `slot`, which take their arguments as ordinary typed values.
+The value model and canonicalization below govern digest inputs. Every other argument is an ordinary typed
+value of the kinds JSON has — null, a boolean, a number, a string, a list, a map with string keys — and an
+integer is an integer however the language holds it. What a language can hold beyond those (JavaScript's
+`undefined`, a class instance) is no argument at all; only a digest input is asked about it.
 
-An argument outside a part's contract — a string where it expects a number, a negative amount — is
-**refused**: the call fails in the language's own way (an exception, an error value) and changes nothing, so
+**Null and not given are the same thing: absent.** A port whose types cannot tell the two apart loses
+nothing. An absent field takes its default where it has one — no cap, no bound, nothing used, `concurrent`
+off — and nothing else is a way to be absent: `false`, `0` and `""` are values.
+
+An argument outside a part's contract — a string where it expects a number, a negative amount, a map
+holding a field the contract does not name (`max_turn` for `max_turns` would otherwise be no cap at all) —
+is **refused**: the call fails in the language's own way (an exception, an error value) and changes nothing, so
 a refused charge leaves the ledger exactly as it was. A refusal is not a verdict and carries no reason. A
 fixture writes it as `{"refused": true}` where the result would be, so every port is held to the same list of
 refused arguments. A port whose types cannot hold such an argument at all has refused it before it ran: its
-adapter answers `refused` for that case when it cannot build the argument. `budget` and `slot` refuse as their
-bullets below say; what the breaker does with an argument outside its contract is not defined.
+adapter answers `refused` for that case when it cannot build the argument. `budget`, `slot` and `checkpoint`
+refuse as their bullets below say, before anything else is looked at; what the breaker does with an argument
+outside its contract is not defined.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -38,6 +46,10 @@ infinity halts with reason `digest_input_float`; an integral value outside the r
 `digest_input_int_range`. A float that matters to a digest is the caller's to render as a string, where the
 rendering is explicit and reviewable. Anything else — an unpaired surrogate, a non-string map key, nesting
 deeper than 100, a value of any other type — halts with `digest_input_unsupported`.
+
+A value with more than one thing wrong halts with the first one met walking it in canonical order: depth
+first, a list's items in order, a map's members by key as the canonical form sorts them, a key before its
+value. `[1.5, 2^53]` is `digest_input_float`, and `{"b": 1.5, "a": 2^53}` is `digest_input_int_range`.
 
 ## Canonical form and digest
 
@@ -75,7 +87,7 @@ Verdict {
 ```
 
 It is JSON by construction, so it can be written into a spreadsheet cell, an artifact field, or a database
-column without translation.
+column without translation. `budget` and `slot` have nowhere to resume from: their `resume` is always null.
 
 ## Artifact status vocabulary
 
@@ -125,8 +137,9 @@ not name is not reusable.
     - `skipped`: the id is completed and nothing else changes. An item that made no call proves nothing about
       the provider.
     - `failure`, with an entry of `item_id`, `failure_class`, `failure_message` and `attempt_count`: an entry
-      whose class is null goes to the dead letter, every time it is reported. Any other entry becomes pending
-      unless one with its `item_id` already is — the first is kept. Then, if the policy is enabled, the batch
+      whose class is null goes to the dead letter, every time it is reported. Any other entry — whatever its
+      class says, the empty string included: the part does not judge it — becomes pending unless one with its
+      `item_id` already is — the first is kept. Then, if the policy is enabled, the batch
       has not tripped, and the number pending has reached `systemic_threshold`, the batch trips: the trip is
       this entry's `failure_class`, the number pending as `consecutive_item_count`, and the `threshold`. That
       one report answers with the trip; every other report answers null.
@@ -135,15 +148,54 @@ not name is not reusable.
       on the same holds before the trip, so which items end where does not depend on the order they finished
       in; the trip's `failure_class` is still that of whichever entry crossed the threshold.
 
-    An id may be completed twice, and completed and dead-lettered both. What is neither at the end is
-    incomplete; the caller works that out from its own list of items.
-- `checkpoint` — `canonicalize` and the digest above, and a reuse verdict over one recorded artifact. The
-  caller passes the artifact (or null when it does not exist), the stage it belongs to, what it expects
-  now — contract revision, stage-config digest, dependency digests — and optionally its own validation
-  issues and `status_map`. The result is a list of issues, never empty, in this order: status, contract
-  revision, stage-config digest, dependency digests by UTF-16 key order, the caller's validation issues; with
-  none, a single `checkpoint_valid`. "Absent" follows JavaScript falsiness (null, `false`, `0`, `""`), and
-  values compare with JavaScript `===`. Issue ids and file reads stay with the caller.
+    The completed ids are listed in the order they were reported, success and skipped alike, once per
+    report, so an id may be completed twice, and completed and dead-lettered both. The dead letter is in the
+    order entries arrived there: an item's own failure when it is reported, a pending entry when a success
+    moves it. What is neither at the end is incomplete; the caller works that out from its own list of items.
+- `checkpoint` — `canonicalize` and the digest above, and a reuse verdict over one recorded artifact. Its
+  arguments, under the names every port and every fixture uses:
+  - `stage_id`, a string, the only one required;
+  - `artifact`, a map: what was recorded, absent when nothing was;
+  - `subject_ref`, a string: how issues refer to the artifact;
+  - `expected_contract_revision` and `expected_stage_config_digest`, strings, and
+    `expected_dependency_digests`, a map of dependency id to string: what the caller expects now. An absent
+    expectation is not checked; any string is compared, the empty one included;
+  - `required_resume_from_stage`, a string: where a rerun must start, `stage_id` when absent;
+  - `validation_issues`, a list of maps: what the caller's own validation found;
+  - `status_map`, a map of the caller's status to one of the four above.
+
+  An argument of another type is refused, and so is a `status_map` value outside the vocabulary. What the
+  artifact *records* is data, written by whoever wrote it, and is read leniently instead. A recorded
+  `status` or `contract_revision` is absent when it is falsy as JavaScript has it — null, `false`, `0`, NaN,
+  `""`; an empty list or map is present. A recorded `dependency_digests` that is not a map records nothing.
+  A recorded value equals an expectation only when it is the same string: a recorded `1` is not `"1"`. What
+  is recorded beyond what is expected is not looked at.
+
+  The result is a list of issues, never empty. An issue is a map of `stage_id`, `status`, `reason`,
+  `required_resume_from_stage` and `subject_ref` (null when absent), and what its reason adds:
+
+  | `status` | `reason` | adds |
+  |---|---|---|
+  | `missing` | `artifact_missing` | |
+  | `invalid` | `artifact_status_missing` | |
+  | `invalid` | `artifact_status_not_reusable` | `actual_status` |
+  | `unknown_contract` | `contract_revision_missing` | `expected_contract_revision` |
+  | `invalid` | `contract_revision_mismatch` | `expected_contract_revision`, `actual_contract_revision` |
+  | `invalid` | `stage_config_digest_mismatch` | `expected_stage_config_digest`, `actual_stage_config_digest` |
+  | `invalid` | `dependency_digest_mismatch` | `dependency_id`, `expected_digest`, `actual_digest` |
+  | `invalid` | `validation_issue` | the caller's fields |
+  | `valid` | `checkpoint_valid` | `required_resume_from_stage` is null |
+
+  An `actual_` member is what is recorded, null when nothing is. An absent artifact is one `artifact_missing`
+  and nothing else: the expectations and the caller's issues are not looked at. Otherwise every issue found,
+  in this order: status, contract revision (missing when none is recorded, a mismatch otherwise),
+  stage-config digest, dependency digests by UTF-16 code unit order of their ids, the caller's validation
+  issues in the order given; with none, a single `checkpoint_valid`.
+
+  A caller's validation issue becomes an `invalid` issue with reason `validation_issue` and the caller's own
+  fields laid over those five defaults — any of them, `status` and `stage_id` included; the part does not
+  judge them. A field that is null is absent: the default stands where there is one, and the field is left
+  out where there is none. Issue ids and file reads stay with the caller.
 - `budget` — a ledger of turns, milliseconds, and tokens against the caps `max_turns`, `time_budget_ms`, and
   `token_budget`, each optional. The caller charges what it measured; `charge` adds it and returns a verdict:
   `warning` naming the first exhausted resource in the order turns, time, tokens (`budget_turns`,
@@ -151,21 +203,27 @@ not name is not reusable.
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
   additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused. A
+  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused. An
+  absent cap is no cap and an absent amount is nothing used. The caps are a map of those three fields and a
+  charge a map of `turns`, `ms` and `tokens`; one that is not a map, or holds any other field, is refused. A
   charge is refused whole: every amount is read before any is added. What to do when exhausted is the
   caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
   0..2^53 − 1 (the limit every language shares, as for digest inputs). A value of null, or a string
-  that is empty or holds only ASCII whitespace, is missing: `warning`, `slot_missing`. A present value that
+  that is empty or holds only ASCII whitespace — U+0020, U+0009, U+000A, U+000B, U+000C and U+000D, and no
+  other: U+001C–U+001F, U+0085 and U+00A0 are characters like any — is missing: `warning`, `slot_missing`. A present value that
   fails its contract is `halt`, `slot_invalid`; one that meets it is `ok`, `slot_accepted`. Comparison is
   exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar
   values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
-  are the known identifiers. A spec outside the contract — an unknown `kind`, a `choice` without
-  `candidates`, `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean, a
-  string, NaN, or an infinity is not one), a spec without a string `name` — is refused.
+  are the known identifiers. A spec outside the contract — one that is not a map, a field beyond those five,
+  an unknown `kind`, a `choice` without `candidates`, `candidates` that are not a list of strings,
+  `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean, a string, NaN,
+  or an infinity is not one), a spec without a string `name` — is refused. A field that is given is held to
+  its type whatever the `kind`: a `text` with `candidates` that are not strings is refused though it never
+  reads them, as a `choice` with a bad bound is.
 
 ## Reason registry
 
@@ -184,7 +242,7 @@ sitting in somebody's artifacts. The breaker's reasons are not registered yet.
 | `contract_revision_mismatch` | checkpoint | the recorded contract revision differs from the expected one |
 | `stage_config_digest_mismatch` | checkpoint | the recorded stage-config digest differs from the expected one |
 | `dependency_digest_mismatch` | checkpoint | a recorded dependency digest differs from the expected one, or is absent |
-| `validation_issue` | checkpoint | a caller's validation issue that named no reason of its own |
+| `validation_issue` | checkpoint | a caller's validation issue whose own `reason` is absent |
 | `checkpoint_valid` | checkpoint | nothing above applies; the artifact may be reused |
 | `budget_ok` | budget | every capped resource is below its cap |
 | `budget_turns` | budget | the turns used reached `max_turns` |

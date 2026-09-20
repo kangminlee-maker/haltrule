@@ -7,14 +7,18 @@
 # Where JavaScript and Python disagree about a value, this file follows
 # JavaScript, because the spec's value model was defined by what JavaScript
 # can represent: 1.0 is the integer 1, map keys sort by UTF-16 code unit (not
-# code point), and "is this missing?" uses JavaScript falsiness, under which
-# an empty list or dict is present.
+# code point), and "is this missing?" - asked of what an artifact records -
+# uses JavaScript falsiness, under which an empty list or dict is present.
+#
+# The arguments are typed: an argument of another type is refused (TypeError),
+# and None or not given is the one way to be absent. A key the signature does
+# not name is refused by the call itself.
 
 from __future__ import annotations
 
 import hashlib
 import math
-from typing import Any, Literal, Mapping, Optional, Sequence
+from typing import Any, Literal, Mapping, Optional
 
 # --------------------------------------------------------------- canonicalize
 
@@ -210,16 +214,27 @@ _IDENTITY_STATUS_MAP: Mapping[str, ArtifactStatus] = {
 }
 
 
+def _text(value: Any, what: str) -> Optional[str]:
+    """An optional string argument: None when absent, refused when not text."""
+    if value is None or isinstance(value, str):
+        return value
+    raise TypeError(f"{what} must be a string or null, got {type(value).__name__}")
+
+
+def _is_map_of(value: Any, allowed: Any) -> bool:
+    return isinstance(value, dict) and all(allowed(item) for item in value.values())
+
+
 def evaluate_checkpoint_artifact(
     *,
     stage_id: str,
-    artifact: Optional[Mapping[str, Any]],
+    artifact: Optional[Mapping[str, Any]] = None,
     subject_ref: Optional[str] = None,
     expected_contract_revision: Optional[str] = None,
     expected_stage_config_digest: Optional[str] = None,
     expected_dependency_digests: Optional[Mapping[str, str]] = None,
     required_resume_from_stage: Optional[str] = None,
-    validation_issues: Optional[Sequence[Mapping[str, Any]]] = None,
+    validation_issues: Optional[list[Mapping[str, Any]]] = None,
     status_map: Optional[Mapping[str, ArtifactStatus]] = None,
 ) -> list[dict[str, Any]]:
     """Decide whether a recorded artifact may be reused.
@@ -229,13 +244,39 @@ def evaluate_checkpoint_artifact(
     caller's validation issues. With none, returns one "valid" issue, so the
     result is never empty. `artifact` is None when it does not exist;
     `status_map` replaces the default identity map, and a status it does not
-    name is not reusable.
+    name is not reusable. An expectation that is None is not checked; any
+    string is compared, the empty one included.
     """
-    resume = (
-        required_resume_from_stage
-        if required_resume_from_stage is not None
-        else stage_id
+    if not isinstance(stage_id, str):
+        raise TypeError(f"stage_id must be a string, got {type(stage_id).__name__}")
+    subject_ref = _text(subject_ref, "subject_ref")
+    resume = _text(required_resume_from_stage, "required_resume_from_stage")
+    if resume is None:
+        resume = stage_id
+    expected_contract_revision = _text(
+        expected_contract_revision, "expected_contract_revision"
     )
+    expected_stage_config_digest = _text(
+        expected_stage_config_digest, "expected_stage_config_digest"
+    )
+    if artifact is not None and not isinstance(artifact, dict):
+        raise TypeError("artifact must be a map or null")
+    if expected_dependency_digests is None:
+        expected_dependency_digests = {}
+    elif not _is_map_of(expected_dependency_digests, lambda v: isinstance(v, str)):
+        raise TypeError("expected_dependency_digests must map ids to strings")
+    if status_map is None:
+        status_map = _IDENTITY_STATUS_MAP
+    elif not _is_map_of(
+        status_map, lambda v: isinstance(v, str) and v in _IDENTITY_STATUS_MAP
+    ):
+        raise TypeError("status_map must map statuses to the vocabulary")
+    if validation_issues is None:
+        validation_issues = []
+    elif not isinstance(validation_issues, list) or not all(
+        isinstance(issue, dict) for issue in validation_issues
+    ):
+        raise TypeError("validation_issues must be a list of maps")
 
     def base(status: str, reason: str, **details: Any) -> dict[str, Any]:
         return {
@@ -254,18 +295,13 @@ def evaluate_checkpoint_artifact(
     status = artifact.get("status")
     if _js_falsy(status):
         issues.append(base("invalid", "artifact_status_missing"))
-    elif (
-        _resolve_status(
-            status, status_map if status_map is not None else _IDENTITY_STATUS_MAP
-        )
-        != "complete"
-    ):
+    elif _resolve_status(status, status_map) != "complete":
         issues.append(
             base("invalid", "artifact_status_not_reusable", actual_status=status)
         )
 
     revision = artifact.get("contract_revision")
-    if not _js_falsy(expected_contract_revision) and _js_falsy(revision):
+    if expected_contract_revision is not None and _js_falsy(revision):
         issues.append(
             base(
                 "unknown_contract",
@@ -273,7 +309,7 @@ def evaluate_checkpoint_artifact(
                 expected_contract_revision=expected_contract_revision,
             )
         )
-    elif not _js_falsy(expected_contract_revision) and not _js_strict_equal(
+    elif expected_contract_revision is not None and not _same_text(
         revision, expected_contract_revision
     ):
         issues.append(
@@ -286,7 +322,7 @@ def evaluate_checkpoint_artifact(
         )
 
     config = artifact.get("stage_config_digest")
-    if not _js_falsy(expected_stage_config_digest) and not _js_strict_equal(
+    if expected_stage_config_digest is not None and not _same_text(
         config, expected_stage_config_digest
     ):
         issues.append(
@@ -298,16 +334,14 @@ def evaluate_checkpoint_artifact(
             )
         )
 
-    expected_dependencies = (
-        expected_dependency_digests if expected_dependency_digests is not None else {}
-    )
+    expected_dependencies = expected_dependency_digests
     recorded = artifact.get("dependency_digests")
     for dependency_id in sorted(expected_dependencies, key=_utf16_key):
         expected_digest = expected_dependencies[dependency_id]
         actual_digest = (
             recorded.get(dependency_id) if isinstance(recorded, dict) else None
         )
-        if not _js_strict_equal(actual_digest, expected_digest):
+        if not _same_text(actual_digest, expected_digest):
             issues.append(
                 base(
                     "invalid",
@@ -318,28 +352,12 @@ def evaluate_checkpoint_artifact(
                 )
             )
 
-    # Any sequence counts, as the parameter's type says: silently ignoring a
-    # caller's validation issues because they arrived in an unexpected sequence
-    # type would reuse an artifact the caller had already found invalid. Text
-    # is a sequence of characters, never of issues, and is ignored as a
-    # non-array is in TypeScript.
-    for validation_issue in (
-        validation_issues
-        if isinstance(validation_issues, Sequence)
-        and not isinstance(validation_issues, (str, bytes, bytearray))
-        else ()
-    ):
-        reason = validation_issue.get("reason")
-        issue_resume = validation_issue.get("required_resume_from_stage")
-        issues.append(
-            {
-                **base("invalid", reason if reason is not None else "validation_issue"),
-                "required_resume_from_stage": issue_resume
-                if issue_resume is not None
-                else resume,
-                **validation_issue,
-            }
-        )
+    for validation_issue in validation_issues:
+        # A null field is an absent one: the default stands where there is one.
+        given = {
+            key: field for key, field in validation_issue.items() if field is not None
+        }
+        issues.append({**base("invalid", "validation_issue"), **given})
 
     if not issues:
         return [
@@ -372,19 +390,7 @@ def _js_falsy(value: Any) -> bool:
     return False
 
 
-def _js_strict_equal(left: Any, right: Any) -> bool:
-    """JavaScript `===` over JSON values.
-
-    Scalars compare by kind and value (numbers by value, so 1 and 1.0 agree,
-    and NaN equals nothing); a list or dict equals only itself, because
-    JavaScript compares objects by identity.
-    """
-    if left is None or right is None:
-        return left is None and right is None
-    if isinstance(left, bool) or isinstance(right, bool):
-        return isinstance(left, bool) and isinstance(right, bool) and left == right
-    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return left == right
-    if isinstance(left, str) and isinstance(right, str):
-        return left == right
-    return left is right and isinstance(left, (list, dict))
+def _same_text(recorded: Any, expected: str) -> bool:
+    """What an artifact records equals an expectation only when it is the same
+    string: a recorded 1 is not "1", and a recorded ["v2"] is not "v2"."""
+    return isinstance(recorded, str) and recorded == expected

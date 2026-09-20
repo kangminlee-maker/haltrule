@@ -13,10 +13,11 @@
  * ledger holds 64-bit integers and its additions saturate at 2^63 - 1.
  *
  * Caps and amounts are non-negative integers up to 2^63 - 1, as numbers or
- * bigints. Anything else is out of contract, like a string handed to the
- * breaker: these are the caller's own literals, not data a verdict must
- * speak to, so they throw.
+ * bigints, in maps holding no other field. Anything else is out of contract,
+ * like a string handed to the breaker: these are the caller's own literals,
+ * not data a verdict must speak to, so they throw.
  */
+import { checkFields } from "./contract.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
 /** 2^63 - 1: the largest value every port's ledger holds. */
@@ -31,17 +32,21 @@ export interface BudgetCaps {
   token_budget?: number | bigint | null;
 }
 
+/** What was used; an amount that is null or not given is nothing used. */
 export interface Charge {
-  turns?: number | bigint;
-  ms?: number | bigint;
-  tokens?: number | bigint;
+  turns?: number | bigint | null;
+  ms?: number | bigint | null;
+  tokens?: number | bigint | null;
 }
 
-function ledger(value: number | bigint | undefined, what: string): bigint {
+const CAP_FIELDS = ["max_turns", "time_budget_ms", "token_budget"];
+const CHARGE_FIELDS = ["turns", "ms", "tokens"];
+
+function ledger(value: number | bigint | null | undefined, what: string): bigint {
   let n: bigint;
   if (typeof value === "bigint") n = value;
   else if (typeof value === "number" && Number.isInteger(value)) n = BigInt(value);
-  else if (value === undefined) n = 0n;
+  else if (value === null || value === undefined) n = 0n; // absent: nothing used
   else throw new TypeError(`${what} must be an integer, got ${String(value)}`);
   if (n < 0n || n > LEDGER_MAX) throw new RangeError(`${what} must be within [0, 2^63 - 1], got ${n}`);
   return n;
@@ -65,6 +70,7 @@ export class Budget {
   tokens_used = 0n;
 
   constructor(caps: BudgetCaps = {}) {
+    checkFields(caps, CAP_FIELDS, "budget caps");
     this.max_turns = cap(caps.max_turns, "max_turns");
     this.time_budget_ms = cap(caps.time_budget_ms, "time_budget_ms");
     this.token_budget = cap(caps.token_budget, "token_budget");
@@ -78,6 +84,7 @@ export class Budget {
    */
   charge(charge: Charge = {}): Verdict {
     // Every amount is read before any is added: a refused charge changes nothing.
+    checkFields(charge, CHARGE_FIELDS, "charge");
     const turns = ledger(charge.turns, "turns");
     const ms = ledger(charge.ms, "ms");
     const tokens = ledger(charge.tokens, "tokens");

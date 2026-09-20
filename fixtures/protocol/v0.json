@@ -382,6 +382,74 @@
       "expect": {
         "refused": true
       }
+    },
+    {
+      "id": "spec_line_large_integral_floats_are_written_in_full",
+      "value": [
+        {
+          "$number": "1e15"
+        },
+        {
+          "$number": "9007199254740991.0"
+        },
+        {
+          "$number": "-9.007199254740991e15"
+        },
+        {
+          "$bigint": "-9007199254740991"
+        }
+      ],
+      "expect": {
+        "line": "[1000000000000000,9007199254740991,-9007199254740991,-9007199254740991]"
+      }
+    },
+    {
+      "id": "spec_line_controls_without_a_short_escape",
+      "value": "\u0007\u000b\u000e\u001b",
+      "expect": {
+        "line": "\"\\u0007\\u000b\\u000e\\u001b\""
+      }
+    },
+    {
+      "id": "spec_line_negative_bigint_past_range_refused",
+      "value": {
+        "$bigint": "-9007199254740992"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_line_lone_surrogate_keys_sort_by_code_unit",
+      "value": {
+        "\udbff": "lone high",
+        "\ud83d\ude00": "pair",
+        "\ue000": "private use",
+        "\ud800": "lowest lone"
+      },
+      "expect": {
+        "line": "{\"\\ud800\":\"lowest lone\",\"\ud83d\ude00\":\"pair\",\"\\udbff\":\"lone high\",\"\ue000\":\"private use\"}"
+      }
+    },
+    {
+      "id": "spec_line_lone_surrogates_beside_pairs",
+      "value": [
+        "\ud83d\ud83d\ude00",
+        "\ud83d\ude00\ude00",
+        "a\ud800",
+        "\udc00a",
+        "\ud800\ud800"
+      ],
+      "expect": {
+        "line": "[\"\\ud83d\ud83d\ude00\",\"\ud83d\ude00\\ude00\",\"a\\ud800\",\"\\udc00a\",\"\\ud800\\ud800\"]"
+      }
+    },
+    {
+      "id": "spec_line_c1_controls_and_noncharacters_are_written_as_themselves",
+      "value": "\u0080\u009f\u00ad\ufeff\ufffe\uffff\udbff\udfff",
+      "expect": {
+        "line": "\"\u0080\u009f\u00ad\ufeff\ufffe\uffff\udbff\udfff\""
+      }
     }
   ]
 }

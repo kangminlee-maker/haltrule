@@ -184,26 +184,9 @@ function canonicalizeCase(tc: Inputs): unknown {
   return { canonical: canonical.canonical, digest: digest.digest };
 }
 
-const CHECKPOINT_ARG_NAMES: Record<string, keyof EvaluateCheckpointArtifactArgs> = {
-  stage_id: "stageId",
-  subject_ref: "subjectRef",
-  artifact: "artifact",
-  expected_contract_revision: "expectedContractRevision",
-  expected_stage_config_digest: "expectedStageConfigDigest",
-  expected_dependency_digests: "expectedDependencyDigests",
-  required_resume_from_stage: "requiredResumeFromStage",
-  validation_issues: "validationIssues",
-  status_map: "statusMap",
-};
-
 function checkpoint(tc: Inputs): unknown {
-  const args: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(tc.args as Inputs)) {
-    const name = CHECKPOINT_ARG_NAMES[key];
-    if (name === undefined) throw new Error(`unknown checkpoint arg ${key}`);
-    args[name] = value;
-  }
-  return evaluateCheckpointArtifact(args as unknown as EvaluateCheckpointArtifactArgs);
+  const result = orRefused(() => evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs));
+  return result === REFUSED ? { refused: true } : result;
 }
 
 function charge(tc: Inputs): unknown {

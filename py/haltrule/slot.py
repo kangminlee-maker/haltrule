@@ -21,10 +21,13 @@
 # a string that is not made of them (it holds a lone surrogate) fails its
 # contract. A shape beyond length - a UUID, a URL - is the caller's to check,
 # as a float's rendering is the caller's in a digest.
+#
+# The spec is the keyword arguments, so the call itself refuses a spec that is
+# not a map or holds a field the contract does not name.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Any, Optional
 
 from haltrule.verdict import verdict
 
@@ -61,22 +64,35 @@ def _bound(value: Any, what: str) -> Optional[int]:
     return value
 
 
-def validate_slot(spec: Mapping[str, Any], value: Any) -> dict[str, Any]:
-    """`spec` is a mapping with `name`, `kind` ("choice" or "text"), and for a
-    choice `candidates` (strings, compared exactly), for a text `min_length`
-    and `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1; None
+def validate_slot(
+    value: Any,
+    *,
+    name: Any = None,
+    kind: Any = None,
+    candidates: Any = None,
+    min_length: Any = None,
+    max_length: Any = None,
+) -> dict[str, Any]:
+    """The spec is the keyword arguments - `validate_slot(value, **spec)` - so a
+    spec that is not a map, or holds a field beyond these five, is refused by
+    the call itself: `name`, `kind` ("choice" or "text"), and for a choice
+    `candidates` (strings, compared exactly), for a text `min_length` and
+    `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1; None
     for none)."""
-    name = spec.get("name")
     if not isinstance(name, str):
         raise TypeError(f"slot spec without a string name: {name!r}")
-    kind = spec.get("kind")
     if kind not in ("choice", "text"):
         raise TypeError(f"slot {name}: unknown kind {kind!r}")
-    candidates = spec.get("candidates")
-    if kind == "choice" and not isinstance(candidates, (list, tuple)):
+    # A field that is given is held to its type whatever the kind, as the bounds are below.
+    if candidates is not None and not (
+        isinstance(candidates, (list, tuple))
+        and all(isinstance(candidate, str) for candidate in candidates)
+    ):
+        raise TypeError(f"slot {name}: candidates must be a list of strings")
+    if kind == "choice" and candidates is None:
         raise TypeError(f"slot {name}: a choice needs candidates")
-    minimum = _bound(spec.get("min_length"), f"slot {name}: min_length")
-    maximum = _bound(spec.get("max_length"), f"slot {name}: max_length")
+    minimum = _bound(min_length, f"slot {name}: min_length")
+    maximum = _bound(max_length, f"slot {name}: max_length")
     if minimum is not None and maximum is not None and minimum > maximum:
         raise ValueError(
             f"slot {name}: min_length {minimum} exceeds max_length {maximum}"

@@ -1462,6 +1462,1307 @@
       "expect": {
         "halt": "digest_input_int_range"
       }
+    },
+    {
+      "id": "halt_is_the_first_violation_in_list_order",
+      "input": [
+        {
+          "$number": "1.5"
+        },
+        {
+          "$number": "9007199254740992"
+        }
+      ],
+      "expect": {
+        "halt": "digest_input_float"
+      }
+    },
+    {
+      "id": "halt_is_the_first_violation_in_list_order_reversed",
+      "input": [
+        {
+          "$number": "9007199254740992"
+        },
+        {
+          "$number": "1.5"
+        }
+      ],
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "halt_follows_canonical_key_order_not_the_order_written",
+      "input": {
+        "b": {
+          "$number": "1.5"
+        },
+        "a": {
+          "$number": "9007199254740992"
+        }
+      },
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "halt_meets_a_key_before_its_value",
+      "input": {
+        "\ud800": {
+          "$number": "1.5"
+        }
+      },
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
+    },
+    {
+      "id": "halt_meets_an_earlier_value_before_a_later_key",
+      "input": {
+        "z\ud800": {
+          "$number": "1"
+        },
+        "a": {
+          "$number": "1.5"
+        }
+      },
+      "expect": {
+        "halt": "digest_input_float"
+      }
+    },
+    {
+      "id": "halt_meets_a_sibling_before_the_depth_past_it",
+      "input": [
+        {
+          "$number": "1.5"
+        },
+        [
+          [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          [
+                                                                                                                                            [
+                                                                                                                                              [
+                                                                                                                                                [
+                                                                                                                                                  [
+                                                                                                                                                    [
+                                                                                                                                                      [
+                                                                                                                                                        [
+                                                                                                                                                          [
+                                                                                                                                                            [
+                                                                                                                                                              [
+                                                                                                                                                                [
+                                                                                                                                                                  [
+                                                                                                                                                                    [
+                                                                                                                                                                      [
+                                                                                                                                                                        [
+                                                                                                                                                                          [
+                                                                                                                                                                            [
+                                                                                                                                                                              [
+                                                                                                                                                                                [
+                                                                                                                                                                                  [
+                                                                                                                                                                                    [
+                                                                                                                                                                                      [
+                                                                                                                                                                                        [
+                                                                                                                                                                                          [
+                                                                                                                                                                                            [
+                                                                                                                                                                                              [
+                                                                                                                                                                                                [
+                                                                                                                                                                                                  [
+                                                                                                                                                                                                    [
+                                                                                                                                                                                                      [
+                                                                                                                                                                                                        [
+                                                                                                                                                                                                          [
+                                                                                                                                                                                                            [
+                                                                                                                                                                                                              [
+                                                                                                                                                                                                                []
+                                                                                                                                                                                                              ]
+                                                                                                                                                                                                            ]
+                                                                                                                                                                                                          ]
+                                                                                                                                                                                                        ]
+                                                                                                                                                                                                      ]
+                                                                                                                                                                                                    ]
+                                                                                                                                                                                                  ]
+                                                                                                                                                                                                ]
+                                                                                                                                                                                              ]
+                                                                                                                                                                                            ]
+                                                                                                                                                                                          ]
+                                                                                                                                                                                        ]
+                                                                                                                                                                                      ]
+                                                                                                                                                                                    ]
+                                                                                                                                                                                  ]
+                                                                                                                                                                                ]
+                                                                                                                                                                              ]
+                                                                                                                                                                            ]
+                                                                                                                                                                          ]
+                                                                                                                                                                        ]
+                                                                                                                                                                      ]
+                                                                                                                                                                    ]
+                                                                                                                                                                  ]
+                                                                                                                                                                ]
+                                                                                                                                                              ]
+                                                                                                                                                            ]
+                                                                                                                                                          ]
+                                                                                                                                                        ]
+                                                                                                                                                      ]
+                                                                                                                                                    ]
+                                                                                                                                                  ]
+                                                                                                                                                ]
+                                                                                                                                              ]
+                                                                                                                                            ]
+                                                                                                                                          ]
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expect": {
+        "halt": "digest_input_float"
+      }
+    },
+    {
+      "id": "halt_meets_the_depth_before_the_sibling_past_it",
+      "input": [
+        [
+          [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          [
+                                                                                                                                            [
+                                                                                                                                              [
+                                                                                                                                                [
+                                                                                                                                                  [
+                                                                                                                                                    [
+                                                                                                                                                      [
+                                                                                                                                                        [
+                                                                                                                                                          [
+                                                                                                                                                            [
+                                                                                                                                                              [
+                                                                                                                                                                [
+                                                                                                                                                                  [
+                                                                                                                                                                    [
+                                                                                                                                                                      [
+                                                                                                                                                                        [
+                                                                                                                                                                          [
+                                                                                                                                                                            [
+                                                                                                                                                                              [
+                                                                                                                                                                                [
+                                                                                                                                                                                  [
+                                                                                                                                                                                    [
+                                                                                                                                                                                      [
+                                                                                                                                                                                        [
+                                                                                                                                                                                          [
+                                                                                                                                                                                            [
+                                                                                                                                                                                              [
+                                                                                                                                                                                                [
+                                                                                                                                                                                                  [
+                                                                                                                                                                                                    [
+                                                                                                                                                                                                      [
+                                                                                                                                                                                                        [
+                                                                                                                                                                                                          [
+                                                                                                                                                                                                            [
+                                                                                                                                                                                                              [
+                                                                                                                                                                                                                []
+                                                                                                                                                                                                              ]
+                                                                                                                                                                                                            ]
+                                                                                                                                                                                                          ]
+                                                                                                                                                                                                        ]
+                                                                                                                                                                                                      ]
+                                                                                                                                                                                                    ]
+                                                                                                                                                                                                  ]
+                                                                                                                                                                                                ]
+                                                                                                                                                                                              ]
+                                                                                                                                                                                            ]
+                                                                                                                                                                                          ]
+                                                                                                                                                                                        ]
+                                                                                                                                                                                      ]
+                                                                                                                                                                                    ]
+                                                                                                                                                                                  ]
+                                                                                                                                                                                ]
+                                                                                                                                                                              ]
+                                                                                                                                                                            ]
+                                                                                                                                                                          ]
+                                                                                                                                                                        ]
+                                                                                                                                                                      ]
+                                                                                                                                                                    ]
+                                                                                                                                                                  ]
+                                                                                                                                                                ]
+                                                                                                                                                              ]
+                                                                                                                                                            ]
+                                                                                                                                                          ]
+                                                                                                                                                        ]
+                                                                                                                                                      ]
+                                                                                                                                                    ]
+                                                                                                                                                  ]
+                                                                                                                                                ]
+                                                                                                                                              ]
+                                                                                                                                            ]
+                                                                                                                                          ]
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ],
+        {
+          "$number": "1.5"
+        }
+      ],
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
+    },
+    {
+      "id": "halt_goes_into_a_list_before_its_next_sibling",
+      "input": [
+        [
+          {
+            "$number": "9007199254740992"
+          }
+        ],
+        {
+          "$number": "1.5"
+        }
+      ],
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "spec_canon_i64_min_bigint_is_out_of_range",
+      "input": {
+        "$bigint": "-9223372036854775808"
+      },
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "spec_canon_i64_min_number_is_out_of_range",
+      "input": {
+        "$number": "-9223372036854775808"
+      },
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "spec_canon_max_safe_written_as_float",
+      "input": {
+        "$number": "9007199254740991.0"
+      },
+      "expect": {
+        "canonical": "9007199254740991",
+        "digest": "sha256:f40b423c2dd95ff2b2f027e22208f438cf7242862e5e746860e697308c9add26"
+      }
+    },
+    {
+      "id": "spec_canon_every_c0_control_then_space",
+      "input": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f ",
+      "expect": {
+        "canonical": "\"\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\b\\t\\n\\u000b\\f\\r\\u000e\\u000f\\u0010\\u0011\\u0012\\u0013\\u0014\\u0015\\u0016\\u0017\\u0018\\u0019\\u001a\\u001b\\u001c\\u001d\\u001e\\u001f \"",
+        "digest": "sha256:28b3c56e849882cca13067fb93e03663eb64d51af8511fb6fcb64f20311c3dfa"
+      }
+    },
+    {
+      "id": "spec_canon_keys_sorted_raw_not_escaped",
+      "input": {
+        "a!": {
+          "$number": "1"
+        },
+        "a": {
+          "$number": "2"
+        },
+        "a ": {
+          "$number": "3"
+        },
+        "\n": {
+          "$number": "4"
+        },
+        " ": {
+          "$number": "5"
+        },
+        "\"": {
+          "$number": "6"
+        },
+        "#": {
+          "$number": "7"
+        }
+      },
+      "expect": {
+        "canonical": "{\"\\n\":4,\" \":5,\"\\\"\":6,\"#\":7,\"a\":2,\"a \":3,\"a!\":1}",
+        "digest": "sha256:61eb4fdd0e9b3de3d6f0225dbbd5a7a055bbe0e17ea02b9ce23fecbf4e26da97"
+      }
+    },
+    {
+      "id": "spec_canon_keys_shared_high_surrogate",
+      "input": {
+        "k\uff5e": {
+          "$number": "1"
+        },
+        "k\ud83d\ude01a": {
+          "$number": "2"
+        },
+        "k": {
+          "$number": "3"
+        },
+        "k\ud83d\ude00b": {
+          "$number": "4"
+        },
+        "k\ud7ff": {
+          "$number": "5"
+        }
+      },
+      "expect": {
+        "canonical": "{\"k\":3,\"k\ud7ff\":5,\"k\ud83d\ude00b\":4,\"k\ud83d\ude01a\":2,\"k\uff5e\":1}",
+        "digest": "sha256:834fb926b38f2fd68ec2235c85f13108133d3a36ee51bf6a61d1175a59b9eacd"
+      }
+    },
+    {
+      "id": "spec_canon_depth_100_on_two_sibling_paths",
+      "input": [
+        [
+          [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          [
+                                                                                                                                            [
+                                                                                                                                              [
+                                                                                                                                                [
+                                                                                                                                                  [
+                                                                                                                                                    [
+                                                                                                                                                      [
+                                                                                                                                                        [
+                                                                                                                                                          [
+                                                                                                                                                            [
+                                                                                                                                                              [
+                                                                                                                                                                [
+                                                                                                                                                                  [
+                                                                                                                                                                    [
+                                                                                                                                                                      [
+                                                                                                                                                                        [
+                                                                                                                                                                          [
+                                                                                                                                                                            [
+                                                                                                                                                                              [
+                                                                                                                                                                                [
+                                                                                                                                                                                  [
+                                                                                                                                                                                    [
+                                                                                                                                                                                      [
+                                                                                                                                                                                        [
+                                                                                                                                                                                          [
+                                                                                                                                                                                            [
+                                                                                                                                                                                              [
+                                                                                                                                                                                                [
+                                                                                                                                                                                                  [
+                                                                                                                                                                                                    [
+                                                                                                                                                                                                      [
+                                                                                                                                                                                                        [
+                                                                                                                                                                                                          [
+                                                                                                                                                                                                            [
+                                                                                                                                                                                                              {
+                                                                                                                                                                                                                "$number": "1"
+                                                                                                                                                                                                              }
+                                                                                                                                                                                                            ]
+                                                                                                                                                                                                          ]
+                                                                                                                                                                                                        ]
+                                                                                                                                                                                                      ]
+                                                                                                                                                                                                    ]
+                                                                                                                                                                                                  ]
+                                                                                                                                                                                                ]
+                                                                                                                                                                                              ]
+                                                                                                                                                                                            ]
+                                                                                                                                                                                          ]
+                                                                                                                                                                                        ]
+                                                                                                                                                                                      ]
+                                                                                                                                                                                    ]
+                                                                                                                                                                                  ]
+                                                                                                                                                                                ]
+                                                                                                                                                                              ]
+                                                                                                                                                                            ]
+                                                                                                                                                                          ]
+                                                                                                                                                                        ]
+                                                                                                                                                                      ]
+                                                                                                                                                                    ]
+                                                                                                                                                                  ]
+                                                                                                                                                                ]
+                                                                                                                                                              ]
+                                                                                                                                                            ]
+                                                                                                                                                          ]
+                                                                                                                                                        ]
+                                                                                                                                                      ]
+                                                                                                                                                    ]
+                                                                                                                                                  ]
+                                                                                                                                                ]
+                                                                                                                                              ]
+                                                                                                                                            ]
+                                                                                                                                          ]
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ],
+        {
+          "a": {
+            "a": {
+              "a": {
+                "a": {
+                  "a": {
+                    "a": {
+                      "a": {
+                        "a": {
+                          "a": {
+                            "a": {
+                              "a": {
+                                "a": {
+                                  "a": {
+                                    "a": {
+                                      "a": {
+                                        "a": {
+                                          "a": {
+                                            "a": {
+                                              "a": {
+                                                "a": {
+                                                  "a": {
+                                                    "a": {
+                                                      "a": {
+                                                        "a": {
+                                                          "a": {
+                                                            "a": {
+                                                              "a": {
+                                                                "a": {
+                                                                  "a": {
+                                                                    "a": {
+                                                                      "a": {
+                                                                        "a": {
+                                                                          "a": {
+                                                                            "a": {
+                                                                              "a": {
+                                                                                "a": {
+                                                                                  "a": {
+                                                                                    "a": {
+                                                                                      "a": {
+                                                                                        "a": {
+                                                                                          "a": {
+                                                                                            "a": {
+                                                                                              "a": {
+                                                                                                "a": {
+                                                                                                  "a": {
+                                                                                                    "a": {
+                                                                                                      "a": {
+                                                                                                        "a": {
+                                                                                                          "a": {
+                                                                                                            "a": {
+                                                                                                              "a": {
+                                                                                                                "a": {
+                                                                                                                  "a": {
+                                                                                                                    "a": {
+                                                                                                                      "a": {
+                                                                                                                        "a": {
+                                                                                                                          "a": {
+                                                                                                                            "a": {
+                                                                                                                              "a": {
+                                                                                                                                "a": {
+                                                                                                                                  "a": {
+                                                                                                                                    "a": {
+                                                                                                                                      "a": {
+                                                                                                                                        "a": {
+                                                                                                                                          "a": {
+                                                                                                                                            "a": {
+                                                                                                                                              "a": {
+                                                                                                                                                "a": {
+                                                                                                                                                  "a": {
+                                                                                                                                                    "a": {
+                                                                                                                                                      "a": {
+                                                                                                                                                        "a": {
+                                                                                                                                                          "a": {
+                                                                                                                                                            "a": {
+                                                                                                                                                              "a": {
+                                                                                                                                                                "a": {
+                                                                                                                                                                  "a": {
+                                                                                                                                                                    "a": {
+                                                                                                                                                                      "a": {
+                                                                                                                                                                        "a": {
+                                                                                                                                                                          "a": {
+                                                                                                                                                                            "a": {
+                                                                                                                                                                              "a": {
+                                                                                                                                                                                "a": {
+                                                                                                                                                                                  "a": {
+                                                                                                                                                                                    "a": {
+                                                                                                                                                                                      "a": {
+                                                                                                                                                                                        "a": {
+                                                                                                                                                                                          "a": {
+                                                                                                                                                                                            "a": {
+                                                                                                                                                                                              "a": {
+                                                                                                                                                                                                "a": {
+                                                                                                                                                                                                  "a": {
+                                                                                                                                                                                                    "a": {
+                                                                                                                                                                                                      "a": {
+                                                                                                                                                                                                        "a": {
+                                                                                                                                                                                                          "a": {
+                                                                                                                                                                                                            "a": {
+                                                                                                                                                                                                              "a": null
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                          }
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                      }
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                  }
+                                                                                                                                                                                                }
+                                                                                                                                                                                              }
+                                                                                                                                                                                            }
+                                                                                                                                                                                          }
+                                                                                                                                                                                        }
+                                                                                                                                                                                      }
+                                                                                                                                                                                    }
+                                                                                                                                                                                  }
+                                                                                                                                                                                }
+                                                                                                                                                                              }
+                                                                                                                                                                            }
+                                                                                                                                                                          }
+                                                                                                                                                                        }
+                                                                                                                                                                      }
+                                                                                                                                                                    }
+                                                                                                                                                                  }
+                                                                                                                                                                }
+                                                                                                                                                              }
+                                                                                                                                                            }
+                                                                                                                                                          }
+                                                                                                                                                        }
+                                                                                                                                                      }
+                                                                                                                                                    }
+                                                                                                                                                  }
+                                                                                                                                                }
+                                                                                                                                              }
+                                                                                                                                            }
+                                                                                                                                          }
+                                                                                                                                        }
+                                                                                                                                      }
+                                                                                                                                    }
+                                                                                                                                  }
+                                                                                                                                }
+                                                                                                                              }
+                                                                                                                            }
+                                                                                                                          }
+                                                                                                                        }
+                                                                                                                      }
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                                }
+                                                                                                              }
+                                                                                                            }
+                                                                                                          }
+                                                                                                        }
+                                                                                                      }
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expect": {
+        "canonical": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]],{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":null}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}]",
+        "digest": "sha256:70f1786b6ca3af05364f2fbb84792fc329cf022a2129e869cfc908a89b3c9a0f"
+      }
+    },
+    {
+      "id": "spec_canon_bom_del_c1_and_format_chars_unescaped",
+      "input": "\ufeff\u007f\u0080\u0085\u009f\u00a0\u00ad\u061c\u200b\u200d\u202e\ufff9\ufffd",
+      "expect": {
+        "canonical": "\"\ufeff\u007f\u0080\u0085\u009f\u00a0\u00ad\u061c\u200b\u200d\u202e\ufff9\ufffd\"",
+        "digest": "sha256:9681e772de0b69477d3aac3183419d2fe8f4926a7f3b89fe4d4dc9da1b884746"
+      }
+    },
+    {
+      "id": "spec_canon_scalar_value_boundaries",
+      "input": "\ud7ff\ue000\ufdd0\ufffe\uffff\ud800\udc00\ud83f\udfff\udbff\udfff",
+      "expect": {
+        "canonical": "\"\ud7ff\ue000\ufdd0\ufffe\uffff\ud800\udc00\ud83f\udfff\udbff\udfff\"",
+        "digest": "sha256:77a9210c72baaf37caa2f738216199f424a4545c8021d6f92f169e163afbc3ad"
+      }
+    },
+    {
+      "id": "spec_canon_two_pow_53_written_as_float",
+      "input": {
+        "$number": "9007199254740992.0"
+      },
+      "expect": {
+        "halt": "digest_input_int_range"
+      }
+    },
+    {
+      "id": "spec_canon_min_safe_written_with_exponent",
+      "input": {
+        "$number": "-9.007199254740991e15"
+      },
+      "expect": {
+        "canonical": "-9007199254740991",
+        "digest": "sha256:4c933a456bb8f2e9894b2d0b26480439cd72d52fb8a27cbf8fd7f323f22c7815"
+      }
+    },
+    {
+      "id": "spec_canon_depth_101_alternating",
+      "input": [
+        {
+          "k": [
+            {
+              "k": [
+                {
+                  "k": [
+                    {
+                      "k": [
+                        {
+                          "k": [
+                            {
+                              "k": [
+                                {
+                                  "k": [
+                                    {
+                                      "k": [
+                                        {
+                                          "k": [
+                                            {
+                                              "k": [
+                                                {
+                                                  "k": [
+                                                    {
+                                                      "k": [
+                                                        {
+                                                          "k": [
+                                                            {
+                                                              "k": [
+                                                                {
+                                                                  "k": [
+                                                                    {
+                                                                      "k": [
+                                                                        {
+                                                                          "k": [
+                                                                            {
+                                                                              "k": [
+                                                                                {
+                                                                                  "k": [
+                                                                                    {
+                                                                                      "k": [
+                                                                                        {
+                                                                                          "k": [
+                                                                                            {
+                                                                                              "k": [
+                                                                                                {
+                                                                                                  "k": [
+                                                                                                    {
+                                                                                                      "k": [
+                                                                                                        {
+                                                                                                          "k": [
+                                                                                                            {
+                                                                                                              "k": [
+                                                                                                                {
+                                                                                                                  "k": [
+                                                                                                                    {
+                                                                                                                      "k": [
+                                                                                                                        {
+                                                                                                                          "k": [
+                                                                                                                            {
+                                                                                                                              "k": [
+                                                                                                                                {
+                                                                                                                                  "k": [
+                                                                                                                                    {
+                                                                                                                                      "k": [
+                                                                                                                                        {
+                                                                                                                                          "k": [
+                                                                                                                                            {
+                                                                                                                                              "k": [
+                                                                                                                                                {
+                                                                                                                                                  "k": [
+                                                                                                                                                    {
+                                                                                                                                                      "k": [
+                                                                                                                                                        {
+                                                                                                                                                          "k": [
+                                                                                                                                                            {
+                                                                                                                                                              "k": [
+                                                                                                                                                                {
+                                                                                                                                                                  "k": [
+                                                                                                                                                                    {
+                                                                                                                                                                      "k": [
+                                                                                                                                                                        {
+                                                                                                                                                                          "k": [
+                                                                                                                                                                            {
+                                                                                                                                                                              "k": [
+                                                                                                                                                                                {
+                                                                                                                                                                                  "k": [
+                                                                                                                                                                                    {
+                                                                                                                                                                                      "k": [
+                                                                                                                                                                                        {
+                                                                                                                                                                                          "k": [
+                                                                                                                                                                                            {
+                                                                                                                                                                                              "k": [
+                                                                                                                                                                                                {
+                                                                                                                                                                                                  "k": [
+                                                                                                                                                                                                    {
+                                                                                                                                                                                                      "k": [
+                                                                                                                                                                                                        {
+                                                                                                                                                                                                          "k": [
+                                                                                                                                                                                                            {
+                                                                                                                                                                                                              "k": []
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                          ]
+                                                                                                                                                                                                        }
+                                                                                                                                                                                                      ]
+                                                                                                                                                                                                    }
+                                                                                                                                                                                                  ]
+                                                                                                                                                                                                }
+                                                                                                                                                                                              ]
+                                                                                                                                                                                            }
+                                                                                                                                                                                          ]
+                                                                                                                                                                                        }
+                                                                                                                                                                                      ]
+                                                                                                                                                                                    }
+                                                                                                                                                                                  ]
+                                                                                                                                                                                }
+                                                                                                                                                                              ]
+                                                                                                                                                                            }
+                                                                                                                                                                          ]
+                                                                                                                                                                        }
+                                                                                                                                                                      ]
+                                                                                                                                                                    }
+                                                                                                                                                                  ]
+                                                                                                                                                                }
+                                                                                                                                                              ]
+                                                                                                                                                            }
+                                                                                                                                                          ]
+                                                                                                                                                        }
+                                                                                                                                                      ]
+                                                                                                                                                    }
+                                                                                                                                                  ]
+                                                                                                                                                }
+                                                                                                                                              ]
+                                                                                                                                            }
+                                                                                                                                          ]
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    }
+                                                                                                                                  ]
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            }
+                                                                                                                          ]
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "halt": "digest_input_unsupported"
+      }
+    },
+    {
+      "id": "spec_canon_null_and_empty_values_are_kept",
+      "input": [
+        null,
+        {
+          "z": {
+            "$number": "0"
+          },
+          "n": null,
+          "m": {},
+          "l": [],
+          "f": false,
+          "e": ""
+        },
+        [
+          null
+        ]
+      ],
+      "expect": {
+        "canonical": "[null,{\"e\":\"\",\"f\":false,\"l\":[],\"m\":{},\"n\":null,\"z\":0},[null]]",
+        "digest": "sha256:91b2019e0221872a3c1d5fe0e429e741c1ef40de9b85c406a5b11d1f2afda8a5"
+      }
+    },
+    {
+      "id": "spec_canon_nfc_and_nfd_keys_are_distinct",
+      "input": {
+        "\ud55c": {
+          "$number": "1"
+        },
+        "\u00e9": {
+          "$number": "2"
+        },
+        "\u1112\u1161\u11ab": {
+          "$number": "3"
+        },
+        "e\u0301": {
+          "$number": "4"
+        }
+      },
+      "expect": {
+        "canonical": "{\"e\u0301\":4,\"\u00e9\":2,\"\u1112\u1161\u11ab\":3,\"\ud55c\":1}",
+        "digest": "sha256:eae44b92aa74d1d9cc19f7accc3c7c07fd9b3591aa6205a0fba8afefd6a9ff1d"
+      }
+    },
+    {
+      "id": "spec_canon_largest_fractional_double",
+      "input": {
+        "$number": "4503599627370495.5"
+      },
+      "expect": {
+        "halt": "digest_input_float"
+      }
     }
   ],
   "checkpoint": [
@@ -1937,7 +3238,7 @@
       ]
     },
     {
-      "id": "empty_expected_revision_skips_the_check",
+      "id": "empty_expected_revision_is_compared",
       "args": {
         "stage_id": "draft",
         "subject_ref": "runs/r1/draft.json",
@@ -1950,10 +3251,12 @@
       "expect": [
         {
           "stage_id": "draft",
-          "status": "valid",
-          "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
-          "subject_ref": "runs/r1/draft.json"
+          "status": "invalid",
+          "reason": "contract_revision_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": "",
+          "actual_contract_revision": "v1"
         }
       ]
     },
@@ -2026,7 +3329,7 @@
       ]
     },
     {
-      "id": "empty_expected_stage_config_skips_the_check",
+      "id": "empty_expected_stage_config_is_compared",
       "args": {
         "stage_id": "draft",
         "subject_ref": "runs/r1/draft.json",
@@ -2039,10 +3342,12 @@
       "expect": [
         {
           "stage_id": "draft",
-          "status": "valid",
-          "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
-          "subject_ref": "runs/r1/draft.json"
+          "status": "invalid",
+          "reason": "stage_config_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_stage_config_digest": "",
+          "actual_stage_config_digest": "sha256:old"
         }
       ]
     },
@@ -2396,7 +3701,7 @@
       ]
     },
     {
-      "id": "validation_issues_text_is_ignored",
+      "id": "refused_validation_issues_text",
       "args": {
         "stage_id": "draft",
         "subject_ref": "runs/r1/draft.json",
@@ -2405,15 +3710,9 @@
         },
         "validation_issues": "invalid"
       },
-      "expect": [
-        {
-          "stage_id": "draft",
-          "status": "valid",
-          "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
-          "subject_ref": "runs/r1/draft.json"
-        }
-      ]
+      "expect": {
+        "refused": true
+      }
     },
     {
       "id": "validation_issue_defaults",
@@ -2528,7 +3827,7 @@
       ]
     },
     {
-      "id": "validation_issues_not_a_list_are_ignored",
+      "id": "refused_validation_issues_not_a_list",
       "args": {
         "stage_id": "draft",
         "subject_ref": "runs/r1/draft.json",
@@ -2539,15 +3838,9 @@
           "reason": "slot_empty"
         }
       },
-      "expect": [
-        {
-          "stage_id": "draft",
-          "status": "valid",
-          "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
-          "subject_ref": "runs/r1/draft.json"
-        }
-      ]
+      "expect": {
+        "refused": true
+      }
     },
     {
       "id": "required_resume_override",
@@ -2659,6 +3952,1086 @@
           "subject_ref": "runs/r1/draft.json"
         }
       ]
+    },
+    {
+      "id": "refused_artifact_false",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": false
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_artifact_empty_string",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": ""
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_artifact_list",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": [
+          {
+            "status": "complete"
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_stage_id_not_given",
+      "args": {
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_stage_id_null",
+      "args": {
+        "stage_id": null,
+        "artifact": {
+          "status": "complete"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_stage_id_number",
+      "args": {
+        "stage_id": {
+          "$number": "7"
+        },
+        "artifact": {
+          "status": "complete"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_subject_ref_number",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": {
+          "$number": "7"
+        },
+        "artifact": {
+          "status": "complete"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_required_resume_false",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "required_resume_from_stage": false
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_revision_zero",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_contract_revision": {
+          "$number": "0"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_stage_config_false",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_stage_config_digest": false
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_dependencies_list",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_dependency_digests": [
+          "sha256:a"
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_dependencies_text",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_dependency_digests": "sha256:a"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_dependency_digest_number",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_dependency_digests": {
+          "a": {
+            "$number": "1"
+          }
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_expected_dependency_digest_null",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_dependency_digests": {
+          "a": null
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_status_map_list",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "status_map": [
+          "complete"
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_status_map_value_outside_the_vocabulary",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "done"
+        },
+        "status_map": {
+          "done": "finished"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_status_map_value_inherited_name",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "done"
+        },
+        "status_map": {
+          "done": "constructor"
+        }
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_validation_issue_null",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          null
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_validation_issue_text",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "reason": "slot_empty"
+          },
+          "slot_empty"
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_argument_the_contract_does_not_name",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "contract_revision": "v1"
+        },
+        "expected_revision": "v2"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_arguments_not_a_map",
+      "args": [
+        "draft"
+      ],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_even_when_the_artifact_is_missing",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": null,
+        "validation_issues": "slot_empty"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "artifact_not_given_is_missing",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json"
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "missing",
+          "reason": "artifact_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "null_arguments_are_absent",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": null,
+        "artifact": {
+          "status": "complete",
+          "contract_revision": "v1",
+          "stage_config_digest": "sha256:old",
+          "dependency_digests": {
+            "a": "sha256:a"
+          }
+        },
+        "expected_contract_revision": null,
+        "expected_stage_config_digest": null,
+        "expected_dependency_digests": null,
+        "required_resume_from_stage": null,
+        "validation_issues": null,
+        "status_map": null
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "valid",
+          "reason": "checkpoint_valid",
+          "required_resume_from_stage": null,
+          "subject_ref": null
+        }
+      ]
+    },
+    {
+      "id": "null_issue_fields_are_absent",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "reason": null,
+            "status": null,
+            "stage_id": null,
+            "subject_ref": null,
+            "required_resume_from_stage": null,
+            "slot": null,
+            "note": "kept"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "validation_issue",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "note": "kept"
+        }
+      ]
+    },
+    {
+      "id": "issue_fields_that_are_falsy_but_not_null_are_the_callers",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "reason": "",
+            "slot": "a"
+          },
+          {
+            "reason": {
+              "$number": "0"
+            },
+            "slot": ""
+          },
+          {
+            "reason": false,
+            "slot": []
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "slot": "a"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": 0,
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "slot": ""
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": false,
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "slot": []
+        }
+      ]
+    },
+    {
+      "id": "issue_lays_over_every_default",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "stage_id": "outline",
+            "subject_ref": "runs/r1/outline.json",
+            "status": "needs_review"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "outline",
+          "status": "needs_review",
+          "reason": "validation_issue",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/outline.json"
+        }
+      ]
+    },
+    {
+      "id": "empty_expected_revision_with_none_recorded_is_missing",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_contract_revision": ""
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "unknown_contract",
+          "reason": "contract_revision_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": ""
+        }
+      ]
+    },
+    {
+      "id": "empty_expected_stage_config_equals_a_recorded_empty_one",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "stage_config_digest": ""
+        },
+        "expected_stage_config_digest": ""
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "valid",
+          "reason": "checkpoint_valid",
+          "required_resume_from_stage": null,
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "empty_expected_dependency_digest_is_compared",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "dependency_digests": {
+            "a": "sha256:a",
+            "b": ""
+          }
+        },
+        "expected_dependency_digests": {
+          "a": "",
+          "b": ""
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "",
+          "actual_digest": "sha256:a"
+        }
+      ]
+    },
+    {
+      "id": "recorded_list_is_not_the_string_it_holds",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "contract_revision": [
+            "v2"
+          ]
+        },
+        "expected_contract_revision": "v2"
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "contract_revision_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": "v2",
+          "actual_contract_revision": [
+            "v2"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recorded_true_is_not_the_text_true",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "stage_config_digest": true,
+          "dependency_digests": {
+            "a": {
+              "$number": "1"
+            }
+          }
+        },
+        "expected_stage_config_digest": "true",
+        "expected_dependency_digests": {
+          "a": "1"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "stage_config_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_stage_config_digest": "true",
+          "actual_stage_config_digest": true
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "1",
+          "actual_digest": 1
+        }
+      ]
+    },
+    {
+      "id": "recorded_only_dependency_is_ignored",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "dependency_digests": {
+            "a": "sha256:a",
+            "z": "sha256:z"
+          }
+        },
+        "expected_dependency_digests": {
+          "a": "sha256:a"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "valid",
+          "reason": "checkpoint_valid",
+          "required_resume_from_stage": null,
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "artifact_missing_ignores_expectations",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": null,
+        "expected_contract_revision": "v2",
+        "expected_stage_config_digest": "sha256:new",
+        "expected_dependency_digests": {
+          "a": "sha256:a"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "missing",
+          "reason": "artifact_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_number_status_is_not_its_string_key",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": {
+            "$number": "1"
+          }
+        },
+        "status_map": {
+          "1": "complete"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": 1
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_list_holding_complete_is_not_complete",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": [
+            "complete"
+          ]
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": [
+            "complete"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_empty_status_map_replaces_the_default",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "status_map": {}
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_not_reusable",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "actual_status": "complete"
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_recorded_empty_map_revision_is_present",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "contract_revision": {}
+        },
+        "expected_contract_revision": "v2"
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "contract_revision_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": "v2",
+          "actual_contract_revision": {}
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_missing_status_does_not_end_the_list",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "contract_revision": null,
+          "stage_config_digest": "sha256:old",
+          "dependency_digests": {
+            "b": "sha256:b1",
+            "a": "sha256:a1",
+            "c": "sha256:c1"
+          }
+        },
+        "expected_contract_revision": "v2",
+        "expected_stage_config_digest": "sha256:new",
+        "expected_dependency_digests": {
+          "c": "sha256:c1",
+          "b": "sha256:b2",
+          "a": "sha256:a2"
+        },
+        "validation_issues": [
+          {
+            "reason": "zeta"
+          },
+          {
+            "reason": "alpha"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        },
+        {
+          "stage_id": "draft",
+          "status": "unknown_contract",
+          "reason": "contract_revision_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_contract_revision": "v2"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "stage_config_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_stage_config_digest": "sha256:new",
+          "actual_stage_config_digest": "sha256:old"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "sha256:a2",
+          "actual_digest": "sha256:a1"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "b",
+          "expected_digest": "sha256:b2",
+          "actual_digest": "sha256:b1"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "zeta",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "alpha",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_number_digest_is_not_its_string",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "stage_config_digest": {
+            "$number": "7"
+          },
+          "dependency_digests": {
+            "a": {
+              "$number": "1"
+            }
+          }
+        },
+        "expected_stage_config_digest": "7",
+        "expected_dependency_digests": {
+          "a": "1"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "stage_config_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "expected_stage_config_digest": "7",
+          "actual_stage_config_digest": 7
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "1",
+          "actual_digest": 1
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_dependency_order_is_code_units_not_collation",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "dependency_digests": {}
+        },
+        "expected_dependency_digests": {
+          "ab": "sha256:1",
+          "a": "sha256:2",
+          "_": "sha256:3",
+          "Z": "sha256:4",
+          "a-": "sha256:5",
+          "B": "sha256:6"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "B",
+          "expected_digest": "sha256:6",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "Z",
+          "expected_digest": "sha256:4",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "_",
+          "expected_digest": "sha256:3",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "sha256:2",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a-",
+          "expected_digest": "sha256:5",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "ab",
+          "expected_digest": "sha256:1",
+          "actual_digest": null
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_recorded_dependency_digests_null",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete",
+          "dependency_digests": null
+        },
+        "expected_dependency_digests": {
+          "b": "sha256:b1",
+          "a": "sha256:a1"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "sha256:a1",
+          "actual_digest": null
+        },
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "b",
+          "expected_digest": "sha256:b1",
+          "actual_digest": null
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_recorded_dependency_digests_not_recorded",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "expected_dependency_digests": {
+          "a": "sha256:a1"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "dependency_digest_mismatch",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "dependency_id": "a",
+          "expected_digest": "sha256:a1",
+          "actual_digest": null
+        }
+      ]
+    },
+    {
+      "id": "spec_ckpt_empty_status_is_missing_even_when_the_map_names_it",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": ""
+        },
+        "status_map": {
+          "": "complete"
+        }
+      },
+      "expect": [
+        {
+          "stage_id": "draft",
+          "status": "invalid",
+          "reason": "artifact_status_missing",
+          "required_resume_from_stage": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "refused_validation_issues_empty_map",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": {}
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_validation_issues_empty_text",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": ""
+      },
+      "expect": {
+        "refused": true
+      }
     }
   ]
 }

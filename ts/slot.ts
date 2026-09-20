@@ -18,8 +18,10 @@
  * Lengths count Unicode scalar values, so every language counts the same,
  * and a string that is not made of them (it holds a lone surrogate) fails
  * its contract. A shape beyond length — a UUID, a URL — is the caller's to
- * check, as a float's rendering is the caller's in a digest.
+ * check, as a float's rendering is the caller's in a digest. A spec holds no
+ * field beyond the five below; one that does, or is not a map, is refused.
  */
+import { checkFields } from "./contract.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
 export type SlotKind = "choice" | "text";
@@ -33,6 +35,8 @@ export interface SlotSpec {
   min_length?: number | null;
   max_length?: number | null;
 }
+
+const SPEC_FIELDS = ["name", "kind", "candidates", "min_length", "max_length"];
 
 const ASCII_WHITESPACE = " \t\n\r\f\v";
 
@@ -67,14 +71,18 @@ function bound(value: number | null | undefined, what: string): number | null {
 }
 
 export function validateSlot(spec: SlotSpec, value: unknown): Verdict {
+  checkFields(spec, SPEC_FIELDS, "slot spec");
   const name = spec.name;
   if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);
   if (spec.kind !== "choice" && spec.kind !== "text") {
     throw new TypeError(`slot ${name}: unknown kind ${JSON.stringify(spec.kind)}`);
   }
-  if (spec.kind === "choice" && !Array.isArray(spec.candidates)) {
-    throw new TypeError(`slot ${name}: a choice needs candidates`);
+  // A field that is given is held to its type whatever the kind, as the bounds are below.
+  const given: unknown = spec.candidates ?? null;
+  if (given !== null && !(Array.isArray(given) && given.every((candidate) => typeof candidate === "string"))) {
+    throw new TypeError(`slot ${name}: candidates must be a list of strings`);
   }
+  if (spec.kind === "choice" && given === null) throw new TypeError(`slot ${name}: a choice needs candidates`);
   const min = bound(spec.min_length, `slot ${name}: min_length`);
   const max = bound(spec.max_length, `slot ${name}: max_length`);
   if (min !== null && max !== null && min > max) {

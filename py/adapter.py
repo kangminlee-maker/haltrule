@@ -23,7 +23,6 @@ import sys
 # nothing here can stand in for the standard library.
 sys.path.append(sys.path.pop(0))
 
-import collections  # noqa: E402
 import dataclasses  # noqa: E402
 import json  # noqa: E402
 import re  # noqa: E402
@@ -230,35 +229,9 @@ def _canonicalize(tc: dict) -> dict:
     return {"canonical": canonical["canonical"], "digest": digest["digest"]}
 
 
-def _checkpoint(tc: dict) -> list:
-    args = tc["args"]
-    actual = evaluate_checkpoint_artifact(**args)
-    _python_only_checks(args, actual)
-    return actual
-
-
-def _python_only_checks(args: dict, actual: list) -> None:
-    """Promises this port makes about Python types no fixture can spell."""
-    # validation_issues is typed Sequence: any sequence must give the verdict a list gives.
-    if isinstance(args.get("validation_issues"), list):
-        as_sequence = dict(
-            args, validation_issues=collections.UserList(args["validation_issues"])
-        )
-        if evaluate_checkpoint_artifact(**as_sequence) != actual:
-            raise AssertionError(
-                "validation_issues as a non-list sequence gives a different verdict"
-            )
-    # Text is a sequence of characters, never of issues: bytes and bytearray
-    # must be ignored exactly as absent issues are.
-    if args.get("validation_issues") is None:
-        for text in (b"invalid", bytearray(b"invalid")):
-            if (
-                evaluate_checkpoint_artifact(**dict(args, validation_issues=text))
-                != actual
-            ):
-                raise AssertionError(
-                    f"validation_issues as {type(text).__name__} is not ignored"
-                )
+def _checkpoint(tc: dict):
+    result = _or_refused(lambda: evaluate_checkpoint_artifact(**tc["args"]))
+    return {"refused": True} if result is _REFUSED else result
 
 
 def _charge(tc: dict) -> dict:
@@ -281,7 +254,7 @@ def _charge(tc: dict) -> dict:
 
 
 def _validate(tc: dict) -> dict:
-    result = _or_refused(lambda: validate_slot(tc["spec"], tc["value"]))
+    result = _or_refused(lambda: validate_slot(tc["value"], **tc["spec"]))
     return {"refused": True} if result is _REFUSED else _normative(result)
 
 

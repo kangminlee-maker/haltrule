@@ -1006,6 +1006,446 @@
       "expect": {
         "refused": true
       }
+    },
+    {
+      "id": "spec_slot_choice_information_separators_are_not_ascii_whitespace",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "\u001c\u001d\u001e\u001f",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_refused_spec_with_null_value_is_refused_not_missing",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_slot_text_zero_is_invalid_not_missing",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": {
+        "$number": "0"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_choice_false_is_invalid_not_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": false,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_text_zero_bounds_reject_every_present_value",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "0"
+        },
+        "max_length": {
+          "$number": "0"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_refused_choice_without_candidates_with_blank_value",
+      "spec": {
+        "name": "t",
+        "kind": "choice"
+      },
+      "value": "",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_slot_choice_empty_string_candidate_is_still_missing",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          "",
+          "keep"
+        ]
+      },
+      "value": "",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_choice_blank_candidate_is_still_missing",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          " ",
+          "keep"
+        ]
+      },
+      "value": " ",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_refused_false_bound",
+      "spec": {
+        "name": "t",
+        "kind": "text",
+        "max_length": false
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "spec_slot_flag_is_two_scalar_values",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "2"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "\ud83c\uddf0\ud83c\uddf7",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_text_of_only_non_ascii_whitespace_is_accepted",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "7"
+        },
+        "max_length": {
+          "$number": "7"
+        }
+      },
+      "value": "\u0085\u00a0\u2003\u2028\u2029\u3000\ufeff",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_text_c0_controls_are_not_whitespace",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "4"
+        },
+        "max_length": {
+          "$number": "4"
+        }
+      },
+      "value": "\u0000\u0001\u000e\u001b",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_choice_lone_surrogate_equal_to_a_candidate_is_invalid",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          "\ud800",
+          "keep"
+        ]
+      },
+      "value": "\ud800",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_empty_name_is_a_string_name",
+      "spec": {
+        "name": "",
+        "kind": "text"
+      },
+      "value": "x",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "spec_slot_choice_zero_width_no_break_space_is_invalid_not_missing",
+      "spec": {
+        "name": "adjudication",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          "delete"
+        ]
+      },
+      "value": "\ufeff",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "refused_slot_field_the_contract_does_not_name",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "max_len": {
+          "$number": "3"
+        }
+      },
+      "value": "abcdef",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_spec_text",
+      "spec": "note",
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_spec_null",
+      "spec": null,
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_spec_list",
+      "spec": [
+        {
+          "name": "note",
+          "kind": "text"
+        }
+      ],
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_candidate_that_is_not_a_string",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          "keep",
+          {
+            "$number": "1"
+          }
+        ]
+      },
+      "value": "keep",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_candidates_text",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": "keep"
+      },
+      "value": "keep",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_candidates_null",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": null
+      },
+      "value": "keep",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "null_bounds_are_no_bounds",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": null,
+        "max_length": null
+      },
+      "value": "x",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "bounds_written_as_floats_are_their_integers",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "min_length": {
+          "$number": "-0.0"
+        },
+        "max_length": {
+          "$number": "2.0"
+        }
+      },
+      "value": "abc",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "all_six_ascii_whitespace_characters_are_blank",
+      "spec": {
+        "name": "note",
+        "kind": "text"
+      },
+      "value": " \t\n\r\f\u000b",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "refused_slot_text_whose_candidates_are_not_strings",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "candidates": [
+          {
+            "$number": "1"
+          }
+        ]
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_slot_choice_whose_bound_is_not_an_integer",
+      "spec": {
+        "name": "pick",
+        "kind": "choice",
+        "candidates": [
+          "keep"
+        ],
+        "max_length": "3"
+      },
+      "value": "keep",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "text_does_not_read_its_candidates",
+      "spec": {
+        "name": "note",
+        "kind": "text",
+        "candidates": [
+          "keep"
+        ]
+      },
+      "value": "anything",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
     }
   ]
 }

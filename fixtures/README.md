@@ -35,6 +35,11 @@ cannot spell, in each language's own form: `undefined`, `instance` (a class inst
 map with a symbol key in TypeScript, an int key in Python), `sparse_array` (an array with a hole in
 TypeScript; Python has no holes, so a list holding an unsupported element). Expected values are plain JSON.
 
+`$bigint` appears only where an integer may pass 2^53 − 1 — a budget's caps and amounts, a digest input, a
+result-line value — and `$unsupported` only in the last two. Everywhere else an argument is one of JSON's
+kinds, and what a language can hold beyond them is not asked about: a bigint slot bound or an `undefined`
+slot value has no case, because not every port can build one.
+
 A literal is read by this grammar and by nothing else:
 
     $number   -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?   or   NaN | Infinity | -Infinity
@@ -56,7 +61,8 @@ bytes — which the driver checks on the fixture itself, with no port involved.
 
 An adapter prints one line per case, files by path and each file in its own order:
 `{"actual":<result>,"id":"<case id>","section":"<section>"}`, with `"raised":"<what>"` in place of `actual`
-when the case raised something that is not a refusal. The driver compares each line with the line it
+when the case raised something that is not a refusal — the line is a map like any other, so its keys are
+sorted there too: `id`, `raised`, `section`. The driver compares each line with the line it
 expects, byte for byte, so the line format is part of the contract and a port writes it itself rather than
 trusting its language's JSON library to agree. Output is UTF-8, each line ended by one `\n`.
 
@@ -87,7 +93,8 @@ A `charge` case runs its charges, in order, against one budget and expects one v
 (`verdicts`) — `{"refused": true}` for a charge the budget refuses, which changes nothing — and the ledger
 afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser), or `{"refused": true}`
 alone when the budget's caps are refused; a `validate` case expects one verdict, or `{"refused": true}` for a
-spec outside the contract. An adapter answers `refused` only for the part's own refusal: inputs are built
+spec outside the contract; a `checkpoint` case gives `args`, under the argument names the spec lists, and
+expects the issue list, or `{"refused": true}` for arguments outside the contract. An adapter answers `refused` only for the part's own refusal: inputs are built
 before the part is called, and a verdict of the wrong shape is a failure of the case. An expected verdict
 omits `message`, which is not part of conformance; the adapters check that it is present and a string before
 dropping it.

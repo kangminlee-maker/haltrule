@@ -17,7 +17,9 @@
 # Caps and amounts are non-negative integers up to 2^63 - 1; a float that is
 # integral counts as its integer, as everywhere in this spec. Anything else is
 # out of contract, like a string handed to the breaker: these are the caller's
-# own literals, not data a verdict must speak to, so they raise.
+# own literals, not data a verdict must speak to, so they raise. A cap or an
+# amount that is None is absent - no cap, nothing used - and the keyword-only
+# signatures refuse a field the contract does not name.
 
 from __future__ import annotations
 
@@ -30,6 +32,8 @@ _LEDGER_MAX = 2**63 - 1
 
 
 def _ledger(value: Any, what: str) -> int:
+    if value is None:  # absent: nothing used
+        return 0
     # bool before int: bool is an int subclass, and True is not a count.
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{what} must be an integer, got {value!r}")

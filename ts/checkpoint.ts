@@ -19,7 +19,7 @@
  *   bytes, so the text `{"a":1}` and the value `{a: 1}` collided. Callers
  *   that want a digest of raw text compute it themselves.
  * - `evaluateCheckpointArtifact` takes the artifact instead of reading a
- *   path, takes the caller's status vocabulary through `statusMap`, compares
+ *   path, takes the caller's status vocabulary through `status_map`, compares
  *   dependencies in UTF-16 key order rather than insertion order, and returns
  *   issues without an `issue_id` — ids and file reads stay with the caller.
  *   The status reason is `artifact_status_not_reusable` (the source's
@@ -27,8 +27,16 @@
  * - A recorded `dependency_digests` that is not a plain object, and a key it
  *   only inherits (`constructor`), read as absent; the source indexed into
  *   lists, strings, and the prototype chain.
+ * - The arguments are typed and an argument of another type is refused; the
+ *   source read them by JavaScript falsiness, under which an expectation of
+ *   `""` or `0` was no expectation, and ignored validation issues that were
+ *   not a list. What the artifact *records* is still read leniently: it is
+ *   data, written by whoever wrote it.
+ * - A null field in a caller's validation issue is an absent one. The source
+ *   laid it over the default, so a null `reason` came back as null.
  */
 import { createHash } from "node:crypto";
+import { checkFields } from "./contract.ts";
 
 // ---------------------------------------------------------------- canonicalize
 
@@ -241,25 +249,59 @@ export interface CheckpointIssue {
   [detail: string]: unknown;
 }
 
+/** The arguments, under the names the fixtures and every port use. Null and
+ * not given are the same thing: absent. */
 export interface EvaluateCheckpointArtifactArgs {
-  stageId: string;
+  stage_id: string;
   /** How issues refer to the artifact (a repo-relative path, a key). */
-  subjectRef?: string | null;
-  /** The artifact as recorded, or null when it does not exist. */
-  artifact: Readonly<Record<string, unknown>> | null;
-  expectedContractRevision?: string | null;
-  expectedStageConfigDigest?: string | null;
-  expectedDependencyDigests?: Readonly<Record<string, string>> | null;
+  subject_ref?: string | null;
+  /** The artifact as recorded; absent when it does not exist. */
+  artifact?: Readonly<Record<string, unknown>> | null;
+  /** What the caller expects now. Absent: not checked. Any string is
+   * compared, the empty one included. */
+  expected_contract_revision?: string | null;
+  expected_stage_config_digest?: string | null;
+  expected_dependency_digests?: Readonly<Record<string, string>> | null;
   /** Where a rerun must start when this artifact is not reusable; defaults
-   * to stageId. */
-  requiredResumeFromStage?: string | null;
+   * to stage_id. */
+  required_resume_from_stage?: string | null;
   /** Issues the caller's own validation found; each becomes an `invalid`
-   * issue, with its own fields overriding the defaults. */
-  validationIssues?: readonly Readonly<Record<string, unknown>>[] | null;
+   * issue, with its own fields laid over the defaults. */
+  validation_issues?: readonly Readonly<Record<string, unknown>>[] | null;
   /** The caller's status values mapped onto the vocabulary. Replaces the
    * default identity map; a status it does not name is not reusable. */
-  statusMap?: Readonly<Record<string, ArtifactStatus>> | null;
+  status_map?: Readonly<Record<string, ArtifactStatus>> | null;
 }
+
+const ARGUMENT_FIELDS = [
+  "stage_id",
+  "subject_ref",
+  "artifact",
+  "expected_contract_revision",
+  "expected_stage_config_digest",
+  "expected_dependency_digests",
+  "required_resume_from_stage",
+  "validation_issues",
+  "status_map",
+];
+
+/** An optional argument: null when absent, itself when it is what the
+ * contract says, refused otherwise. */
+function optional<T>(value: unknown, holds: (value: unknown) => value is T, what: string): T | null {
+  if (value === null || value === undefined) return null;
+  if (holds(value)) return value;
+  throw new TypeError(`${what} is outside the contract`);
+}
+
+const isText = (value: unknown): value is string => typeof value === "string";
+const isArtifactStatus = (value: unknown): value is ArtifactStatus =>
+  isText(value) && Object.hasOwn(IDENTITY_STATUS_MAP, value);
+const mapOf =
+  <T>(holds: (value: unknown) => value is T) =>
+  (value: unknown): value is Record<string, T> =>
+    isPlainObject(value) && Object.values(value).every(holds);
+const isListOfMaps = (value: unknown): value is Record<string, unknown>[] =>
+  Array.isArray(value) && value.every(isPlainObject);
 
 /**
  * Decide whether a recorded artifact may be reused. Returns every issue
@@ -268,9 +310,19 @@ export interface EvaluateCheckpointArtifactArgs {
  * With none, returns one `valid` issue, so the result is never empty.
  */
 export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs): CheckpointIssue[] {
-  const stageId = args.stageId;
-  const subjectRef = args.subjectRef ?? null;
-  const requiredResumeFromStage = args.requiredResumeFromStage ?? stageId;
+  checkFields(args, ARGUMENT_FIELDS, "checkpoint arguments");
+  const stageId: unknown = args.stage_id;
+  if (!isText(stageId)) throw new TypeError("stage_id must be a string");
+  const subjectRef = optional(args.subject_ref, isText, "subject_ref");
+  const requiredResumeFromStage =
+    optional(args.required_resume_from_stage, isText, "required_resume_from_stage") ?? stageId;
+  const expectedRevision = optional(args.expected_contract_revision, isText, "expected_contract_revision");
+  const expectedConfig = optional(args.expected_stage_config_digest, isText, "expected_stage_config_digest");
+  const expectedDependencies =
+    optional(args.expected_dependency_digests, mapOf(isText), "expected_dependency_digests") ?? {};
+  const statusMap = optional(args.status_map, mapOf(isArtifactStatus), "status_map") ?? IDENTITY_STATUS_MAP;
+  const validationIssues = optional(args.validation_issues, isListOfMaps, "validation_issues") ?? [];
+  const artifact = optional(args.artifact, isPlainObject, "artifact");
   const base = (
     status: CheckpointIssue["status"],
     reason: string,
@@ -284,27 +336,23 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
     ...details,
   });
 
-  const artifact = args.artifact;
-  if (artifact === null || artifact === undefined) {
-    return [base("missing", "artifact_missing")];
-  }
+  if (artifact === null) return [base("missing", "artifact_missing")];
 
   const issues: CheckpointIssue[] = [];
   const status = artifact.status;
   if (!status) {
     issues.push(base("invalid", "artifact_status_missing"));
-  } else if (resolveStatus(status, args.statusMap ?? IDENTITY_STATUS_MAP) !== "complete") {
+  } else if (resolveStatus(status, statusMap) !== "complete") {
     issues.push(base("invalid", "artifact_status_not_reusable", { actual_status: status }));
   }
 
-  const expectedRevision = args.expectedContractRevision;
-  if (expectedRevision && !artifact.contract_revision) {
+  if (expectedRevision !== null && !artifact.contract_revision) {
     issues.push(
       base("unknown_contract", "contract_revision_missing", {
         expected_contract_revision: expectedRevision,
       }),
     );
-  } else if (expectedRevision && artifact.contract_revision !== expectedRevision) {
+  } else if (expectedRevision !== null && artifact.contract_revision !== expectedRevision) {
     issues.push(
       base("invalid", "contract_revision_mismatch", {
         expected_contract_revision: expectedRevision,
@@ -313,8 +361,7 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
     );
   }
 
-  const expectedConfig = args.expectedStageConfigDigest;
-  if (expectedConfig && artifact.stage_config_digest !== expectedConfig) {
+  if (expectedConfig !== null && artifact.stage_config_digest !== expectedConfig) {
     issues.push(
       base("invalid", "stage_config_digest_mismatch", {
         expected_stage_config_digest: expectedConfig,
@@ -323,7 +370,6 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
     );
   }
 
-  const expectedDependencies = args.expectedDependencyDigests ?? {};
   const recordedDependencies = artifact.dependency_digests;
   for (const dependencyId of Object.keys(expectedDependencies).sort()) {
     const expectedDigest = expectedDependencies[dependencyId];
@@ -342,15 +388,10 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
     }
   }
 
-  const validationIssues = Array.isArray(args.validationIssues) ? args.validationIssues : [];
   for (const validationIssue of validationIssues) {
-    issues.push({
-      ...base("invalid", (validationIssue.reason as string | undefined) ?? "validation_issue"),
-      required_resume_from_stage:
-        (validationIssue.required_resume_from_stage as string | null | undefined) ??
-        requiredResumeFromStage,
-      ...validationIssue,
-    });
+    // A null field is an absent one: the default stands where there is one.
+    const given = Object.entries(validationIssue).filter(([, field]) => field !== null && field !== undefined);
+    issues.push({ ...base("invalid", "validation_issue"), ...Object.fromEntries(given) });
   }
 
   if (issues.length === 0) {
