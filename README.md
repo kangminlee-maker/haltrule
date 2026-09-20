@@ -65,7 +65,7 @@ driver itself, and the mistakes purity refuses.
 |---|---|
 | TypeScript | breaker, checkpoint, budget, slot implemented |
 | Python | breaker, checkpoint, budget, slot implemented |
-| Go | planned, once the spec freezes |
+| Go | breaker, checkpoint, budget, slot implemented |
 | Rust | planned, once the spec freezes |
 
 A fifth language will not need a port to interoperate: `canonicalize` is public and its rules are in the
@@ -77,7 +77,7 @@ fixtures themselves, with no implementation involved.
 ```
 spec/        the contract, in words
 fixtures/    the contract, in cases: one JSON file per part, and the line format's own vectors
-ts/  py/     a port each: the modules, and an adapter that reads the fixtures and prints one line per case
+ts/  py/  go/  a port each: the modules, and an adapter that reads the fixtures and prints one line per case
 scripts/     conform.py, the one driver that judges every port; check.sh, the gates; mutants.py, which
              plants the defects no tool makes and requires the gates to catch them; survivors.py, which
              runs a mainstream mutation tool per language and holds what survives to one short list
@@ -89,7 +89,7 @@ A language whose types cannot hold some inputs at all — Rust has no string wit
 answers `unbuildable` for those cases; the driver knows from the input which they may be, and counts them.
 
 Whether the fixtures would notice a defect in a port is asked by that language's mainstream mutation tool -
-StrykerJS for TypeScript, cosmic-ray for Python - with the shared driver as its only test. What survives
+StrykerJS for TypeScript, cosmic-ray for Python, gremlins for Go - with the shared driver as its only test. What survives
 must be, entry for entry, `scripts/survivors_accepted.json`, where each entry says why no case can tell it
 apart. A message's wording is not part of conformance, so the code that only words a message lives in
 `messages.ts` / `messages.py`, which the tools leave alone. A new port adds its tool to
@@ -98,10 +98,12 @@ apart. A message's wording is not part of conformance, so the code that only wor
 ```
 pip install ruff                                     # and, in .venv or on the PATH: pip install cosmic-ray
 npm install --no-save typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8 @stryker-mutator/core@10
-./scripts/check.sh                  # about two seconds
+GOBIN="$PWD/.bin" go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+./scripts/check.sh                  # about three seconds
 python3 scripts/mutants.py          # every planted defect must fail the gates: half a minute
 python3 scripts/survivors.py ts     # about 470 mutants: ten seconds on a laptop
 python3 scripts/survivors.py py     # about 730 mutants: over a minute
+python3 scripts/survivors.py go     # about 270 mutants: a minute and a half
 ```
 
 ## License

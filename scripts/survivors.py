@@ -1,13 +1,14 @@
 """The off-the-shelf mutation tools, held to one list.
 
-StrykerJS mutates the TypeScript modules and cosmic-ray the Python ones; each runs the shared driver as its
-only test (stryker.config.json, cosmic-ray.toml). Whatever survives must be, entry for entry, what
+StrykerJS mutates the TypeScript modules, cosmic-ray the Python ones and gremlins the Go ones; each runs the
+shared driver as its only test (stryker.config.json, cosmic-ray.toml, and for Go the bridge test in
+go/adapter, because Go's mutation testers run `go test` where the others take any command). Whatever survives must be, entry for entry, what
 scripts/survivors_accepted.json lists with a reason: a survivor that is not listed is a case the fixtures
 lack or code that changes nothing, and a listed one that no longer survives is a stale entry. Both fail.
 
 The tools run on a copy of the tree: cosmic-ray mutates files where they lie.
 
-  survivors.py ts | py       run the tool on a copy, compare
+  survivors.py ts | py | go   run the tool on a copy, compare
   survivors.py self-test     the comparison itself can fail
 
 Standard library only; the tools are found in node_modules/.bin and, for cosmic-ray, .venv/bin or the PATH.
@@ -78,6 +79,32 @@ def cosmic_ray_survivors(dump: str) -> tuple[list[str], int]:
     return found, total
 
 
+def gremlins_survivors(report: dict, module: Path) -> tuple[list[str], int]:
+    """(survivors, mutants run) from a gremlins JSON report. A mutant on a line no run reaches is a
+    survivor too: nothing would have noticed it. So is one that timed out, which says only that the
+    run was slower than the tool waited, never that a case answered.
+
+    The column is part of an entry because a line often holds two comparisons, and mutating one of
+    them can be the same answer while mutating the other is a defect."""
+    found, total = [], 0
+    for described in report["files"]:
+        lines = (
+            (module / described["file_name"]).read_text(encoding="utf-8").split("\n")
+        )
+        for mutant in described["mutations"]:
+            if mutant["status"] in ("NOT VIABLE", "SKIPPED"):
+                continue
+            total += 1
+            if mutant["status"] == "KILLED":
+                continue  # the run noticed
+            source = lines[mutant["line"] - 1]
+            found.append(
+                f"go/{described['file_name']} | {mutant['type']} | column {mutant['column']}"
+                f" | {_one_line(source)}"
+            )
+    return found, total
+
+
 def compare(found: list[str], total: int, accepted: list[str]) -> list[str]:
     """Problems, as FAIL lines: both lists are multisets and must be equal."""
     if total == 0:
@@ -110,7 +137,12 @@ def _run(command: list[str], tree: Path, env: dict[str, str]) -> str:
 def run_tool(language: str) -> tuple[list[str], int]:
     env = dict(os.environ)
     env["PATH"] = os.pathsep.join(
-        [str(ROOT / ".venv" / "bin"), str(ROOT / "node_modules" / ".bin"), env["PATH"]]
+        [
+            str(ROOT / ".venv" / "bin"),
+            str(ROOT / "node_modules" / ".bin"),
+            str(ROOT / ".bin"),
+            env["PATH"],
+        ]
     )
     with tempfile.TemporaryDirectory(prefix="haltrule-survivors-") as tmp:
         tree = Path(tmp) / "tree"
@@ -119,6 +151,30 @@ def run_tool(language: str) -> tuple[list[str], int]:
             _run(["stryker", "run", "stryker.config.json"], tree, env)
             report = json.loads((tree / "reports" / "stryker.json").read_text("utf-8"))
             return stryker_survivors(report)
+        if language == "go":
+            written = tree / "gremlins.json"
+            # The fixtures and the driver stay where they are; only the Go code is mutated.
+            _run(
+                [
+                    "gremlins",
+                    "unleash",
+                    "--integration",
+                    "--coverpkg",
+                    "./...",
+                    # The timeout is the baseline test's own time times this, and the baseline is
+                    # measured on an idle machine while the mutants run several at a time.
+                    "--timeout-coefficient",
+                    "120",
+                    "-o",
+                    str(written),
+                    ".",
+                ],
+                tree / "go",
+                dict(env, HALTRULE_ROOT=str(tree)),
+            )
+            return gremlins_survivors(
+                json.loads(written.read_text("utf-8")), tree / "go"
+            )
         _run(["cosmic-ray", "init", "cosmic-ray.toml", "session.sqlite"], tree, env)
         _run(["cosmic-ray", "baseline", "cosmic-ray.toml"], tree, env)
         _run(["cosmic-ray", "exec", "cosmic-ray.toml", "session.sqlite"], tree, env)
@@ -166,6 +222,45 @@ def self_test() -> list[str]:
         }
     }
     ts_entry = "ts/a.ts | EqualityOperator | a > 0 -> a >= 0"
+    go_report = {
+        "files": [
+            {
+                "file_name": "a.go",
+                "mutations": [
+                    {
+                        "type": "CONDITIONALS_BOUNDARY",
+                        "status": "KILLED",
+                        "line": 1,
+                        "column": 1,
+                    },
+                    {
+                        "type": "CONDITIONALS_NEGATION",
+                        "status": "LIVED",
+                        "line": 2,
+                        "column": 1,
+                    },
+                    {
+                        "type": "ARITHMETIC_BASE",
+                        "status": "NOT COVERED",
+                        "line": 2,
+                        "column": 5,
+                    },
+                    {
+                        "type": "INVERT_NEGATIVES",
+                        "status": "TIMED OUT",
+                        "line": 2,
+                        "column": 9,
+                    },
+                    {
+                        "type": "INVERT_BITWISE",
+                        "status": "NOT VIABLE",
+                        "line": 1,
+                        "column": 1,
+                    },
+                ],
+            }
+        ]
+    }
     item = {
         "mutations": [
             {"module_path": "py/a.py", "operator_name": "core/NumberReplacer"}
@@ -184,6 +279,18 @@ def self_test() -> list[str]:
             problems.append(f"FAIL [self-test] {what}: got {got!r}, wanted {wanted!r}")
 
     expect("a stryker report is read", stryker_survivors(report), ([ts_entry], 2))
+    module = Path(tempfile.mkdtemp(prefix="haltrule-self-test-"))
+    (module / "a.go").write_text("const a = 1\nif a > 0 {\n", encoding="utf-8")
+    go_entries = [
+        "go/a.go | CONDITIONALS_NEGATION | column 1 | if a > 0 {",
+        "go/a.go | ARITHMETIC_BASE | column 5 | if a > 0 {",
+        "go/a.go | INVERT_NEGATIVES | column 9 | if a > 0 {",
+    ]
+    expect(
+        "a gremlins report is read",
+        gremlins_survivors(go_report, module),
+        (go_entries, 4),
+    )
     expect("a cosmic-ray dump is read", cosmic_ray_survivors(dump), ([py_entry], 3))
     expect("the listed survivors pass", compare([ts_entry], 2, [ts_entry]), [])
     expect(
@@ -212,7 +319,7 @@ def self_test() -> list[str]:
 def main(argv: list[str]) -> int:
     if argv == ["self-test"]:
         problems = self_test()
-    elif argv in (["ts"], ["py"]):
+    elif argv in (["ts"], ["py"], ["go"]):
         found, total = run_tool(argv[0])
         problems = compare(found, total, read_accepted(argv[0] + "/"))
         print(

@@ -10,13 +10,15 @@ integer is an integer however the language holds it. What a language can hold be
 `undefined`, a class instance) is no argument at all; only a digest input is asked about it.
 
 Not every language can hold everything the fixtures hand a part. A string with an unpaired surrogate is an
-ordinary value in JavaScript and Python and cannot exist in Rust; `undefined` exists in one language only. A
-port whose types cannot build such an input says so for that case (`unbuildable`, see
-`../fixtures/README.md`) and conforms on the rest: its types have shut out, before it ran, what the others
-must answer for. Which cases those are is read off the input itself — an unpaired surrogate in a string or
-a key, or one of the `$unsupported` values — so it is not a list anyone keeps, and a port cannot choose what
-to sit out. The driver accepts `unbuildable` for those cases only, says how many there were, and holds a port
-in a language that can build them all to every one.
+ordinary value in JavaScript and Python and cannot exist in Rust; an integer wider than 64 bits needs a type
+not every standard library has; `undefined` exists in one language only. A port whose types cannot build such
+an input says so for that case (`unbuildable`, see `../fixtures/README.md`) and conforms on the rest: its
+types have shut out, before it ran, what the others must answer for. Which cases those are is read off the
+input itself — an unpaired surrogate in a string or a key, an integer outside a signed 64-bit one, or one of
+the `$unsupported` values — so it is not a list anyone keeps, and a port cannot choose what to sit out. Where
+the answer is a refusal there is nothing to sit out, because a port that cannot build an argument has refused
+it already; that is the rule above, and it comes first. The driver accepts `unbuildable` for the rest, says
+how many there were, and holds a port in a language that can build them all to every one.
 
 **Null and not given are the same thing: absent.** A port whose types cannot tell the two apart loses
 nothing. An absent field takes its default where it has one — no cap, no bound, nothing used, `concurrent`
@@ -272,8 +274,9 @@ A port is conformant when:
    expectation in every fixture is corrupted in turn and must fail under its own id;
 2. its dependency list is empty, except SHA-256 where the standard library does not provide it;
 3. its modules cannot reach the host and name nothing that is not a function of its arguments — shown by how
-   they are built where the language allows it (the TypeScript modules compile with no host types at all),
-   by the language's mainstream linter for what is left, and by an allowlist where neither exists (Python).
+   they are built where the language allows it (the TypeScript modules compile with no host types at all; a
+   Go package can reach only what it imports, so its import list is the whole of what it can reach), by the
+   language's mainstream linter for what is left, and by an allowlist where neither exists (Python).
 
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.

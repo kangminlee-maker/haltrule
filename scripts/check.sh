@@ -40,12 +40,17 @@ gate "a survivor of the mutation tools that is not on the list fails, and so doe
   python3 scripts/survivors.py self-test
 
 echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect"
+# Go is compiled: the build is the adapter's own gate, and the binary is what runs.
+gate "the go adapter builds" go build -C go -o ../.bin/go-adapter ./adapter
 # Both languages here can build every input, so neither may answer "unbuildable".
 gate "typescript conforms" python3 scripts/conform.py check --every-input node ts/adapter/adapter.ts
 # String hashing is seeded per process; a result that follows set order moves with the seed.
 for seed in 0 1 2; do
   gate "python conforms (hash seed $seed)" env PYTHONHASHSEED="$seed" python3 scripts/conform.py check --every-input python3 py/adapter.py
 done
+# Go's strings are UTF-8 and its integers are 64 bits wide, so it answers
+# "unbuildable" for the inputs it cannot be handed; the driver says which.
+gate "go conforms" python3 scripts/conform.py check .bin/go-adapter
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
 gate "typescript modules compile with no host types: ts/tsconfig.json, and ts/host.d.ts is all the host there is" \
@@ -54,11 +59,15 @@ gate "typescript modules name no clock, randomness, locale, code from text, or g
   findings node_modules/.bin/eslint --max-warnings 0 ts
 gate "python modules import and use only what the allowlists hold: scripts/py_purity.py" \
   findings python3 scripts/py_purity.py py/haltrule/*.py
+gate "go modules import only what the allowlist holds, which is all a go package can reach: scripts/go_purity.py" \
+  findings python3 scripts/go_purity.py
 
 echo "4. lint and types"
 gate "ruff check" findings ruff check --quiet py scripts
 gate "ruff format --check" findings ruff format --check --quiet py scripts
 gate "the typescript adapter type-checks" findings node_modules/.bin/tsc -p ts/adapter/tsconfig.json
+gate "go vet" findings go vet -C go ./...
+gate "gofmt -l" findings gofmt -l go
 
 echo
 if [ "$failed" -eq 0 ]; then

@@ -36,6 +36,7 @@ def mutant(id: str, path: str, old: str, new: str, expect, forbid=()) -> Mutant:
 TS_FAILS = "  FAIL  typescript conforms"
 PY_FAILS = "  FAIL  python conforms"
 DRIVER_FAILS = "  FAIL  every corrupted expectation fails under its own id"
+GO_FAILS = "  FAIL  go conforms"
 SURVIVORS_FAIL = (
     "  FAIL  a survivor of the mutation tools that is not on the list fails"
 )
@@ -747,8 +748,8 @@ CATALOG += [
     mutant(
         "driver: a port held to every input may not say unbuildable",
         "scripts/conform.py",
-        "        if not every_language and not every_input\n",
-        "        if not every_language\n",
+        "        if not every_language and not every_input and not answers_refused(expect)\n",
+        "        if not every_language and not answers_refused(expect)\n",
         [
             DRIVER_FAILS,
             "FAIL [self-test] a port held to every input said unbuildable and passed",
@@ -767,8 +768,8 @@ CATALOG += [
     mutant(
         "driver: an $unsupported value is beyond some languages",
         "scripts/conform.py",
-        '        return "$unsupported" not in node and all(\n',
-        "        return all(\n",
+        '        if "$unsupported" in node:\n            return False\n',
+        "",
         [
             DRIVER_FAILS,
             "FAIL [self-test] an $unsupported value was read as within every language",
@@ -790,5 +791,91 @@ CATALOG += [
         '                line = {"id": case["id"], "section": section}\n',
         '                line = {"id": case["id"], "section": section}\n                if section == "canonicalize" and "$unsupported" in json.dumps(case):\n                    print(_canonical_json({**line, "unbuildable": True}))\n                    continue\n',
         [PY_FAILS, "FAIL [sparse_array] field=canonicalize.unbuildable"],
+    ),
+]
+
+CATALOG += [
+    mutant(
+        "driver: an integer past a signed 64-bit one is beyond some languages",
+        "scripts/conform.py",
+        '            return -(2**63) <= int(node["$bigint"]) < 2**63\n',
+        "            return True\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] a $bigint past it was read as within every language",
+        ],
+    ),
+    mutant(
+        "driver: where the answer is a refusal, nothing is sat out",
+        "scripts/conform.py",
+        "        if not every_language and not every_input and not answers_refused(expect)\n",
+        "        if not every_language and not every_input\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] unbuildable, where a refusal is the answer, passed",
+        ],
+    ),
+    mutant(
+        "driver: a refusal counts wherever it sits in the answer",
+        "scripts/conform.py",
+        '        return expect == {"refused": True} or any(\n',
+        '        return expect == {"refused": True} or all(\n',
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] unbuildable, where a refusal is one of the answers, passed",
+        ],
+    ),
+]
+
+# --- the constants a mutation tool cannot reach: a const has no line to cover
+CATALOG += [
+    mutant(
+        "go slot: the largest allowed bound is 2^53 - 1",
+        "go/slot.go",
+        "const boundMax = 1<<53 - 1",
+        "const boundMax = 1 << 53",
+        [GO_FAILS, "FAIL [refused_slot_bound_past_2_53_1] field=validate.expect"],
+    ),
+    mutant(
+        "go canonicalize: the largest integer is 2^53 - 1",
+        "go/checkpoint.go",
+        "const maxSafeInteger = 1<<53 - 1",
+        "const maxSafeInteger = 1 << 53",
+        [
+            GO_FAILS,
+            "FAIL [spec_canon_two_pow_53_written_as_float] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "go result line: the largest integer a line carries is 2^53 - 1",
+        "go/adapter/main.go",
+        "const lineMaxInteger = 1<<53 - 1",
+        "const lineMaxInteger = 1 << 53",
+        [GO_FAILS, "FAIL [line_integer_past_range_refused] field=result_line.expect"],
+    ),
+]
+
+# --- the go adapter: every case is run, and only what cannot be built is sat out
+CATALOG += [
+    mutant(
+        "go adapter: every section is run",
+        "go/adapter/main.go",
+        "\t\tfor _, raw := range cases {\n",
+        '\t\tfor _, raw := range cases {\n\t\t\tif sectionName == "backoff" {\n\t\t\t\tcontinue\n\t\t\t}\n',
+        [GO_FAILS, "FAIL [attempt_zero_baseline] field=backoff.missing"],
+    ),
+    mutant(
+        "go adapter: a case whose input it can build may not be sat out",
+        "go/adapter/main.go",
+        "\tif hasUnpairedSurrogateEscape(raw) {\n",
+        '\tif hasUnpairedSurrogateEscape(raw) || sectionName == "classify" {\n',
+        [GO_FAILS, "field=classify.unbuildable"],
+    ),
+    mutant(
+        "go adapter: a value this port cannot hold is sat out, not answered",
+        "go/adapter/decode.go",
+        "\t\tif err != nil {\n\t\t\t// Wider than int64, which this language has no integer for.\n\t\t\treturn nil, errUnbuildable\n\t\t}\n",
+        "\t\tif err != nil {\n\t\t\treturn haltrule.Int(0), nil\n\t\t}\n",
+        [GO_FAILS, "FAIL [bigint_far_past_min] field=canonicalize.expect"],
     ),
 ]

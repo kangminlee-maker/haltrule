@@ -46,5 +46,113 @@
   {
     "survivor": "py/haltrule/slot.py | ReplaceComparisonOperator_Eq_LtE | if kind == \"choice\": -> if kind <= \"choice\":",
     "why": "kind is one of two words by then, and the other one sorts after this one"
+  },
+  {
+    "survivor": "go/adapter/decode.go | INVERT_NEGATIVES | column 34 | return haltrule.Float(math.Inf(-1)), nil",
+    "why": "the two infinities are the same answer everywhere a fixture hands one over: both are refused by a ledger and by a bound, and both halt a digest as a number that is not an integer"
+  },
+  {
+    "survivor": "go/adapter/decode.go | ARITHMETIC_BASE | column 34 | return haltrule.Float(math.Inf(-1)), nil",
+    "why": "the two infinities are the same answer everywhere a fixture hands one over: both are refused by a ledger and by a bound, and both halt a digest as a number that is not an integer"
+  },
+  {
+    "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 13 | if number < math.MinInt64 || number >= math.MaxInt64 {",
+    "why": "at exactly -2^63 both answers are a refusal: one refuses the double here, the other builds the smallest integer and the ledger refuses it for being negative. The bound above it, at column 39, is a defect and is killed"
+  },
+  {
+    "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 22 | return len(trimmed) > 0 && trimmed[0] == '{'",
+    "why": "every argument a fixture names is there to read, so the length is never zero here"
+  },
+  {
+    "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 11 | if at+6 > len(raw) || raw[at+1] != 'u' {",
+    "why": "the scan for an unpaired surrogate escape never meets an escape at the very end of the text: a case's raw text always closes its quote, its object and its list after one"
+  },
+  {
+    "survivor": "go/adapter/decode.go | ARITHMETIC_BASE | column 8 | if at+6 > len(raw) || raw[at+1] != 'u' {",
+    "why": "the scan for an unpaired surrogate escape never meets an escape at the very end of the text: a case's raw text always closes its quote, its object and its list after one"
+  },
+  {
+    "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 13 | if at+12 <= len(raw) && raw[at+6] == '\\\\' && raw[at+7] == 'u' {",
+    "why": "the scan for an unpaired surrogate escape never meets an escape at the very end of the text: a case's raw text always closes its quote, its object and its list after one"
+  },
+  {
+    "survivor": "go/adapter/decode.go | ARITHMETIC_BASE | column 9 | if at+12 <= len(raw) && raw[at+6] == '\\\\' && raw[at+7] == 'u' {",
+    "why": "the scan for an unpaired surrogate escape never meets an escape at the very end of the text: a case's raw text always closes its quote, its object and its list after one"
+  },
+  {
+    "survivor": "go/adapter/main.go | INVERT_NEGATIVES | column 30 | const lineMaxInteger = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/adapter/main.go | ARITHMETIC_BASE | column 30 | const lineMaxInteger = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 28 | return leftUnits[index] < rightUnits[index]",
+    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 24 | return len(leftUnits) < len(rightUnits)",
+    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_NEGATION | column 11 | case err != nil:",
+    "why": "no fixture makes this port raise, so the line that would report one under the case's id is never reached"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_NEGATION | column 16 | if len(paths) == 0 {",
+    "why": "main()'s own plumbing; the bridge test runs the adapter's work in this process and never calls it"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_NEGATION | column 10 | if err != nil {",
+    "why": "main()'s own plumbing; the bridge test runs the adapter's work in this process and never calls it"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_NEGATION | column 38 | if err := readFile(path, out); err != nil {",
+    "why": "main()'s own plumbing; the bridge test runs the adapter's work in this process and never calls it"
+  },
+  {
+    "survivor": "go/budget.go | CONDITIONALS_BOUNDARY | column 10 | if used > ledgerMax-added {",
+    "why": "where the sum is exactly the largest the ledger holds, saturating to it and adding to it are the same number"
+  },
+  {
+    "survivor": "go/checkpoint.go | INVERT_NEGATIVES | column 30 | const maxSafeInteger = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/checkpoint.go | ARITHMETIC_BASE | column 30 | const maxSafeInteger = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/checkpoint.go | ARITHMETIC_BASE | column 46 | return \"\", halted(digestInputUnsupported, at+\": outside the digest value model\")",
+    "why": "Value is closed, so nothing reaches the return Go requires after a switch over it"
+  },
+  {
+    "survivor": "go/checkpoint.go | CONDITIONALS_BOUNDARY | column 28 | return leftUnits[index] < rightUnits[index]",
+    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
+  },
+  {
+    "survivor": "go/checkpoint.go | CONDITIONALS_BOUNDARY | column 24 | return len(leftUnits) < len(rightUnits)",
+    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
+  },
+  {
+    "survivor": "go/checkpoint.go | ARITHMETIC_BASE | column 47 | return \"\", halted(digestInputUnsupported, at+\": string is not made of Unicode scalar values\")",
+    "why": "a string that is not valid UTF-8 is one this port cannot be handed: those are the cases it sits out"
+  },
+  {
+    "survivor": "go/checkpoint.go | CONDITIONALS_NEGATION | column 15 | return held == 0",
+    "why": "an artifact records a $number, which this port holds as a double, so the branch for a recorded integer is never reached; the double beside it is"
+  },
+  {
+    "survivor": "go/slot.go | INVERT_NEGATIVES | column 24 | const boundMax = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/slot.go | ARITHMETIC_BASE | column 24 | const boundMax = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 24 | for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {",
+    "why": "the keys are put in Go's own order before the spec's, and every key a fixture can build here is inside the Basic Multilingual Plane, where the two orders agree, so the sort is asked only whether a later key comes before an earlier one and never reads past the end of the left key. The bound on the right key beside it is read, and mutating that one is killed"
   }
 ]

@@ -64,8 +64,9 @@ An adapter prints one line per case, files by path and each file in its own orde
 when the case raised something that is not a refusal — the line is a map like any other, so its keys are
 sorted there too: `id`, `raised`, `section`. A port whose types cannot build a case's input prints
 `{"id":"<case id>","section":"<section>","unbuildable":true}` for it. The driver takes that line for a
-case whose input holds an unpaired surrogate or an `$unsupported` value, and for no other; it reads that off
-the input, so no case is marked by hand. Run with `--every-input`, as the TypeScript and Python ports are, it
+case whose input holds an unpaired surrogate, a `$bigint` outside a signed 64-bit integer, or an
+`$unsupported` value, and whose answer is not a refusal; it reads that off the input and the expectation, so
+no case is marked by hand. Run with `--every-input`, as the TypeScript and Python ports are, it
 takes that line for no case at all. The driver compares each line with the line it
 expects, byte for byte, so the line format is part of the contract and a port writes it itself rather than
 trusting its language's JSON library to agree. Output is UTF-8, each line ended by one `\n`.

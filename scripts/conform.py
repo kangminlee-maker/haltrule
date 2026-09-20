@@ -140,18 +140,40 @@ def _check_input(node, where: str) -> None:
 
 def every_language_holds(node) -> bool:
     """False for an input some languages cannot build at all: a string or a key with an unpaired
-    surrogate (json.loads has already joined the pairs, so any surrogate left is alone), or one of the
-    $unsupported values. Decided from the input alone; it is not a list anyone keeps."""
+    surrogate (json.loads has already joined the pairs, so any surrogate left is alone), a $bigint
+    outside a signed 64-bit integer, which is the widest integer a language need not build out of
+    parts, or one of the $unsupported values. Decided from the input alone; it is not a list anyone
+    keeps. A $number is a double in every language, however large, so it is held everywhere."""
     if isinstance(node, str):
         return not any(0xD800 <= ord(character) <= 0xDFFF for character in node)
     if isinstance(node, list):
         return all(every_language_holds(item) for item in node)
     if isinstance(node, dict):
-        return "$unsupported" not in node and all(
+        if "$unsupported" in node:
+            return False
+        if "$bigint" in node:
+            digits = node["$bigint"].lstrip("-")
+            # _check_input has already refused a literal outside the grammar; the guard is so that a
+            # broken grammar check fails there and not here. Past 19 digits it is past the range, and
+            # reading it would hit Python's own limit on how long an integer may be spelled.
+            if not digits.isascii() or not digits.isdigit() or len(digits) > 19:
+                return False
+            return -(2**63) <= int(node["$bigint"]) < 2**63
+        return all(
             every_language_holds(key) and every_language_holds(value)
             for key, value in node.items()
         )
     return True
+
+
+def answers_refused(expect) -> bool:
+    """True when a refusal is part of the answer, wherever it sits: a charge case answers one verdict
+    per charge, and a charge the budget refuses is one of them."""
+    if isinstance(expect, dict):
+        return expect == {"refused": True} or any(
+            answers_refused(value) for value in expect.values()
+        )
+    return isinstance(expect, list) and any(answers_refused(item) for item in expect)
 
 
 def unbuildable_line(section: str, case_id: str) -> str:
@@ -240,8 +262,9 @@ def compare(
     cases: list[Case], output: str, every_input: bool = False
 ) -> tuple[list[str], int]:
     """What is wrong with an adapter's output - nothing, when it conforms - and how many inputs the
-    port said its types cannot hold. It may say so only of an input not every language can hold, and
-    not at all when it is held to every input, as a port in a language that can build them all is."""
+    port said its types cannot hold. It may say so only of an input not every language can hold, never
+    where the answer is a refusal - a port whose types cannot build an argument has refused it already -
+    and not at all when it is held to every input, as a port that can build them all is."""
     want = {
         (section, case_id): line_of(
             {"actual": expect, "id": case_id, "section": section}
@@ -250,8 +273,8 @@ def compare(
     }
     may_be_unbuildable = {
         (section, case_id)
-        for section, case_id, _, every_language in cases
-        if not every_language and not every_input
+        for section, case_id, expect, every_language in cases
+        if not every_language and not every_input and not answers_refused(expect)
     }
     unbuilt = 0
     failures: list[str] = []
@@ -457,15 +480,28 @@ def self_test() -> int:
             f"{len(unnoticed)} corrupted expectation(s) passed, the first being {unnoticed[0]}"
         )
     # A port whose types cannot hold an input says so, and only of an input not every language holds.
+    # Beyond every language, and the answer is not the refusal that being unable to build it already is.
+    beyond = [case for case in cases if not case[3] and not answers_refused(case[2])]
+    sits_out = {(section, case_id) for section, case_id, _, _ in beyond}
     typed = "".join(
-        (line if every else unbuildable_line(section, case_id)) + "\n"
-        for line, (section, case_id, _, every) in zip(lines, cases)
+        (unbuildable_line(section, case_id) if (section, case_id) in sits_out else line)
+        + "\n"
+        for line, (section, case_id, _, _) in zip(lines, cases)
     )
-    beyond = [case for case in cases if not case[3]]
     if compare(cases, typed) != ([], len(beyond)) or len(beyond) < 20:
         problems.append(
             "a port that cannot build what not every language holds did not pass, or few such cases were found"
         )
+    for what, expect in [
+        ("the answer", {"refused": True}),
+        (
+            "one of the answers",
+            {"verdicts": [{"refused": True}], "used": {"turns": "0"}},
+        ),
+    ]:
+        refusing = [("part", "refuses", expect, False)]
+        if not compare(refusing, unbuildable_line("part", "refuses") + "\n")[0]:
+            problems.append(f"unbuildable, where a refusal is {what}, passed")
     held = " ".join(failing(typed, every_input=True))
     if (
         not beyond
@@ -477,6 +513,14 @@ def self_test() -> int:
         ("an unpaired surrogate in a value", {"value": ["a\ud83d"]}, False),
         ("an unpaired surrogate in a key", {"value": {"\udc00": 1}}, False),
         ("an $unsupported value", {"args": [{"$unsupported": "undefined"}]}, False),
+        (
+            "a $bigint a signed 64-bit integer holds",
+            {"v": {"$bigint": "-9223372036854775808"}},
+            True,
+        ),
+        ("a $bigint past it", {"v": {"$bigint": "9223372036854775808"}}, False),
+        ("a $bigint of 5001 digits", {"v": {"$bigint": "9" * 5001}}, False),
+        ("a $number, which is a double anywhere", {"v": {"$number": "1e300"}}, True),
     ]:
         if every_language_holds(inputs) is not every:
             problems.append(
