@@ -135,32 +135,41 @@ function normative(result: Verdict): Omit<Verdict, "message"> {
 }
 
 function classify(tc: Inputs): unknown {
-  return classifySystemicDispatchFailure(tc.message as string | null);
+  const result = orRefused(() => classifySystemicDispatchFailure(tc.message as string | null));
+  return result === REFUSED ? { refused: true } : result;
 }
 
 function backoff(tc: Inputs): unknown {
-  return dispatchBackoffDelayMs({
-    attempt: tc.attempt as number,
-    initialMs: tc.initial_ms as number,
-    capMs: tc.cap_ms as number,
-  });
+  // The case's own map is the argument: a field the contract does not name
+  // reaches the part, as it would from a caller.
+  const result = orRefused(() => dispatchBackoffDelayMs(tc as Parameters<typeof dispatchBackoffDelayMs>[0]));
+  return result === REFUSED ? { refused: true } : result;
 }
 
 function state(tc: Inputs): unknown {
-  const machine = new DispatchBreakerState(tc.policy as DispatchBreakerPolicy);
-  const returns: (DispatchBreakerTripState | null)[] = [];
+  const machine = orRefused(() => new DispatchBreakerState(tc.policy as DispatchBreakerPolicy));
+  if (machine === REFUSED) return { refused: true };
+  const returns: (DispatchBreakerTripState | null | Refused)[] = [];
   for (const event of tc.events as ({ kind: string } & DispatchDeadLetterEntry)[]) {
+    // A refused report leaves the batch as it was, as a refused charge leaves
+    // the ledger: the answer is the refusal and the next report goes on.
+    let result: DispatchBreakerTripState | null | typeof REFUSED;
     if (event.kind === "success") {
-      machine.recordItemSuccess(event.item_id);
-      returns.push(null);
+      result = orRefused(() => {
+        machine.recordItemSuccess(event.item_id);
+        return null;
+      });
     } else if (event.kind === "skipped") {
-      machine.recordItemSkipped(event.item_id);
-      returns.push(null);
+      result = orRefused(() => {
+        machine.recordItemSkipped(event.item_id);
+        return null;
+      });
     } else {
       const { kind, ...entry } = event;
       void kind;
-      returns.push(machine.recordItemFailure(entry));
+      result = orRefused(() => machine.recordItemFailure(entry));
     }
+    returns.push(result === REFUSED ? { refused: true } : result);
   }
   return {
     returns,

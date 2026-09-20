@@ -101,9 +101,9 @@ npm install --no-save typescript@5 @types/node@24 eslint@10 @typescript-eslint/p
 GOBIN="$PWD/.bin" go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 ./scripts/check.sh                  # about three seconds
 python3 scripts/mutants.py          # every planted defect must fail the gates: half a minute
-python3 scripts/survivors.py ts     # about 470 mutants: ten seconds on a laptop
-python3 scripts/survivors.py py     # about 730 mutants: over a minute
-python3 scripts/survivors.py go     # about 270 mutants, one at a time: two and a half minutes
+python3 scripts/survivors.py ts     # about 530 mutants: ten seconds on a laptop
+python3 scripts/survivors.py py     # about 800 mutants: two minutes
+python3 scripts/survivors.py go     # about 290 mutants, one at a time: two and a half minutes
 ```
 
 ## License

@@ -9,6 +9,42 @@
  * to decide trip / dead-letter / completed.
  */
 
+import { requireFields } from "./contract.ts";
+
+/** 2^53 - 1: the largest integer every language holds, and so the breaker's. */
+const WHOLE_MAX = 9007199254740991;
+
+/** An argument that must be an integer in range. Outside the contract it
+ * throws: the call fails and changes nothing. Every integer the breaker takes
+ * is one a number holds, so a bigint is no argument of its - unlike a
+ * budget's, whose ledger reaches 2^63 - 1. */
+function whole(value: unknown, what: string): number {
+  // isInteger is false for whatever is not a number, so it is the type test too.
+  if (!Number.isInteger(value)) throw new TypeError(`${what} must be an integer, got ${String(value)}`);
+  const n = value as number;
+  if (n < -WHOLE_MAX || n > WHOLE_MAX) {
+    throw new RangeError(`${what} must be within +/-(2^53 - 1), got ${n}`);
+  }
+  return n;
+}
+
+/** An argument that must be a string. */
+function text(value: unknown, what: string): string {
+  if (typeof value !== "string") throw new TypeError(`${what} must be a string, got ${String(value)}`);
+  return value;
+}
+
+/** An argument that must be a boolean. */
+function flag(value: unknown, what: string): boolean {
+  if (typeof value !== "boolean") throw new TypeError(`${what} must be a boolean, got ${String(value)}`);
+  return value;
+}
+
+/** A flag that may be absent - null or not given - and is then off. */
+function optionalFlag(value: unknown, what: string): boolean {
+  return value == null ? false : flag(value, what);
+}
+
 /**
  * Systemic failure class a dispatch failure message can be classified into.
  * `null` (returned by the classifier, not a member of this type) means the
@@ -79,9 +115,10 @@ const TRANSPORT_PATTERNS = [
 export function classifySystemicDispatchFailure(
   message: string | null | undefined,
 ): SystemicDispatchFailureClass | null {
-  // An empty message needs no test of its own: it holds no pattern.
-  if (typeof message !== "string") return null;
-  const normalized = message.toLowerCase();
+  // Absent - null or not given - is no failure text to read. An empty message
+  // needs no test of its own: it holds no pattern.
+  if (message == null) return null;
+  const normalized = text(message, "a failure message").toLowerCase();
   if (RATE_LIMIT_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     return "rate_limit";
   }
@@ -98,13 +135,19 @@ export function classifySystemicDispatchFailure(
  * attempt is 0-based: delay before retry #1 is initialMs. */
 export function dispatchBackoffDelayMs(args: {
   attempt: number;
-  initialMs: number;
-  capMs: number;
+  initial_ms: number;
+  cap_ms: number;
 }): number {
-  const exponential = args.initialMs * 2 ** Math.max(0, args.attempt);
-  const bounded = Math.min(args.capMs, exponential);
-  return Number.isFinite(bounded) && bounded > 0 ? Math.floor(bounded) : args.capMs;
+  requireFields(args, BACKOFF_FIELDS, BACKOFF_FIELDS, "backoff arguments");
+  const attempt = whole(args.attempt, "attempt");
+  const initialMs = whole(args.initial_ms, "initial_ms");
+  const capMs = whole(args.cap_ms, "cap_ms");
+  const exponential = initialMs * 2 ** Math.max(0, attempt);
+  const bounded = Math.min(capMs, exponential);
+  return Number.isFinite(bounded) && bounded > 0 ? Math.floor(bounded) : capMs;
 }
+
+const BACKOFF_FIELDS = ["attempt", "initial_ms", "cap_ms"];
 
 export interface DispatchBreakerPolicy {
   enabled: boolean;
@@ -123,15 +166,30 @@ export interface DispatchBreakerPolicy {
    * items failed systemically, not on their completion order. Sequential
    * callers omit it and keep the poison-vs-systemic-via-later-success
    * attribution. */
-  concurrent?: boolean;
+  concurrent?: boolean | null;
+
 }
+
+/** `concurrent` is the one field a policy may leave out; it is then off. */
+const POLICY_REQUIRED = [
+  "enabled",
+  "systemic_threshold",
+  "per_call_max_attempts",
+  "backoff_initial_ms",
+  "backoff_cap_ms",
+];
+const POLICY_FIELDS = [...POLICY_REQUIRED, "concurrent"];
+const ENTRY_FIELDS = ["item_id", "failure_class", "failure_message", "attempt_count"];
 
 export interface DispatchDeadLetterEntry {
   item_id: string;
+  /** Null is the item's own failure. The part does not judge what a class
+   * says: any other string is systemic. */
   failure_class: SystemicDispatchFailureClass | null;
   failure_message: string;
   attempt_count: number;
 }
+
 
 export interface DispatchBreakerTripState {
   failure_class: SystemicDispatchFailureClass;
@@ -157,12 +215,28 @@ export interface DispatchBreakerTripState {
  */
 export class DispatchBreakerState {
   readonly policy: DispatchBreakerPolicy;
+  /** The policy as read: what the batch decides by, once and not again. */
+  private readonly enabled: boolean;
+  private readonly threshold: number;
+  private readonly concurrent: boolean;
   private pendingSystemic: DispatchDeadLetterEntry[] = [];
   private trip: DispatchBreakerTripState | null = null;
   private readonly completed: string[] = [];
   private readonly deadLetter: DispatchDeadLetterEntry[] = [];
 
   constructor(policy: DispatchBreakerPolicy) {
+    requireFields(policy, POLICY_FIELDS, POLICY_REQUIRED, "breaker policy");
+    this.enabled = flag(policy.enabled, "enabled");
+    this.concurrent = optionalFlag(policy.concurrent, "concurrent");
+    this.threshold = whole(policy.systemic_threshold, "systemic_threshold");
+    if (this.threshold < 1) {
+      throw new RangeError(`systemic_threshold must be at least 1, got ${this.threshold}`);
+    }
+    // Carried for the caller's loop and read by nothing here - and in the
+    // contract all the same, so that a typo cannot pass as a policy.
+    whole(policy.per_call_max_attempts, "per_call_max_attempts");
+    whole(policy.backoff_initial_ms, "backoff_initial_ms");
+    whole(policy.backoff_cap_ms, "backoff_cap_ms");
     this.policy = policy;
   }
 
@@ -171,7 +245,7 @@ export class DispatchBreakerState {
    * poison. Items that made no successful provider call must use
    * {@link recordItemSkipped} instead. */
   recordItemSuccess(itemId: string): void {
-    this.completed.push(itemId);
+    this.completed.push(text(itemId, "item_id"));
     // Attribution freezes at trip: a CONCURRENT pool can deliver an in-flight
     // success after the trip decision, and letting it reclassify the pending
     // outage victims as poison would dead-letter them out of the incomplete
@@ -185,7 +259,7 @@ export class DispatchBreakerState {
     // trip is count-based and order-independent; un-tripped victims end as
     // incomplete. Sequential callers omit the flag and keep the
     // poison-via-later-success attribution.
-    if (this.policy.concurrent) return;
+    if (this.concurrent) return;
     // The provider lane is alive: pending systemic failures were item-scoped
     // after all — poison, dead-lettered.
     for (const entry of this.pendingSystemic) this.deadLetter.push(entry);
@@ -198,13 +272,23 @@ export class DispatchBreakerState {
    * are untouched. Conflating this with success would let one interleaved
    * skip reset an outage streak and write its victims off as poison. */
   recordItemSkipped(itemId: string): void {
-    this.completed.push(itemId);
+    this.completed.push(text(itemId, "item_id"));
   }
 
   /** Report an item's FINAL failure (per-item budget exhausted). Returns the
    * trip state when this failure crosses the systemic threshold. */
-  recordItemFailure(entry: DispatchDeadLetterEntry): DispatchBreakerTripState | null {
-    if (entry.failure_class === null) {
+  recordItemFailure(given: DispatchDeadLetterEntry): DispatchBreakerTripState | null {
+    requireFields(given, ENTRY_FIELDS, ENTRY_FIELDS, "a failure entry");
+    const entry: DispatchDeadLetterEntry = {
+      item_id: text(given.item_id, "item_id"),
+      failure_class:
+        given.failure_class == null
+          ? null
+          : (text(given.failure_class, "failure_class") as SystemicDispatchFailureClass),
+      failure_message: text(given.failure_message, "failure_message"),
+      attempt_count: whole(given.attempt_count, "attempt_count"),
+    };
+    if (entry.failure_class == null) {
       // Item-local failure class: dead-letter, never breaker fuel.
       this.deadLetter.push(entry);
       return null;
@@ -217,9 +301,9 @@ export class DispatchBreakerState {
       this.pendingSystemic.push(entry);
     }
     if (
-      this.policy.enabled &&
+      this.enabled &&
       this.trip === null &&
-      this.pendingSystemic.length >= this.policy.systemic_threshold
+      this.pendingSystemic.length >= this.threshold
     ) {
       // The FIRST crossing is the trip authority; later records must not
       // rewrite its count. Concurrent-mode guarantee: the trip DECISION
@@ -233,7 +317,7 @@ export class DispatchBreakerState {
       this.trip = {
         failure_class: entry.failure_class,
         consecutive_item_count: this.pendingSystemic.length,
-        threshold: this.policy.systemic_threshold,
+        threshold: this.threshold,
       };
       return this.trip;
     }

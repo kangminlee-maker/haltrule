@@ -255,6 +255,44 @@
       "id": "spec_classify_two_spaces_are_not_one",
       "message": "rate  limit exceeded",
       "expect": null
+    },
+    {
+      "id": "message_not_given",
+      "expect": null
+    },
+    {
+      "id": "message_is_a_number",
+      "message": {
+        "$number": "429"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "message_is_false",
+      "message": false,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "message_is_a_list",
+      "message": [
+        "429"
+      ],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "message_is_a_map",
+      "message": {
+        "text": "429"
+      },
+      "expect": {
+        "refused": true
+      }
     }
   ],
   "backoff": [
@@ -595,6 +633,148 @@
         "$number": "30000"
       },
       "expect": 1
+    },
+    {
+      "id": "attempt_not_given",
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "initial_ms_is_null",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": null,
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "a_field_the_contract_does_not_name",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "initial_ms_typo": {
+        "$number": "1000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "attempt_is_a_fraction",
+      "attempt": {
+        "$number": "1.5"
+      },
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "attempt_is_a_string",
+      "attempt": "1",
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "attempt_is_true",
+      "attempt": true,
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "cap_ms_one_past_the_shared_range",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "9007199254740992"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "cap_ms_at_the_shared_range",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "9007199254740991"
+      },
+      "expect": 1000
+    },
+    {
+      "id": "attempt_one_past_the_shared_range",
+      "attempt": {
+        "$number": "9007199254740992"
+      },
+      "initial_ms": {
+        "$number": "1000"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "initial_ms_one_before_the_shared_range",
+      "attempt": {
+        "$number": "0"
+      },
+      "initial_ms": {
+        "$number": "-9007199254740992"
+      },
+      "cap_ms": {
+        "$number": "30000"
+      },
+      "expect": {
+        "refused": true
+      }
     }
   ],
   "state": [
@@ -2949,6 +3129,604 @@
           }
         ],
         "tripped": null
+      }
+    },
+    {
+      "id": "policy_has_a_field_the_contract_does_not_name",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        },
+        "systemic_threshhold": {
+          "$number": "2"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_has_no_enabled",
+      "policy": {
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_enabled_is_null",
+      "policy": {
+        "enabled": null,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_enabled_is_a_number",
+      "policy": {
+        "enabled": {
+          "$number": "1"
+        },
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_threshold_is_zero",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "0"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_threshold_is_a_fraction",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "1.5"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_carried_number_is_a_string",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": "30000"
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_carried_number_one_past_the_shared_range",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "9007199254740992"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "policy_concurrent_is_null",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        },
+        "concurrent": null
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        },
+        {
+          "kind": "success",
+          "item_id": "item-b"
+        }
+      ],
+      "expect": {
+        "returns": [
+          null,
+          null
+        ],
+        "completed": [
+          "item-b"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "item-a",
+            "failure_class": "rate_limit",
+            "failure_message": "429 too many requests",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_entry_has_a_field_the_contract_does_not_name",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          },
+          "item_di": "item-a"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-c",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null,
+          {
+            "failure_class": "rate_limit",
+            "consecutive_item_count": 2,
+            "threshold": 2
+          }
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        }
+      }
+    },
+    {
+      "id": "report_has_no_failure_class",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_attempt_count_is_a_string",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": "1"
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_attempt_count_one_past_the_shared_range",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "9007199254740992"
+          }
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_failure_message_is_a_number",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "failure",
+          "item_id": "item-a",
+          "failure_class": "rate_limit",
+          "failure_message": {
+            "$number": "429"
+          },
+          "attempt_count": {
+            "$number": "1"
+          }
+        },
+        {
+          "kind": "failure",
+          "item_id": "item-b",
+          "failure_class": "rate_limit",
+          "failure_message": "429 too many requests",
+          "attempt_count": {
+            "$number": "1"
+          }
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_item_id_is_a_number",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "success",
+          "item_id": {
+            "$number": "1"
+          }
+        },
+        {
+          "kind": "success",
+          "item_id": "item-b"
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [
+          "item-b"
+        ],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "report_item_id_is_not_given",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [
+        {
+          "kind": "skipped"
+        },
+        {
+          "kind": "skipped",
+          "item_id": "item-b"
+        }
+      ],
+      "expect": {
+        "returns": [
+          {
+            "refused": true
+          },
+          null
+        ],
+        "completed": [
+          "item-b"
+        ],
+        "dead_letter": [],
+        "tripped": null
+      }
+    },
+    {
+      "id": "policy_carried_number_is_a_fraction",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000.5"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "events": [],
+      "expect": {
+        "refused": true
       }
     }
   ]

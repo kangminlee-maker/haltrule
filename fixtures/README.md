@@ -99,7 +99,11 @@ A `charge` case runs its charges, in order, against one budget and expects one v
 afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser), or `{"refused": true}`
 alone when the budget's caps are refused; a `validate` case expects one verdict, or `{"refused": true}` for a
 spec outside the contract; a `checkpoint` case gives `args`, under the argument names the spec lists, and
-expects the issue list, or `{"refused": true}` for arguments outside the contract. An adapter answers `refused` only for the part's own refusal: inputs are built
+expects the issue list, or `{"refused": true}` for arguments outside the contract. A `classify` or
+`backoff` case expects the answer or `{"refused": true}`; a `state` case runs its events, in order, against
+one batch and expects one answer per event (`returns`) — `{"refused": true}` for a report the batch
+refuses, which changes nothing — or `{"refused": true}` alone when the policy is refused. An adapter
+answers `refused` only for the part's own refusal: inputs are built
 before the part is called, and a verdict of the wrong shape is a failure of the case. An expected verdict
 omits `message`, which is not part of conformance; the adapters check that it is present and a string before
 dropping it.

@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -179,29 +180,53 @@ func optionalText(value *string) haltrule.Value {
 }
 
 func classify(from inputs) (haltrule.Value, error) {
-	var message *string
-	if err := json.Unmarshal(from["message"], &message); err != nil {
-		return nil, err
+	// Absent - not given here, null there - is no failure text to read. A
+	// message of any other type is outside the contract, which this port's
+	// type says by not holding it.
+	raw, given := from["message"]
+	if !given || isNull(raw) {
+		return nil, nil
 	}
-	text := ""
-	if message != nil {
-		text = *message
+	var message string
+	if err := json.Unmarshal(raw, &message); err != nil {
+		return refused, nil
 	}
-	class := haltrule.ClassifySystemicDispatchFailure(text)
+	class := haltrule.ClassifySystemicDispatchFailure(message)
 	if class == nil {
 		return nil, nil
 	}
 	return haltrule.String(string(*class)), nil
 }
 
+// only refuses a map argument holding a field the contract does not name. The
+// other ports get this from a map type and a keyword signature; here the
+// fields arrive as a map of raw text and the names are checked by hand.
+func only(from inputs, names ...string) error {
+	for key := range from {
+		if !slices.Contains(names, key) {
+			return fmt.Errorf("no field %q", key)
+		}
+	}
+	return nil
+}
+
 func backoff(from inputs) (haltrule.Value, error) {
+	// The case's own map is the argument: a field the contract does not name
+	// reaches the part, as it would from a caller.
+	if err := only(from, "attempt", "initial_ms", "cap_ms"); err != nil {
+		return refused, nil
+	}
 	attempt, attemptErr := decodeInt64(from["attempt"])
 	initialMs, initialErr := decodeInt64(from["initial_ms"])
 	capMs, capErr := decodeInt64(from["cap_ms"])
 	if err := errors.Join(attemptErr, initialErr, capErr); err != nil {
-		return nil, err
+		return refused, nil
 	}
-	return haltrule.Int(haltrule.DispatchBackoffDelayMs(attempt, initialMs, capMs)), nil
+	delay, err := haltrule.DispatchBackoffDelayMs(attempt, initialMs, capMs)
+	if err != nil {
+		return refused, nil
+	}
+	return haltrule.Int(delay), nil
 }
 
 type policyJSON struct {
@@ -215,10 +240,93 @@ type policyJSON struct {
 
 type eventJSON struct {
 	Kind           string          `json:"kind"`
-	ItemID         string          `json:"item_id"`
-	FailureClass   *string         `json:"failure_class"`
-	FailureMessage string          `json:"failure_message"`
+	ItemID         *string         `json:"item_id"`
+	FailureClass   json.RawMessage `json:"failure_class"`
+	FailureMessage *string         `json:"failure_message"`
 	AttemptCount   json.RawMessage `json:"attempt_count"`
+}
+
+// batchOf reads a policy and starts a batch, or refuses the policy.
+func batchOf(raw json.RawMessage) (*haltrule.DispatchBreakerState, error) {
+	var given policyJSON
+	if !isObject(raw) {
+		return nil, errors.New("a policy must be a map")
+	}
+	if err := strictly(raw, &given); err != nil {
+		return nil, err
+	}
+	if given.Enabled == nil {
+		return nil, errors.New("a policy has no enabled")
+	}
+	threshold, thresholdErr := decodeInt64(given.SystemicThreshold)
+	attempts, attemptsErr := decodeInt64(given.PerCallMaxAttempts)
+	initialMs, initialErr := decodeInt64(given.BackoffInitialMs)
+	capMs, capErr := decodeInt64(given.BackoffCapMs)
+	if err := errors.Join(thresholdErr, attemptsErr, initialErr, capErr); err != nil {
+		return nil, err
+	}
+	policy := haltrule.DispatchBreakerPolicy{
+		Enabled:            *given.Enabled,
+		SystemicThreshold:  threshold,
+		PerCallMaxAttempts: attempts,
+		BackoffInitialMs:   initialMs,
+		BackoffCapMs:       capMs,
+	}
+	// Absent - not given here, null there - is off.
+	if given.Concurrent != nil {
+		policy.Concurrent = *given.Concurrent
+	}
+	return haltrule.NewDispatchBreakerState(policy)
+}
+
+// oneReport is one item's outcome, or this port's refusal of it.
+func oneReport(machine *haltrule.DispatchBreakerState, raw json.RawMessage) haltrule.Value {
+	var event eventJSON
+	if !isObject(raw) {
+		return refused
+	}
+	if err := strictly(raw, &event); err != nil {
+		return refused
+	}
+	if event.ItemID == nil {
+		return refused
+	}
+	switch event.Kind {
+	case "success":
+		machine.RecordItemSuccess(*event.ItemID)
+		return nil
+	case "skipped":
+		machine.RecordItemSkipped(*event.ItemID)
+		return nil
+	}
+	count, err := decodeInt64(event.AttemptCount)
+	if err != nil || event.FailureMessage == nil {
+		return refused
+	}
+	// A class that is not given is not a class that is null: one is absent
+	// from the contract, the other is the item's own failure.
+	if len(event.FailureClass) == 0 {
+		return refused
+	}
+	var class *haltrule.FailureClass
+	if !isNull(event.FailureClass) {
+		var text string
+		if err := json.Unmarshal(event.FailureClass, &text); err != nil {
+			return refused
+		}
+		held := haltrule.FailureClass(text)
+		class = &held
+	}
+	trip, err := machine.RecordItemFailure(haltrule.DispatchDeadLetterEntry{
+		ItemID:         *event.ItemID,
+		FailureClass:   class,
+		FailureMessage: *event.FailureMessage,
+		AttemptCount:   count,
+	})
+	if err != nil {
+		return refused
+	}
+	return tripValue(trip)
 }
 
 func tripValue(trip *haltrule.DispatchBreakerTripState) haltrule.Value {
@@ -246,65 +354,19 @@ func entryValue(entry haltrule.DispatchDeadLetterEntry) haltrule.Value {
 }
 
 func state(from inputs) (haltrule.Value, error) {
-	var given policyJSON
-	if err := strictly(from["policy"], &given); err != nil {
-		return nil, err
+	machine, err := batchOf(from["policy"])
+	if err != nil {
+		return refused, nil
 	}
-	threshold, thresholdErr := decodeInt64(given.SystemicThreshold)
-	attempts, attemptsErr := decodeInt64(given.PerCallMaxAttempts)
-	initialMs, initialErr := decodeInt64(given.BackoffInitialMs)
-	capMs, capErr := decodeInt64(given.BackoffCapMs)
-	if err := errors.Join(thresholdErr, attemptsErr, initialErr, capErr); err != nil {
-		return nil, err
-	}
-	policy := haltrule.DispatchBreakerPolicy{
-		SystemicThreshold:  threshold,
-		PerCallMaxAttempts: attempts,
-		BackoffInitialMs:   initialMs,
-		BackoffCapMs:       capMs,
-	}
-	if given.Enabled != nil {
-		policy.Enabled = *given.Enabled
-	}
-	if given.Concurrent != nil {
-		policy.Concurrent = *given.Concurrent
-	}
-	machine := haltrule.NewDispatchBreakerState(policy)
-
 	var events []json.RawMessage
 	if err := json.Unmarshal(from["events"], &events); err != nil {
 		return nil, err
 	}
 	returns := haltrule.List{}
 	for _, raw := range events {
-		var event eventJSON
-		if err := strictly(raw, &event); err != nil {
-			return nil, err
-		}
-		switch event.Kind {
-		case "success":
-			machine.RecordItemSuccess(event.ItemID)
-			returns = append(returns, nil)
-		case "skipped":
-			machine.RecordItemSkipped(event.ItemID)
-			returns = append(returns, nil)
-		default:
-			count, err := decodeInt64(event.AttemptCount)
-			if err != nil {
-				return nil, err
-			}
-			var class *haltrule.FailureClass
-			if event.FailureClass != nil {
-				held := haltrule.FailureClass(*event.FailureClass)
-				class = &held
-			}
-			returns = append(returns, tripValue(machine.RecordItemFailure(haltrule.DispatchDeadLetterEntry{
-				ItemID:         event.ItemID,
-				FailureClass:   class,
-				FailureMessage: event.FailureMessage,
-				AttemptCount:   count,
-			})))
-		}
+		// A refused report leaves the batch as it was, as a refused charge
+		// leaves the ledger: the answer is the refusal and the next goes on.
+		returns = append(returns, oneReport(machine, raw))
 	}
 	completed := haltrule.List{}
 	for _, id := range machine.CompletedItemIDs() {

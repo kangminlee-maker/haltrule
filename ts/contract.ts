@@ -18,3 +18,18 @@ export function checkFields(value: unknown, fields: readonly string[], what: str
     if (!fields.includes(key)) throw new TypeError(`${what} has no field ${JSON.stringify(key)}`);
   }
 }
+
+/** Refuses `value` unless it is a map whose keys are among `allowed` and
+ * hold every one of `required`. What Python's keyword signature and Go's
+ * struct do for their ports, written once for this one. */
+export function requireFields(
+  value: unknown,
+  allowed: readonly string[],
+  required: readonly string[],
+  what: string,
+): void {
+  checkFields(value, allowed, what);
+  for (const key of required) {
+    if (!(key in (value as object))) throw new TypeError(`${what} has no ${key}`);
+  }
+}

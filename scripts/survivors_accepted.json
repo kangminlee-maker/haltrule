@@ -8,11 +8,11 @@
     "why": "only a bug in the encoder raises anything else, and then there is no right answer to compare"
   },
   {
-    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Eq | and len(self._pending_systemic) >= self.policy.systemic_threshold -> and len(self._pending_systemic) == self.policy.systemic_threshold",
+    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Eq | and len(self._pending_systemic) >= self._threshold -> and len(self._pending_systemic) == self._threshold",
     "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part"
   },
   {
-    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Is | and len(self._pending_systemic) >= self.policy.systemic_threshold -> and len(self._pending_systemic) is self.policy.systemic_threshold",
+    "survivor": "py/haltrule/breaker.py | ReplaceComparisonOperator_GtE_Is | and len(self._pending_systemic) >= self._threshold -> and len(self._pending_systemic) is self._threshold",
     "why": "the count goes up one at a time and is tested each time, so it meets the bound exactly: == and >= never part (and CPython shares small integers)"
   },
   {
@@ -150,5 +150,13 @@
   {
     "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 24 | for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {",
     "why": "the keys are put in Go's own order before the spec's, and every key a fixture can build here is inside the Basic Multilingual Plane, where the two orders agree, so the sort is asked only whether a later key comes before an earlier one and never reads past the end of the left key. The bound on the right key beside it is read, and mutating that one is killed"
+  },
+  {
+    "survivor": "go/breaker.go | INVERT_NEGATIVES | column 24 | const wholeMax = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
+  },
+  {
+    "survivor": "go/breaker.go | ARITHMETIC_BASE | column 24 | const wholeMax = 1<<53 - 1",
+    "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
   }
 ]

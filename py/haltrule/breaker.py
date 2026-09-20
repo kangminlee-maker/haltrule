@@ -8,9 +8,45 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 SystemicDispatchFailureClass = Literal["rate_limit", "auth", "transport"]
+
+# 2^53 - 1: the largest integer every language holds, and so the breaker's.
+_WHOLE_MAX = 2**53 - 1
+
+
+def _whole(value: Any, what: str) -> int:
+    """An argument that must be an integer in range. Outside the contract it
+    raises: the call fails and changes nothing."""
+    # bool before int: bool is an int subclass, and True is not a count.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{what} must be an integer, got {value!r}")
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise TypeError(f"{what} must be an integer, got {value!r}")
+        value = int(value)
+    if not -_WHOLE_MAX <= value <= _WHOLE_MAX:
+        raise ValueError(f"{what} must be within +/-(2^53 - 1), got {value}")
+    return value
+
+
+def _text(value: Any, what: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{what} must be a string, got {value!r}")
+    return value
+
+
+def _flag(value: Any, what: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{what} must be a boolean, got {value!r}")
+    return value
+
+
+def _optional_flag(value: Any, what: str) -> bool:
+    """A flag that may be absent - null or not given - and is then off."""
+    return False if value is None else _flag(value, what)
+
 
 _RATE_LIMIT_PATTERNS = (
     "429",
@@ -67,21 +103,20 @@ _TRANSPORT_PATTERNS = TRANSIENT_TRANSPORT_MESSAGE_PATTERNS + (
 
 
 def classify_systemic_dispatch_failure(
-    message: Optional[str],
+    message: Optional[str] = None,
 ) -> Optional[SystemicDispatchFailureClass]:
     """Classify a failure message into a systemic dispatch class, or None for
     item-local failures (malformed output, validation rejection, ...) that
     must never trip the batch breaker. Message-based by necessity: providers
     and adapters commonly flatten their status into plain strings.
 
-    `message` may in practice be handed something other than str/None (e.g. a
-    JSON number from an untyped caller); that is treated the same as a
-    non-string, matching the TS `typeof message !== "string"` guard.
+    Absent - null or not given - is no failure text to read; anything else
+    that is not a string is outside the contract and raises.
     """
-    # An empty message needs no test of its own: it holds no pattern.
-    if not isinstance(message, str):
+    if message is None:
         return None
-    normalized = message.lower()
+    # An empty message needs no test of its own: it holds no pattern.
+    normalized = _text(message, "a failure message").lower()
     if any(pattern in normalized for pattern in _RATE_LIMIT_PATTERNS):
         return "rate_limit"
     if any(pattern in normalized for pattern in _AUTH_PATTERNS):
@@ -102,6 +137,9 @@ def dispatch_backoff_delay_ms(*, attempt: int, initial_ms: int, cap_ms: int) -> 
     `2 ** attempt` would never finish for an `attempt` near that ceiling, and
     `2.0 ** attempt` raises where JavaScript answers infinity.
     """
+    attempt = _whole(attempt, "attempt")
+    initial_ms = _whole(initial_ms, "initial_ms")
+    cap_ms = _whole(cap_ms, "cap_ms")
     exponent = max(0.0, float(attempt))
     try:
         power = 2.0**exponent
@@ -168,6 +206,19 @@ class DispatchBreakerState:
     """
 
     def __init__(self, policy: DispatchBreakerPolicy) -> None:
+        # The policy as read: what the batch decides by, once and not again.
+        self._enabled = _flag(policy.enabled, "enabled")
+        self._concurrent = _optional_flag(policy.concurrent, "concurrent")
+        self._threshold = _whole(policy.systemic_threshold, "systemic_threshold")
+        if self._threshold < 1:
+            raise ValueError(
+                f"systemic_threshold must be at least 1, got {self._threshold}"
+            )
+        # Carried for the caller's loop and read by nothing here - and in the
+        # contract all the same, so that a typo cannot pass as a policy.
+        _whole(policy.per_call_max_attempts, "per_call_max_attempts")
+        _whole(policy.backoff_initial_ms, "backoff_initial_ms")
+        _whole(policy.backoff_cap_ms, "backoff_cap_ms")
         self.policy = policy
         self._pending_systemic: list[DispatchDeadLetterEntry] = []
         self._trip: Optional[DispatchBreakerTripState] = None
@@ -180,7 +231,7 @@ class DispatchBreakerState:
         as poison. Items that made no successful provider call must use
         record_item_skipped instead.
         """
-        self._completed.append(item_id)
+        self._completed.append(_text(item_id, "item_id"))
         # Attribution freezes at trip: a CONCURRENT pool can deliver an
         # in-flight success after the trip decision, and letting it
         # reclassify the pending outage victims as poison would dead-letter
@@ -196,7 +247,7 @@ class DispatchBreakerState:
         # trip is count-based and order-independent; un-tripped victims end
         # as incomplete. Sequential callers omit the flag and keep the
         # poison-via-later-success attribution.
-        if self.policy.concurrent:
+        if self._concurrent:
             return
         # The provider lane is alive: pending systemic failures were
         # item-scoped after all - poison, dead-lettered.
@@ -212,7 +263,7 @@ class DispatchBreakerState:
         interleaved skip reset an outage streak and write its victims off as
         poison.
         """
-        self._completed.append(item_id)
+        self._completed.append(_text(item_id, "item_id"))
 
     def record_item_failure(
         self, entry: DispatchDeadLetterEntry
@@ -221,6 +272,16 @@ class DispatchBreakerState:
         Returns the trip state when this failure crosses the systemic
         threshold.
         """
+        entry = DispatchDeadLetterEntry(
+            item_id=_text(entry.item_id, "item_id"),
+            failure_class=(
+                None
+                if entry.failure_class is None
+                else _text(entry.failure_class, "failure_class")
+            ),
+            failure_message=_text(entry.failure_message, "failure_message"),
+            attempt_count=_whole(entry.attempt_count, "attempt_count"),
+        )
         if entry.failure_class is None:
             # Item-local failure class: dead-letter, never breaker fuel.
             self._dead_letter.append(entry)
@@ -233,9 +294,9 @@ class DispatchBreakerState:
             # recovery set.
             self._pending_systemic.append(entry)
         if (
-            self.policy.enabled
+            self._enabled
             and self._trip is None
-            and len(self._pending_systemic) >= self.policy.systemic_threshold
+            and len(self._pending_systemic) >= self._threshold
         ):
             # The FIRST crossing is the trip authority; later records must
             # not rewrite its count. Concurrent-mode guarantee: the trip
@@ -249,7 +310,7 @@ class DispatchBreakerState:
             self._trip = DispatchBreakerTripState(
                 failure_class=entry.failure_class,
                 consecutive_item_count=len(self._pending_systemic),
-                threshold=self.policy.systemic_threshold,
+                threshold=self._threshold,
             )
             return self._trip
         return None

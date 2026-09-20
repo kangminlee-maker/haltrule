@@ -187,26 +187,48 @@ def _to_plain(value):
 
 
 def _classify(tc: dict):
-    return classify_systemic_dispatch_failure(tc["message"])
+    result = _or_refused(
+        lambda: classify_systemic_dispatch_failure(message=tc.get("message"))
+    )
+    return {"refused": True} if result is _REFUSED else result
 
 
 def _backoff(tc: dict):
-    return dispatch_backoff_delay_ms(
-        attempt=tc["attempt"], initial_ms=tc["initial_ms"], cap_ms=tc["cap_ms"]
+    # The case's own map is the argument: a field the contract does not name
+    # reaches the part, as it would from a caller.
+    result = _or_refused(lambda: dispatch_backoff_delay_ms(**tc))
+    return {"refused": True} if result is _REFUSED else result
+
+
+def _state(tc: dict):
+    state = _or_refused(
+        lambda: DispatchBreakerState(DispatchBreakerPolicy(**tc["policy"]))
     )
-
-
-def _state(tc: dict) -> dict:
-    state = DispatchBreakerState(DispatchBreakerPolicy(**tc["policy"]))
+    if state is _REFUSED:
+        return {"refused": True}
     returns = []
     for event in tc["events"]:
+        # A refused report leaves the batch as it was, as a refused charge
+        # leaves the ledger: the answer is the refusal and the next report
+        # goes on.
+        # An id that is not given reaches the part as absent, and the part
+        # refuses it: the adapter holds no rule of its own.
         if event["kind"] == "success":
-            returns.append(state.record_item_success(event["item_id"]))
+            result = _or_refused(
+                lambda event=event: state.record_item_success(event.get("item_id"))
+            )
         elif event["kind"] == "skipped":
-            returns.append(state.record_item_skipped(event["item_id"]))
+            result = _or_refused(
+                lambda event=event: state.record_item_skipped(event.get("item_id"))
+            )
         else:
             entry = {key: value for key, value in event.items() if key != "kind"}
-            returns.append(state.record_item_failure(DispatchDeadLetterEntry(**entry)))
+            result = _or_refused(
+                lambda entry=entry: state.record_item_failure(
+                    DispatchDeadLetterEntry(**entry)
+                )
+            )
+        returns.append({"refused": True} if result is _REFUSED else result)
     return {
         "returns": _to_plain(returns),
         "completed": list(state.completed_item_ids()),

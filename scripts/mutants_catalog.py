@@ -886,3 +886,44 @@ CATALOG += [
         [GO_FAILS, "FAIL [bigint_far_past_min] field=canonicalize.expect"],
     ),
 ]
+
+# --- the breaker's argument contract: refusing what the other three parts refuse
+CATALOG += [
+    mutant(
+        "go breaker: the largest integer the breaker takes is 2^53 - 1",
+        "go/breaker.go",
+        "const wholeMax = 1<<53 - 1",
+        "const wholeMax = 1 << 53",
+        [GO_FAILS, "FAIL [attempt_one_past_the_shared_range] field=backoff.expect"],
+    ),
+    mutant(
+        "ts adapter: the breaker's refusal is a refusal, not an error the port raised",
+        "ts/adapter/adapter.ts",
+        "  const result = orRefused(() => classifySystemicDispatchFailure(tc.message as string | null));\n"
+        "  return result === REFUSED ? { refused: true } : result;\n",
+        "  return classifySystemicDispatchFailure(tc.message as string | null);\n",
+        [TS_FAILS, "FAIL [message_is_a_number] field=classify.raised"],
+    ),
+    mutant(
+        "py adapter: a refused report leaves the batch as it was, and the next is still read",
+        "py/adapter.py",
+        '        returns.append({"refused": True} if result is _REFUSED else result)\n',
+        '        if result is _REFUSED:\n            return {"refused": True}\n'
+        "        returns.append(result)\n",
+        [PY_FAILS, "FAIL [report_attempt_count_is_a_string] field=state.expect"],
+    ),
+    mutant(
+        "go adapter: a field the contract does not name is not an argument",
+        "go/adapter/main.go",
+        '\tif err := only(from, "attempt", "initial_ms", "cap_ms"); err != nil {\n\t\treturn refused, nil\n\t}\n',
+        "",
+        [GO_FAILS, "FAIL [a_field_the_contract_does_not_name] field=backoff.expect"],
+    ),
+    mutant(
+        "go adapter: a class that is not given is not a class that is null",
+        "go/adapter/main.go",
+        "\tif len(event.FailureClass) == 0 {\n\t\treturn refused\n\t}\n",
+        "",
+        [GO_FAILS, "FAIL [report_has_no_failure_class] field=state.expect"],
+    ),
+]

@@ -7,6 +7,8 @@ package haltrule
 // persisted are the caller's.
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"unicode"
@@ -105,13 +107,32 @@ func ClassifySystemicDispatchFailure(message string) *FailureClass {
 // integers within +/-(2^53 - 1), which a float64 holds exactly, and a power of
 // two times one of them is exact until it is infinite. A product past the
 // range is therefore the cap and never an overflow.
-func DispatchBackoffDelayMs(attempt, initialMs, capMs int64) int64 {
+func DispatchBackoffDelayMs(attempt, initialMs, capMs int64) (int64, error) {
+	if err := errors.Join(
+		whole(attempt, "attempt"),
+		whole(initialMs, "initial_ms"),
+		whole(capMs, "cap_ms"),
+	); err != nil {
+		return 0, err
+	}
 	power := math.Pow(2, math.Max(0, float64(attempt)))
 	bounded := math.Min(float64(capMs), float64(initialMs)*power)
 	if !math.IsInf(bounded, 0) && !math.IsNaN(bounded) && bounded > 0 {
-		return int64(math.Floor(bounded))
+		return int64(math.Floor(bounded)), nil
 	}
-	return capMs
+	return capMs, nil
+}
+
+// wholeMax is 2^53 - 1: the largest integer every language holds, and so the
+// breaker's. A Go int64 holds more, which is why the bound is written here.
+const wholeMax = 1<<53 - 1
+
+// whole refuses an argument outside the range every port shares.
+func whole(value int64, what string) error {
+	if value < -wholeMax || value > wholeMax {
+		return fmt.Errorf("%s must be within +/-(2^53 - 1), got %d", what, value)
+	}
+	return nil
 }
 
 // DispatchBreakerPolicy is how one batch is judged. PerCallMaxAttempts,
@@ -161,9 +182,23 @@ type DispatchBreakerState struct {
 	deadLetter      []DispatchDeadLetterEntry
 }
 
-// NewDispatchBreakerState starts a batch.
-func NewDispatchBreakerState(policy DispatchBreakerPolicy) *DispatchBreakerState {
-	return &DispatchBreakerState{policy: policy}
+// NewDispatchBreakerState starts a batch, or refuses a policy outside the
+// contract - the call fails and there is no batch.
+func NewDispatchBreakerState(policy DispatchBreakerPolicy) (*DispatchBreakerState, error) {
+	if err := errors.Join(
+		whole(policy.SystemicThreshold, "systemic_threshold"),
+		// Carried for the caller's loop and read by nothing here - and in the
+		// contract all the same.
+		whole(policy.PerCallMaxAttempts, "per_call_max_attempts"),
+		whole(policy.BackoffInitialMs, "backoff_initial_ms"),
+		whole(policy.BackoffCapMs, "backoff_cap_ms"),
+	); err != nil {
+		return nil, err
+	}
+	if policy.SystemicThreshold < 1 {
+		return nil, fmt.Errorf("systemic_threshold must be at least 1, got %d", policy.SystemicThreshold)
+	}
+	return &DispatchBreakerState{policy: policy}, nil
 }
 
 // RecordItemSuccess reports a real dispatch success, the only event that
@@ -190,10 +225,13 @@ func (state *DispatchBreakerState) RecordItemSkipped(itemID string) {
 
 // RecordItemFailure reports an item's final failure. It answers the trip when
 // this failure is the one that crosses the threshold, and nil otherwise.
-func (state *DispatchBreakerState) RecordItemFailure(entry DispatchDeadLetterEntry) *DispatchBreakerTripState {
+func (state *DispatchBreakerState) RecordItemFailure(entry DispatchDeadLetterEntry) (*DispatchBreakerTripState, error) {
+	if err := whole(entry.AttemptCount, "attempt_count"); err != nil {
+		return nil, err
+	}
 	if entry.FailureClass == nil {
 		state.deadLetter = append(state.deadLetter, entry)
-		return nil
+		return nil, nil
 	}
 	pending := false
 	for _, held := range state.pendingSystemic {
@@ -215,9 +253,9 @@ func (state *DispatchBreakerState) RecordItemFailure(entry DispatchDeadLetterEnt
 			ConsecutiveItemCount: int64(len(state.pendingSystemic)),
 			Threshold:            state.policy.SystemicThreshold,
 		}
-		return state.trip
+		return state.trip, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // Tripped is the batch's trip, or nil while it has none.

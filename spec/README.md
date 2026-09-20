@@ -30,9 +30,8 @@ is **refused**: the call fails in the language's own way (an exception, an error
 a refused charge leaves the ledger exactly as it was. A refusal is not a verdict and carries no reason. A
 fixture writes it as `{"refused": true}` where the result would be, so every port is held to the same list of
 refused arguments. A port whose types cannot hold such an argument at all has refused it before it ran: its
-adapter answers `refused` for that case when it cannot build the argument. `budget`, `slot` and `checkpoint`
-refuse as their bullets below say, before anything else is looked at; what the breaker does with an argument
-outside its contract is not defined.
+adapter answers `refused` for that case when it cannot build the argument. All four parts
+refuse as their bullets below say, before anything else is looked at.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -118,9 +117,18 @@ not name is not reusable.
   long to wait before a retry, and when a batch should stop. It holds no clock and does no waiting; the loop,
   the retries and what is persisted are the caller's. Its numbers are integers within ±(2^53 − 1). The three
   fixture sections are its three entry points.
+
+  Every argument of the breaker's is refused when it is outside the contract, as the other three parts'
+  arguments are. A map argument — a policy, a failure entry — holds the fields its bullet names and no
+  others; a number is an integer within ±(2^53 − 1), however the language holds it; an id, a message and a
+  class are strings. Absent — null or not given — stands in two places only: a message, which is then no text
+  to read, and a policy's `concurrent`, which is then off. Every other field must be there and hold its
+  type, a failure entry's class included, where null is a value and means the item's own failure. A value of
+  any other type is refused: a boolean where a count belongs, a number where a message belongs. A refused
+  report leaves the batch exactly as it was, as a refused charge leaves the ledger.
   - **`classify`** takes a failure message and answers `rate_limit`, `auth`, `transport`, or null — null
     meaning the failure is the item's own and says nothing about the provider. An absent or empty message
-    is null; a message that is not a string is outside the contract, like every argument of the breaker's.
+    is null; a message that is not a string is refused, `false` and `0` included.
     Otherwise the message is lowercased by Unicode's full default case conversion
     (U+212A KELVIN SIGN becomes `k`; U+0130 becomes `i` followed by U+0307, so it is not the `i` inside a
     pattern) and the classes are tried in that order: the first with a pattern occurring anywhere in the
