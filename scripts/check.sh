@@ -6,8 +6,10 @@
 # their text. A new port adds its adapter to gate 2 and its own mainstream
 # tools to gate 3.
 #
-# Every gate here has been seen to fail: scripts/mutants.py plants a defect for
-# each and requires this script to fail with that gate's evidence. Whether the
+# Every gate that decides conformance or purity has been seen to fail:
+# scripts/mutants.py plants a defect for each and requires this script to fail
+# with that gate's evidence. The build, lint and format gates below are their
+# tools' own and are not planted for: they fail when their tool does. Whether the
 # fixtures notice a defect in a port's own modules is asked by the mainstream
 # mutation tools instead: scripts/survivors.py ts, py, go and rust.
 set -uo pipefail

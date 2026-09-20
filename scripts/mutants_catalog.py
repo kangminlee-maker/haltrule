@@ -43,6 +43,7 @@ SURVIVORS_FAIL = (
 TS_NO_HOST = "  FAIL  typescript modules compile with no host types"
 RS_FAILS = "  FAIL  rust conforms"
 RS_NO_HOST = "  FAIL  the rust library is no_std"
+GO_NO_HOST = "  FAIL  go modules import only what the allowlist holds"
 TS_NAMES = "  FAIL  typescript modules name no clock"
 PY_NAMES = "  FAIL  python modules import and use only what the allowlists hold"
 
@@ -966,5 +967,26 @@ CATALOG += [
         "            // Wider than i64, which this language has no integer for.\n            Err(_) => Err(Refusal::Unbuildable),\n",
         "            Err(_) => Ok(Value::Int(0)),\n",
         [RS_FAILS, "FAIL [bigint_far_past_min] field=canonicalize.expect"],
+    ),
+]
+
+# --- go purity: the import list is the whole of what a package can reach, so
+# the mistakes people make show up in it and nowhere else.
+CATALOG += [
+    # The import is used, so the package still builds and the import list is
+    # the only thing that says anything is wrong.
+    mutant(
+        "go purity: the host's clock is not on the allowlist",
+        "go/checkpoint.go",
+        '\t"unicode/utf8"\n)\n',
+        '\t"time"\n\t"unicode/utf8"\n)\n\nvar _ = time.Now\n',
+        [GO_NO_HOST, "imports time, which is not on the allowlist"],
+    ),
+    mutant(
+        "go purity: the file system is not on the allowlist",
+        "go/slot.go",
+        '\t"fmt"\n\t"strings"\n\t"unicode/utf8"\n)\n',
+        '\t"fmt"\n\t"os"\n\t"strings"\n\t"unicode/utf8"\n)\n\nvar _ = os.Getenv\n',
+        [GO_NO_HOST, "imports os, which is not on the allowlist"],
     ),
 ]
