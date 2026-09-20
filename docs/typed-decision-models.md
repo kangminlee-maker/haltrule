@@ -106,25 +106,36 @@ h({x: new Map([["a",1]])})     === h({x: new Map([["b",2]])});       // true
 h({a: 1, b: undefined})        === h({a: 1});                        // true
 ```
 
-Four pairs of different inputs, four identical digests. Each one is a stage artifact whose content changed
-while its key did not, reused as though it were fresh — the first of the three halting conditions in the
-README, failing open and saying nothing.
+Four pairs of different inputs, four identical digests. Each is a way for content to change while the key
+does not, which is the first of the three halting conditions failing open and saying nothing.
+
+Be precise about what that does and does not show. It shows the canonicalizer collides on those shapes. It
+does not show that any of them reaches a particular payload — `undefined` beside an absent field is
+arguably the same thing, and a NaN or a Map has to get in there before it can hurt anyone. Whether they do
+is the first question to ask of any pipeline hashing its inputs this way, not something to assume from the
+collision. What the spec offers is that the question never has to be asked: those shapes halt by name
+rather than hashing alike.
 
 The spec answers every row by name: `digest_input_float` for NaN and the infinities, because a float that
 matters to a digest is the caller's to render explicitly; `digest_input_unsupported` for a Map, a Set, or
 an absent value. It halts with a reason instead of hashing them all to the same thing.
 
-`localeCompare` adds a second failure in the other direction. It depends on the locale and on which ICU
-data the runtime was built with, so the same object can sort differently on two machines:
+Sorting by `localeCompare` is the second half of it, and here too the honest claim is narrower than the
+obvious one. It orders differently from code units:
 
 ```
 locale order: _internal a_b a-b ab co-op coop generated_at module_id Module_id
 code-unit   : Module_id _internal a-b a_b ab co-op coop generated_at module_id
 ```
 
-Different order, different bytes, different digest for identical content — a cache that looks broken on
-one machine and fine on another. The spec sorts map keys by UTF-16 code unit, which no locale can move,
-and the linter in this repository already refuses `localeCompare` for exactly this reason.
+Tried across English, Korean, Swedish and a German phonebook collation, realistic keys of that shape did
+not move, so "two machines disagree" is not a thing to claim without measuring it. What does bite is that
+`localeCompare` answers 0 for two strings that are not equal — the composed and decomposed spellings of
+one accented character, say — and a stable sort then leaves insertion order to pick the bytes. File paths
+read from a filesystem that hands back decomposed names are a real way to meet that.
+
+The spec sorts map keys by UTF-16 code unit, which is a total order on distinct strings and cannot tie,
+and the linter in this repository already refuses `localeCompare`.
 
 ### Identity by modification time, or by URI alone
 
