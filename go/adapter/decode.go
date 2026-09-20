@@ -122,14 +122,19 @@ func decodeInt64(raw json.RawMessage) (int64, error) {
 		return int64(held), nil
 	case haltrule.Float:
 		number := float64(held)
-		if math.IsNaN(number) || math.IsInf(number, 0) || number != math.Trunc(number) {
+		if number != math.Trunc(number) {
+			// NaN fails this one too: it equals nothing, itself included.
 			return 0, fmt.Errorf("%v is not an integer", number)
 		}
-		// An integral double past the range is no integer this ledger holds.
-		if number < math.MinInt64 || number >= math.MaxInt64 {
+		// Go does not say what converting a float outside the integer's range
+		// gives - one machine saturates, another wraps - so the range is
+		// decided in decimal and the conversion never happens outside it.
+		// An infinity has no decimal digits and fails here.
+		integer, err := strconv.ParseInt(strconv.FormatFloat(number, 'f', 0, 64), 10, 64)
+		if err != nil {
 			return 0, fmt.Errorf("%v is outside a 64-bit integer", number)
 		}
-		return int64(number), nil
+		return integer, nil
 	}
 	return 0, fmt.Errorf("not a number")
 }

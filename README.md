@@ -103,7 +103,7 @@ GOBIN="$PWD/.bin" go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 python3 scripts/mutants.py          # every planted defect must fail the gates: half a minute
 python3 scripts/survivors.py ts     # about 470 mutants: ten seconds on a laptop
 python3 scripts/survivors.py py     # about 730 mutants: over a minute
-python3 scripts/survivors.py go     # about 270 mutants: a minute and a half
+python3 scripts/survivors.py go     # about 270 mutants, one at a time: two and a half minutes
 ```
 
 ## License

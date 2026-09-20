@@ -56,10 +56,6 @@
     "why": "the two infinities are the same answer everywhere a fixture hands one over: both are refused by a ledger and by a bound, and both halt a digest as a number that is not an integer"
   },
   {
-    "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 13 | if number < math.MinInt64 || number >= math.MaxInt64 {",
-    "why": "at exactly -2^63 both answers are a refusal: one refuses the double here, the other builds the smallest integer and the ledger refuses it for being negative. The bound above it, at column 39, is a defect and is killed"
-  },
-  {
     "survivor": "go/adapter/decode.go | CONDITIONALS_BOUNDARY | column 22 | return len(trimmed) > 0 && trimmed[0] == '{'",
     "why": "every argument a fixture names is there to read, so the length is never zero here"
   },

@@ -725,6 +725,13 @@ CATALOG += [
         [SURVIVORS_FAIL, "FAIL [self-test] a stryker report is read"],
     ),
     mutant(
+        "survivors: a mutant the go run ran out of time on is a survivor",
+        "scripts/survivors.py",
+        '            if mutant["status"] in ("NOT VIABLE", "SKIPPED"):\n',
+        '            if mutant["status"] in ("NOT VIABLE", "SKIPPED", "TIMED OUT"):\n',
+        [SURVIVORS_FAIL, "FAIL [self-test] a gremlins report is read"],
+    ),
+    mutant(
         "survivors: a mutant the python run did not notice is a survivor",
         "scripts/survivors.py",
         '        if result["test_outcome"] != "survived":\n',

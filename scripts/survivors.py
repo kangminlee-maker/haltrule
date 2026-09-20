@@ -161,8 +161,15 @@ def run_tool(language: str) -> tuple[list[str], int]:
                     "--integration",
                     "--coverpkg",
                     "./...",
-                    # The timeout is the baseline test's own time times this, and the baseline is
-                    # measured on an idle machine while the mutants run several at a time.
+                    # One at a time. Side by side, the tool writes each mutation into the same
+                    # source file before copying it away, so one worker's copy can be taken while
+                    # another's mutation is in the file: a mutant then runs unmutated and is
+                    # reported as one no case notices. It cost a minute and bought a list that is
+                    # the same list every run.
+                    "--workers",
+                    "1",
+                    # The timeout is the baseline test's own time times this. It is wide because a
+                    # shared machine is slow, never because a mutant is allowed to be.
                     "--timeout-coefficient",
                     "120",
                     "-o",
