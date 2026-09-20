@@ -1,0 +1,1597 @@
+"""The mutants: one planted defect each, and the evidence scripts/check.sh must fail with.
+
+scripts/mutants.py is the engine; this is the list. Evidence is matched against the FAIL lines of check.sh
+only - a gate's own line, a case the driver reports (FAIL [id] field=section.expect), or a purity tool's
+finding (FAIL [finding] ...).
+"""
+
+from __future__ import annotations
+
+import dataclasses
+
+
+@dataclasses.dataclass(frozen=True)
+class Edit:
+    path: str
+    old: str | None  # None creates `path`, which must not exist yet
+    new: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Mutant:
+    id: str
+    edits: tuple[Edit, ...]
+    expect: tuple[str, ...]  # each must appear in some FAIL line
+    forbid: tuple[str, ...] = ()  # none may appear in any FAIL line
+
+
+def mutant(id: str, path: str, old: str, new: str, expect, forbid=()) -> Mutant:
+    return Mutant(id, (Edit(path, old, new),), tuple(expect), tuple(forbid))
+
+
+TS_FAILS = "  FAIL  typescript conforms"
+PY_FAILS = "  FAIL  python conforms"
+DRIVER_FAILS = "  FAIL  every corrupted expectation fails under its own id"
+TS_NO_HOST = "  FAIL  typescript modules compile with no host types"
+TS_NAMES = "  FAIL  typescript modules name no clock"
+PY_NAMES = "  FAIL  python modules import and use only what the allowlists hold"
+
+CATALOG: list[Mutant] = []
+
+# --- a defect in a policy module, caught by a fixture case through the driver
+CATALOG += [
+    mutant(
+        "py canonicalize: map keys in UTF-16 order, not code point order",
+        "py/haltrule/checkpoint.py",
+        "keys = sorted(value, key=_utf16_key)",
+        "keys = sorted(value)",
+        [
+            PY_FAILS,
+            "FAIL [key_order_non_bmp_before_private_use] field=canonicalize.expect",
+            "FAIL [key_order_non_bmp_before_ffff] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "py canonicalize: a fractional float halts, never truncated",
+        "py/haltrule/checkpoint.py",
+        "not math.isfinite(value) or not value.is_integer()",
+        "not math.isfinite(value)",
+        [PY_FAILS, "FAIL [fraction] field=canonicalize.expect"],
+    ),
+    mutant(
+        "py canonicalize: booleans are not integers",
+        "py/haltrule/checkpoint.py",
+        '    if value is True:\n        return "true"\n    if value is False:\n        return "false"\n    if isinstance(value, (int, float)) and not isinstance(value, bool):\n        return _encode_number(value, at)\n',
+        '    if isinstance(value, (int, float)):\n        return _encode_number(value, at)\n    if value is True:\n        return "true"\n    if value is False:\n        return "false"\n',
+        [PY_FAILS, "FAIL [booleans_are_not_integers] field=canonicalize.expect"],
+    ),
+    mutant(
+        "py checkpoint: a missing status follows JavaScript falsiness",
+        "py/haltrule/checkpoint.py",
+        "    if _js_falsy(status):",
+        "    if not status:",
+        [
+            PY_FAILS,
+            "FAIL [status_empty_list_is_present_not_reusable] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "py checkpoint: dependencies checked in UTF-16 order, not insertion order",
+        "py/haltrule/checkpoint.py",
+        "for dependency_id in sorted(expected_dependencies, key=_utf16_key):",
+        "for dependency_id in expected_dependencies:",
+        [
+            PY_FAILS,
+            "FAIL [dependency_mismatches_in_utf16_key_order] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: 2^53 - 1 itself is in range",
+        "ts/checkpoint.ts",
+        "Math.abs(value) > MAX_SAFE_INTEGER",
+        "Math.abs(value) >= MAX_SAFE_INTEGER",
+        [
+            TS_FAILS,
+            "FAIL [max_safe_integer] field=canonicalize.expect",
+            "FAIL [min_safe_integer] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: a slash is written as itself",
+        "ts/checkpoint.ts",
+        '  0x5c: "\\\\\\\\",\n',
+        '  0x5c: "\\\\\\\\",\n  0x2f: "\\\\/",\n',
+        [TS_FAILS, "FAIL [no_escape_slash_and_html] field=canonicalize.expect"],
+    ),
+    mutant(
+        "ts checkpoint: dependencies checked in UTF-16 order, not insertion order",
+        "ts/checkpoint.ts",
+        "Object.keys(expectedDependencies).sort()",
+        "Object.keys(expectedDependencies)",
+        [
+            TS_FAILS,
+            "FAIL [dependency_mismatches_in_utf16_key_order] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "ts checkpoint: inherited properties are not recorded digests",
+        "ts/checkpoint.ts",
+        "isPlainObject(recordedDependencies) && Object.hasOwn(recordedDependencies, dependencyId)",
+        "isPlainObject(recordedDependencies)",
+        [TS_FAILS, "FAIL [dependency_id_constructor] field=checkpoint.raised"],
+    ),
+    mutant(
+        "ts digest: sha256 over exactly the canonical form",
+        "ts/checkpoint.ts",
+        'update(result.canonical, "utf8")',
+        'update(result.canonical + " ", "utf8")',
+        [
+            TS_FAILS,
+            "FAIL [null] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "py canonicalize: a non-string map key halts",
+        "py/haltrule/checkpoint.py",
+        '        for key in value:\n            if not isinstance(key, str):\n                raise _DigestInputError(\n                    "digest_input_unsupported", f"{at}: map key {key!r} is not a string"\n                )\n',
+        "",
+        [
+            PY_FAILS,
+            "FAIL [non_string_key] field=canonicalize.raised",
+            "FAIL [non_string_key_nested] field=canonicalize.raised",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: a symbol map key halts",
+        "ts/checkpoint.ts",
+        '    if (Object.getOwnPropertySymbols(value).length > 0) {\n      throw new DigestInputError("digest_input_unsupported", `${at}: map has a symbol key`);\n    }\n',
+        "",
+        [
+            TS_FAILS,
+            "FAIL [non_string_key] field=canonicalize.expect",
+            "FAIL [non_string_key_nested] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "py checkpoint: a falsy recorded revision reads as absent",
+        "py/haltrule/checkpoint.py",
+        "_js_falsy(expected_contract_revision) and _js_falsy(revision):",
+        "_js_falsy(expected_contract_revision) and revision is None:",
+        [
+            PY_FAILS,
+            "FAIL [contract_revision_empty_string_is_missing] field=checkpoint.expect",
+            "FAIL [contract_revision_zero_is_missing] field=checkpoint.expect",
+            "FAIL [contract_revision_false_is_missing] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "ts checkpoint: a falsy recorded revision reads as absent",
+        "ts/checkpoint.ts",
+        "if (expectedRevision && !artifact.contract_revision) {",
+        "if (expectedRevision && artifact.contract_revision == null) {",
+        [
+            TS_FAILS,
+            "FAIL [contract_revision_empty_string_is_missing] field=checkpoint.expect",
+            "FAIL [contract_revision_zero_is_missing] field=checkpoint.expect",
+            "FAIL [contract_revision_false_is_missing] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "py checkpoint: a falsy expected config digest is not compared",
+        "py/haltrule/checkpoint.py",
+        "    if not _js_falsy(expected_stage_config_digest) and not _js_strict_equal(",
+        "    if expected_stage_config_digest is not None and not _js_strict_equal(",
+        [
+            PY_FAILS,
+            "FAIL [empty_expected_stage_config_skips_the_check] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "ts checkpoint: a falsy expected config digest is not compared",
+        "ts/checkpoint.ts",
+        "if (expectedConfig && artifact.stage_config_digest !== expectedConfig) {",
+        "if (expectedConfig != null && artifact.stage_config_digest !== expectedConfig) {",
+        [
+            TS_FAILS,
+            "FAIL [empty_expected_stage_config_skips_the_check] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "py checkpoint: dependency ids in UTF-16 order, not code point order",
+        "py/haltrule/checkpoint.py",
+        "for dependency_id in sorted(expected_dependencies, key=_utf16_key):",
+        "for dependency_id in sorted(expected_dependencies):",
+        [
+            PY_FAILS,
+            "FAIL [dependency_order_utf16_not_code_point] field=checkpoint.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: a bigint in range is an integer",
+        "ts/checkpoint.ts",
+        'if (typeof value === "bigint") return encodeBigInt(value, at);\n',
+        "",
+        [
+            TS_FAILS,
+            "FAIL [bigint_small] field=canonicalize.expect",
+            "FAIL [bigint_max_safe] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "py canonicalize: nesting past 100 halts",
+        "py/haltrule/checkpoint.py",
+        "if isinstance(value, (list, dict)) and depth >= _MAX_DEPTH:",
+        "if False:",
+        [
+            PY_FAILS,
+            "FAIL [depth_101_lists] field=canonicalize.expect",
+            "FAIL [depth_101_maps] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: nesting of 101 halts",
+        "ts/checkpoint.ts",
+        "&& depth >= MAX_DEPTH) {",
+        "&& depth > MAX_DEPTH) {",
+        [
+            TS_FAILS,
+            "FAIL [depth_101_lists] field=canonicalize.expect",
+            "FAIL [depth_101_maps] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: integer-like keys in UTF-16 order",
+        "ts/checkpoint.ts",
+        "    const keys = Object.keys(value).sort();",
+        "    const keys = Object.keys(Object.fromEntries(Object.entries(value).sort()));",
+        [
+            TS_FAILS,
+            "FAIL [key_order_integer_like_keys] field=canonicalize.expect",
+        ],
+    ),
+    mutant(
+        "ts checkpoint: failed is not reusable by default",
+        "ts/checkpoint.ts",
+        '  failed: "failed",',
+        '  failed: "complete",',
+        [TS_FAILS, "FAIL [status_failed_not_reusable] field=checkpoint.expect"],
+    ),
+    mutant(
+        "ts canonicalize: an array hole halts",
+        "ts/checkpoint.ts",
+        "    for (let index = 0; index < value.length; index += 1) {\n      parts.push",
+        "    for (let index = 0; index < value.length; index += 1) {\n      if (!(index in value)) continue;\n      parts.push",
+        [TS_FAILS, "FAIL [sparse_array] field=canonicalize.expect"],
+    ),
+    mutant(
+        "py checkpoint: validation issues from any sequence count",
+        "py/haltrule/checkpoint.py",
+        "        if isinstance(validation_issues, Sequence)\n        and not isinstance(validation_issues, (str, bytes, bytearray))\n",
+        "        if isinstance(validation_issues, (list, tuple))\n",
+        [PY_FAILS, "FAIL [validation_issue_defaults] field=checkpoint.raised"],
+    ),
+    mutant(
+        "py canonicalize: a huge integer halts without raising",
+        "py/haltrule/checkpoint.py",
+        '            else f"a {value.bit_length()}-bit integer"\n',
+        '            else f"{value}"\n',
+        [PY_FAILS, "FAIL [bigint_5001_digits] field=canonicalize.raised"],
+    ),
+    mutant(
+        "py checkpoint: text validation issues are ignored",
+        "py/haltrule/checkpoint.py",
+        "not isinstance(validation_issues, (str, bytes, bytearray))",
+        "not isinstance(validation_issues, (bytes, bytearray))",
+        [
+            PY_FAILS,
+            "FAIL [validation_issues_text_is_ignored] field=checkpoint.raised",
+        ],
+    ),
+    mutant(
+        "py checkpoint: bytes validation issues are ignored",
+        "py/haltrule/checkpoint.py",
+        "not isinstance(validation_issues, (str, bytes, bytearray))",
+        "not isinstance(validation_issues, (str, bytearray))",
+        [PY_FAILS, "FAIL [status_complete_is_valid] field=checkpoint.raised"],
+    ),
+    mutant(
+        "py breaker: trips at the threshold, not after it",
+        "py/haltrule/breaker.py",
+        "len(self._pending_systemic) >= self.policy.systemic_threshold",
+        "len(self._pending_systemic) > self.policy.systemic_threshold",
+        [
+            PY_FAILS,
+            "FAIL [trip_at_threshold_three_rate_limit] field=state.expect",
+        ],
+    ),
+    mutant(
+        "ts breaker: trips at the threshold, not after it",
+        "ts/breaker.ts",
+        "this.pendingSystemic.length >= this.policy.systemic_threshold",
+        "this.pendingSystemic.length > this.policy.systemic_threshold",
+        [
+            TS_FAILS,
+            "FAIL [trip_at_threshold_three_rate_limit] field=state.expect",
+        ],
+    ),
+    mutant(
+        "ts canonicalize: a fractional number halts",
+        "ts/checkpoint.ts",
+        "if (!Number.isFinite(value) || !Number.isInteger(value)) {",
+        "if (!Number.isFinite(value)) {",
+        [TS_FAILS, "FAIL [fraction] field=canonicalize.expect"],
+    ),
+    mutant(
+        "ts budget: exhausted when the amount used reaches its cap",
+        "ts/budget.ts",
+        "this.turns_used >= this.max_turns",
+        "this.turns_used > this.max_turns",
+        [
+            TS_FAILS,
+            "FAIL [turns_one_charge_exactly_the_cap] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: exhausted when the amount used reaches its cap",
+        "py/haltrule/budget.py",
+        "self.turns_used >= self.max_turns",
+        "self.turns_used > self.max_turns",
+        [
+            PY_FAILS,
+            "FAIL [turns_one_charge_exactly_the_cap] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: turns reported before time",
+        "ts/budget.ts",
+        "if (this.max_turns !== null && this.turns_used >= this.max_turns) {",
+        "if (this.max_turns !== null && this.turns_used >= this.max_turns && !(this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms)) {",
+        [
+            TS_FAILS,
+            "FAIL [turns_reported_before_time_before_tokens] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: time reported before tokens",
+        "py/haltrule/budget.py",
+        "if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms:",
+        "if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms and not (self.token_budget is not None and self.tokens_used >= self.token_budget):",
+        [PY_FAILS, "FAIL [time_reported_before_tokens] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a cap past 2^53 stays exact",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;',
+        '  if (typeof value === "bigint") n = BigInt(Number(value));',
+        [
+            TS_FAILS,
+            "FAIL [cap_past_the_safe_range_is_exact] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a null cap means no cap, not zero",
+        "py/haltrule/budget.py",
+        "    return None if value is None else _ledger(value, what)",
+        "    return _ledger(0 if value is None else value, what)",
+        [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a zero cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.max_turns !== null && this.turns_used >= this.max_turns) {",
+        "    if (this.max_turns !== null && this.turns_used >= this.max_turns && this.turns_used > 0n) {",
+        [
+            TS_FAILS,
+            "FAIL [zero_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: blank is ASCII whitespace only, never a Unicode trim",
+        "ts/slot.ts",
+        "  if (isBlank(value)) return",
+        '  if (value.trim() === "") return',
+        [
+            TS_FAILS,
+            "FAIL [choice_no_break_space_is_invalid_not_missing] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: blank is ASCII whitespace only, never str.strip()",
+        "py/haltrule/slot.py",
+        '    return text.strip(_ASCII_WHITESPACE) == ""',
+        '    return text.strip() == ""',
+        [
+            PY_FAILS,
+            "FAIL [choice_no_break_space_is_invalid_not_missing] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: length counts scalar values, not UTF-16 units",
+        "ts/slot.ts",
+        "  const length = Array.from(value).length;",
+        "  const length = value.length;",
+        [
+            TS_FAILS,
+            "FAIL [text_length_counts_scalar_values_not_utf16_units] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: length counts scalar values, not bytes",
+        "py/haltrule/slot.py",
+        "    length = len(value)",
+        '    length = len(value.encode("utf-8"))',
+        [
+            PY_FAILS,
+            "FAIL [text_length_counts_scalar_values_not_bytes] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a candidate must match exactly, untrimmed",
+        "ts/slot.ts",
+        "    return candidates.includes(value)",
+        "    return candidates.includes(value.trim())",
+        [
+            TS_FAILS,
+            "FAIL [choice_leading_space_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a candidate must match exactly, unnormalized",
+        "ts/slot.ts",
+        "    return candidates.includes(value)",
+        '    return candidates.includes(value.normalize("NFC"))',
+        [TS_FAILS, "FAIL [choice_hangul_nfd_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: max_length is inclusive",
+        "py/haltrule/slot.py",
+        "    if maximum is not None and length > maximum:",
+        "    if maximum is not None and length >= maximum:",
+        [
+            PY_FAILS,
+            "FAIL [text_exactly_max_length_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: null is missing, not invalid",
+        "py/haltrule/slot.py",
+        '    if value is None:\n        return verdict("warning", "slot_missing", f"slot {name}: no value")\n',
+        "",
+        [PY_FAILS, "FAIL [choice_null_is_missing] field=validate.expect"],
+    ),
+    mutant(
+        "ts verdict: every verdict carries the spec stamp",
+        "ts/verdict.ts",
+        'export const SPEC = "haltrule/0";',
+        'export const SPEC = "haltrule/1";',
+        [
+            TS_FAILS,
+            "FAIL [no_caps_never_exhausted] field=charge.expect",
+            "FAIL [choice_first_candidate_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py verdict: every verdict carries the spec stamp",
+        "py/haltrule/verdict.py",
+        'SPEC = "haltrule/0"',
+        'SPEC = "haltrule/1"',
+        [
+            PY_FAILS,
+            "FAIL [no_caps_never_exhausted] field=charge.expect",
+            "FAIL [choice_first_candidate_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a lone surrogate is not a string of scalar values",
+        "ts/slot.ts",
+        "  if (hasLoneSurrogate(value)) {",
+        "  if (hasLoneSurrogate(value) && value.length > 3) {",
+        [TS_FAILS, "FAIL [text_lone_high_surrogate_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: a lone surrogate is not a string of scalar values",
+        "py/haltrule/slot.py",
+        "    if _has_lone_surrogate(value):",
+        "    if _has_lone_surrogate(value) and len(value) > 3:",
+        [PY_FAILS, "FAIL [text_lone_high_surrogate_is_invalid] field=validate.expect"],
+    ),
+    mutant(
+        "ts verdict: message is a string, never null",
+        "ts/verdict.ts",
+        "  return { spec: SPEC, verdict: level, reason, message, resume };",
+        "  return { spec: SPEC, verdict: level, reason, message: null as unknown as string, resume };",
+        [TS_FAILS, "FAIL [no_caps_never_exhausted] field=charge.raised"],
+    ),
+    mutant(
+        "py verdict: message is a string, never None",
+        "py/haltrule/verdict.py",
+        '        "message": message,',
+        '        "message": None,',
+        [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.raised"],
+    ),
+    mutant(
+        "ts budget: tokens exhausted past the cap, not only at it",
+        "ts/budget.ts",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget) {",
+        "    if (this.token_budget !== null && this.tokens_used === this.token_budget) {",
+        [TS_FAILS, "FAIL [tokens_one_charge_past_the_cap] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: tokens exhausted past the cap, not only at it",
+        "py/haltrule/budget.py",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget:",
+        "        if self.token_budget is not None and self.tokens_used == self.token_budget:",
+        [PY_FAILS, "FAIL [tokens_one_charge_past_the_cap] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: the ledger saturates at 2^63 - 1",
+        "ts/budget.ts",
+        "  return sum > LEDGER_MAX ? LEDGER_MAX : sum;",
+        "  return sum;",
+        [TS_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: the ledger saturates at 2^63 - 1",
+        "py/haltrule/budget.py",
+        "    return min(used + amount, _LEDGER_MAX)",
+        "    return used + amount",
+        [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "ts slot: both bounds hold when both are given",
+        "ts/slot.ts",
+        "  const max = bound(spec.max_length, `slot ${name}: max_length`);",
+        "  const max = min === null ? bound(spec.max_length, `slot ${name}: max_length`) : null;",
+        [
+            TS_FAILS,
+            "FAIL [text_both_bounds_above_max_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: both bounds hold when both are given",
+        "py/haltrule/slot.py",
+        '    maximum = _bound(spec.get("max_length"), f"slot {name}: max_length")',
+        '    maximum = None if minimum is not None else _bound(spec.get("max_length"), "max")',
+        [
+            PY_FAILS,
+            "FAIL [text_both_bounds_above_max_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: a zero time cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms) {",
+        "    if (this.time_budget_ms !== null && this.ms_used >= this.time_budget_ms && this.ms_used > 0n) {",
+        [
+            TS_FAILS,
+            "FAIL [zero_time_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: a zero token cap is exhausted before any charge",
+        "ts/budget.ts",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget) {",
+        "    if (this.token_budget !== null && this.tokens_used >= this.token_budget && this.tokens_used > 0n) {",
+        [
+            TS_FAILS,
+            "FAIL [zero_token_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a zero cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.max_turns is not None and self.turns_used >= self.max_turns:",
+        "        if self.max_turns is not None and self.turns_used >= self.max_turns > 0:",
+        [
+            PY_FAILS,
+            "FAIL [zero_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a zero time cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms:",
+        "        if self.time_budget_ms is not None and self.ms_used >= self.time_budget_ms > 0:",
+        [
+            PY_FAILS,
+            "FAIL [zero_time_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a zero token cap is exhausted before any charge",
+        "py/haltrule/budget.py",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget:",
+        "        if self.token_budget is not None and self.tokens_used >= self.token_budget > 0:",
+        [
+            PY_FAILS,
+            "FAIL [zero_token_cap_is_exhausted_before_any_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: an omitted turns charge is zero",
+        "ts/budget.ts",
+        '    const turns = ledger(charge.turns, "turns");',
+        '    const turns = ledger(charge.turns ?? 1, "turns");',
+        [TS_FAILS, "FAIL [empty_charge_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an omitted ms charge is zero",
+        "ts/budget.ts",
+        '    const ms = ledger(charge.ms, "ms");',
+        '    const ms = ledger(charge.ms ?? 1, "ms");',
+        [
+            TS_FAILS,
+            "FAIL [empty_charge_under_time_cap_reports_the_current_state] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: an omitted tokens charge is zero",
+        "ts/budget.ts",
+        '    const tokens = ledger(charge.tokens, "tokens");',
+        '    const tokens = ledger(charge.tokens ?? 1, "tokens");',
+        [
+            TS_FAILS,
+            "FAIL [empty_charge_under_token_cap_reports_the_current_state] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: an omitted turns charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 1, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        [PY_FAILS, "FAIL [empty_charge_reports_the_current_state] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: an omitted ms charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 1, tokens: Any = 0) -> dict[str, Any]:",
+        [
+            PY_FAILS,
+            "FAIL [empty_charge_under_time_cap_reports_the_current_state] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py budget: an omitted tokens charge is zero",
+        "py/haltrule/budget.py",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 0) -> dict[str, Any]:",
+        "    def charge(self, *, turns: Any = 0, ms: Any = 0, tokens: Any = 1) -> dict[str, Any]:",
+        [
+            PY_FAILS,
+            "FAIL [empty_charge_under_token_cap_reports_the_current_state] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "py slot: a bound past 2^53 - 1 is refused",
+        "py/haltrule/slot.py",
+        "_BOUND_MAX = 2**53 - 1",
+        "_BOUND_MAX = 2**63 - 1",
+        [PY_FAILS, "FAIL [refused_slot_bound_past_2_53_1] field=validate.expect"],
+    ),
+    mutant(
+        "ts slot: a bound past 2^53 - 1 is refused",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;',
+        [TS_FAILS, "FAIL [refused_slot_bound_past_2_53_1] field=validate.expect"],
+    ),
+    mutant(
+        "py budget: a negative amount is refused",
+        "py/haltrule/budget.py",
+        "    if not 0 <= value <= _LEDGER_MAX:",
+        "    if not value <= _LEDGER_MAX:",
+        [PY_FAILS, "FAIL [refused_budget_negative_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a negative amount is refused",
+        "ts/budget.ts",
+        "  if (n < 0n || n > LEDGER_MAX) throw new RangeError(",
+        "  if (n > LEDGER_MAX) throw new RangeError(",
+        [TS_FAILS, "FAIL [refused_budget_negative_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts slot: a spec needs a string name",
+        "ts/slot.ts",
+        '  if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        '  if (typeof name !== "string" && name !== undefined) throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        [TS_FAILS, "FAIL [refused_slot_spec_without_a_name] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: a spec needs a string name",
+        "py/haltrule/slot.py",
+        "    if not isinstance(name, str):",
+        "    if name is not None and not isinstance(name, str):",
+        [PY_FAILS, "FAIL [refused_slot_spec_without_a_name] field=validate.expect"],
+    ),
+    mutant(
+        "ts slot: the surrogate scan continues past a valid pair",
+        "ts/slot.ts",
+        "        continue;",
+        "        return false;",
+        [
+            TS_FAILS,
+            "FAIL [text_lone_surrogate_after_a_pair_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: the surrogate scan reads the whole string",
+        "py/haltrule/slot.py",
+        "    return any(0xD800 <= ord(character) <= 0xDFFF for character in text)",
+        "    return any(0xD800 <= ord(character) <= 0xDFFF for character in text[:1])",
+        [
+            PY_FAILS,
+            "FAIL [text_lone_surrogate_after_a_pair_is_invalid] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py slot: the largest allowed bound is allowed",
+        "py/haltrule/slot.py",
+        "    if not 0 <= value <= _BOUND_MAX:",
+        "    if not 0 <= value < _BOUND_MAX:",
+        [
+            PY_FAILS,
+            "FAIL [text_max_length_at_the_largest_allowed_bound_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: the largest allowed bound is allowed",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER) return value;',
+        [
+            TS_FAILS,
+            "FAIL [text_max_length_at_the_largest_allowed_bound_accepted] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py budget: a boolean is not a count",
+        "py/haltrule/budget.py",
+        "    if isinstance(value, bool) or not isinstance(value, (int, float)):",
+        "    if not isinstance(value, (int, float)):",
+        [PY_FAILS, "FAIL [refused_budget_boolean_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py slot: a boolean is not a bound",
+        "py/haltrule/slot.py",
+        "    if isinstance(value, bool) or not isinstance(value, (int, float)):",
+        "    if not isinstance(value, (int, float)):",
+        [PY_FAILS, "FAIL [refused_slot_boolean_bound] field=validate.expect"],
+    ),
+    mutant(
+        "py budget: a cap is held to the same contract as an amount",
+        "py/haltrule/budget.py",
+        "    return None if value is None else _ledger(value, what)",
+        "    return None if value is None else _ledger(max(value, 0), what)",
+        [PY_FAILS, "FAIL [refused_budget_negative_cap] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a cap is held to the same contract as an amount",
+        "ts/budget.ts",
+        "  return value === null || value === undefined ? null : ledger(value, what);",
+        '  return value === null || value === undefined ? null : ledger(typeof value === "number" && value < 0 ? 0 : value, what);',
+        [TS_FAILS, "FAIL [refused_budget_negative_cap] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a fractional amount is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():",
+        "        if value != value:",
+        [PY_FAILS, "FAIL [refused_budget_fractional_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a fractional amount is refused",
+        "ts/budget.ts",
+        '  else if (typeof value === "number" && Number.isInteger(value)) n = BigInt(value);',
+        '  else if (typeof value === "number" && Number.isFinite(value)) n = BigInt(Math.trunc(value));',
+        [TS_FAILS, "FAIL [refused_budget_fractional_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: an amount past 2^63 - 1 is refused",
+        "py/haltrule/budget.py",
+        "    if not 0 <= value <= _LEDGER_MAX:",
+        "    if not 0 <= value:",
+        [PY_FAILS, "FAIL [refused_budget_past_2_63_1_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an amount past 2^63 - 1 is refused",
+        "ts/budget.ts",
+        "  if (n < 0n || n > LEDGER_MAX) throw new RangeError(",
+        "  if (n < 0n) throw new RangeError(",
+        [TS_FAILS, "FAIL [refused_budget_past_2_63_1_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py slot: a fractional bound is refused",
+        "py/haltrule/slot.py",
+        "        if not value.is_integer():",
+        "        if value != value:",
+        [PY_FAILS, "FAIL [refused_slot_fractional_bound] field=validate.expect"],
+    ),
+    mutant(
+        "ts slot: a fractional bound is refused",
+        "ts/slot.ts",
+        '  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;',
+        '  if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER) return value;',
+        [TS_FAILS, "FAIL [refused_slot_fractional_bound] field=validate.expect"],
+    ),
+    mutant(
+        "py slot: a name that is not text is refused",
+        "py/haltrule/slot.py",
+        "    if not isinstance(name, str):",
+        "    if name is None:",
+        [
+            PY_FAILS,
+            "FAIL [refused_slot_spec_with_a_non_string_name] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "ts slot: a name that is not text is refused",
+        "ts/slot.ts",
+        '  if (typeof name !== "string") throw new TypeError(`slot spec without a string name: ${String(name)}`);',
+        "  if (name === undefined) throw new TypeError(`slot spec without a string name: ${String(name)}`);",
+        [
+            TS_FAILS,
+            "FAIL [refused_slot_spec_with_a_non_string_name] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py budget: an amount that is not finite is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n",
+        '        if value != value or value in (float("inf"), float("-inf")):\n            return 0\n        if not value.is_integer():\n',
+        [PY_FAILS, "FAIL [refused_budget_nan_charge] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: an amount that is not finite is refused",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;\n',
+        '  if (typeof value === "number" && !Number.isFinite(value)) n = 0n;\n  else if (typeof value === "bigint") n = value;\n',
+        [TS_FAILS, "FAIL [refused_budget_nan_charge] field=charge.expect"],
+    ),
+    mutant(
+        "py slot: a bound that is not finite is refused",
+        "py/haltrule/slot.py",
+        "        if not value.is_integer():\n",
+        '        if value != value or value in (float("inf"), float("-inf")):\n            return None\n        if not value.is_integer():\n',
+        [PY_FAILS, "FAIL [refused_slot_nan_bound] field=validate.expect"],
+    ),
+    mutant(
+        "ts slot: a bound that is not finite is refused",
+        "ts/slot.ts",
+        "  if (value === null || value === undefined) return null;\n",
+        '  if (value === null || value === undefined) return null;\n  if (typeof value === "number" && !Number.isFinite(value)) return null;\n',
+        [TS_FAILS, "FAIL [refused_slot_nan_bound] field=validate.expect"],
+    ),
+    mutant(
+        "py budget: a refusal is a TypeError or a ValueError, not any exception",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n            raise TypeError(",
+        "        if not value.is_integer():\n            raise ArithmeticError(",
+        [PY_FAILS, "FAIL [refused_budget_fractional_charge] field=charge.raised"],
+    ),
+    mutant(
+        "ts budget: a refusal is a TypeError or a RangeError, not any error",
+        "ts/budget.ts",
+        "  else throw new TypeError(`${what} must be an integer, got ${String(value)}`);",
+        "  else throw new Error(`${what} must be an integer, got ${String(value)}`);",
+        [TS_FAILS, "FAIL [refused_budget_fractional_charge] field=charge.raised"],
+    ),
+    mutant(
+        "py budget: negative infinity is refused",
+        "py/haltrule/budget.py",
+        "        if not value.is_integer():\n",
+        '        if value == float("-inf"):\n            return 0\n        if not value.is_integer():\n',
+        [
+            PY_FAILS,
+            "FAIL [refused_budget_negative_infinite_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts budget: negative infinity is refused",
+        "ts/budget.ts",
+        '  if (typeof value === "bigint") n = value;\n',
+        '  if (value === -Infinity) n = 0n;\n  else if (typeof value === "bigint") n = value;\n',
+        [
+            TS_FAILS,
+            "FAIL [refused_budget_negative_infinite_charge] field=charge.expect",
+        ],
+    ),
+    mutant(
+        "ts breaker: a message is lowercased by the full Unicode conversion",
+        "ts/breaker.ts",
+        "  const normalized = message.toLowerCase();\n",
+        "  const normalized = message.replace(/[A-Z]/g, (letter) => letter.toLowerCase());\n",
+        [TS_FAILS, "FAIL [classify_kelvin_sign_folds_to_k] field=classify.expect"],
+    ),
+    mutant(
+        "py breaker: a message is lowercased by the full Unicode conversion",
+        "py/haltrule/breaker.py",
+        "    normalized = message.lower()\n",
+        "    normalized = message.translate({code: code + 32 for code in range(65, 91)})\n",
+        [PY_FAILS, "FAIL [classify_kelvin_sign_folds_to_k] field=classify.expect"],
+    ),
+    mutant(
+        "ts breaker: U+0130 lowercases to two characters, not to a plain i",
+        "ts/breaker.ts",
+        "  const normalized = message.toLowerCase();\n",
+        '  const normalized = message.replaceAll("\\u0130", "i").toLowerCase();\n',
+        [
+            TS_FAILS,
+            "FAIL [classify_dotted_capital_i_is_not_a_plain_i] field=classify.expect",
+        ],
+    ),
+    mutant(
+        "py breaker: U+0130 lowercases to two characters, not to a plain i",
+        "py/haltrule/breaker.py",
+        "    normalized = message.lower()\n",
+        '    normalized = message.replace("\\u0130", "i").lower()\n',
+        [
+            PY_FAILS,
+            "FAIL [classify_dotted_capital_i_is_not_a_plain_i] field=classify.expect",
+        ],
+    ),
+    mutant(
+        "py breaker: a doubling past a double's range is the cap, not an error",
+        "py/haltrule/breaker.py",
+        "    try:\n        power = 2.0**exponent\n    except OverflowError:\n        power = math.inf\n",
+        "    power = 2.0**exponent\n",
+        [PY_FAILS, "FAIL [backoff_attempt_past_double_range]"],
+    ),
+    mutant(
+        "ts budget: a refused charge changes nothing",
+        "ts/budget.ts",
+        '    const ms = ledger(charge.ms, "ms");\n    const tokens = ledger(charge.tokens, "tokens");\n    this.turns_used = saturatingAdd(this.turns_used, turns);\n',
+        '    this.turns_used = saturatingAdd(this.turns_used, turns);\n    const ms = ledger(charge.ms, "ms");\n    const tokens = ledger(charge.tokens, "tokens");\n',
+        [TS_FAILS, "FAIL [refused_charge_changes_nothing] field=charge.expect"],
+    ),
+    mutant(
+        "py budget: a refused charge changes nothing",
+        "py/haltrule/budget.py",
+        '        ms = _ledger(ms, "ms")\n        tokens = _ledger(tokens, "tokens")\n        self.turns_used = _saturating_add(self.turns_used, turns)\n',
+        '        self.turns_used = _saturating_add(self.turns_used, turns)\n        ms = _ledger(ms, "ms")\n        tokens = _ledger(tokens, "tokens")\n',
+        [PY_FAILS, "FAIL [refused_charge_changes_nothing] field=charge.expect"],
+    ),
+    mutant(
+        "ts budget: a charge whose last amount is refused keeps none of the others",
+        "ts/budget.ts",
+        '    const tokens = ledger(charge.tokens, "tokens");\n    this.turns_used = saturatingAdd(this.turns_used, turns);\n    this.ms_used = saturatingAdd(this.ms_used, ms);\n',
+        '    this.turns_used = saturatingAdd(this.turns_used, turns);\n    this.ms_used = saturatingAdd(this.ms_used, ms);\n    const tokens = ledger(charge.tokens, "tokens");\n',
+        [
+            TS_FAILS,
+            "FAIL [refused_charge_with_the_last_field_bad_changes_nothing] field=charge.expect",
+        ],
+        # the second amount is still read before anything is added, so that case holds
+        ["FAIL [refused_charge_changes_nothing]"],
+    ),
+    mutant(
+        "py budget: a charge whose last amount is refused keeps none of the others",
+        "py/haltrule/budget.py",
+        '        tokens = _ledger(tokens, "tokens")\n        self.turns_used = _saturating_add(self.turns_used, turns)\n        self.ms_used = _saturating_add(self.ms_used, ms)\n',
+        '        self.turns_used = _saturating_add(self.turns_used, turns)\n        self.ms_used = _saturating_add(self.ms_used, ms)\n        tokens = _ledger(tokens, "tokens")\n',
+        [
+            PY_FAILS,
+            "FAIL [refused_charge_with_the_last_field_bad_changes_nothing] field=charge.expect",
+        ],
+        # the second amount is still read before anything is added, so that case holds
+        ["FAIL [refused_charge_changes_nothing]"],
+    ),
+]
+
+# --- the result line each adapter writes (fixtures/protocol/v0.json)
+CATALOG += [
+    mutant(
+        "ts adapter: a verdict is compared without its message",
+        "ts/adapter/adapter.ts",
+        "  const { message, ...rest } = result;\n  void message;\n  return rest;",
+        "  return result;",
+        [TS_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+    mutant(
+        "ts result line: keys are sorted, not left in the object's own order",
+        "ts/adapter/adapter.ts",
+        "    const members = keys\n      .sort()\n",
+        "    const members = keys\n",
+        [
+            TS_FAILS,
+            "FAIL [line_keys_numeric_looking_sort_as_text] field=result_line.expect",
+        ],
+    ),
+    mutant(
+        "ts result line: keys are sorted by code unit, not by locale",
+        "ts/adapter/adapter.ts",
+        "    const members = keys\n      .sort()\n",
+        "    const members = keys\n      .sort((a, b) => a.localeCompare(b))\n",
+        [TS_FAILS, "FAIL [line_keys_empty_case_and_prefix] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: a fraction is refused",
+        "ts/adapter/adapter.ts",
+        "    if (!Number.isSafeInteger(value)) {\n",
+        "    if (!Number.isFinite(value)) {\n",
+        [TS_FAILS, "FAIL [line_fraction_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: an integer past the range is refused",
+        "ts/adapter/adapter.ts",
+        "    if (!Number.isSafeInteger(value)) {\n",
+        "    if (!Number.isInteger(value)) {\n",
+        [TS_FAILS, "FAIL [line_integer_past_range_refused] field=result_line.expect"],
+        ["FAIL [line_fraction_refused]"],
+    ),
+    mutant(
+        "ts result line: a bigint past the range is refused",
+        "ts/adapter/adapter.ts",
+        "    if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER)) {\n",
+        "    if (false) {\n",
+        [TS_FAILS, "FAIL [line_bigint_past_range_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: a bigint within the range is an integer",
+        "ts/adapter/adapter.ts",
+        '  if (typeof value === "bigint") {\n    // An integer is an integer however the language holds it.\n',
+        '  if (typeof value === "bigint" && value < 0n) {\n    // An integer is an integer however the language holds it.\n',
+        [
+            TS_FAILS,
+            "FAIL [line_bigint_within_range_is_an_integer] field=result_line.expect",
+        ],
+    ),
+    mutant(
+        "ts result line: a map with a key that is not a string is refused",
+        "ts/adapter/adapter.ts",
+        "    if (Reflect.ownKeys(source).length !== keys.length) {\n",
+        "    if (false) {\n",
+        [TS_FAILS, "FAIL [line_non_string_key_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: a hole in a list is refused, not skipped",
+        "ts/adapter/adapter.ts",
+        "    for (let index = 0; index < value.length; index += 1) items.push(canonicalStringify(value[index]));\n",
+        "    value.forEach((item) => items.push(canonicalStringify(item)));\n",
+        [TS_FAILS, "FAIL [line_sparse_array_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: an instance is refused, not written as a map",
+        "ts/adapter/adapter.ts",
+        '  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {\n',
+        '  if (typeof value === "object") {\n',
+        [TS_FAILS, "FAIL [line_instance_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "ts result line: markup characters are written as themselves",
+        "ts/adapter/adapter.ts",
+        '  if (typeof value === "string") return JSON.stringify(value);\n',
+        '  if (typeof value === "string") return JSON.stringify(value).replace(/</g, "\\\\u003c");\n',
+        [
+            TS_FAILS,
+            "FAIL [line_string_markup_and_separators_are_not_escaped] field=result_line.expect",
+        ],
+    ),
+    mutant(
+        "py result line: keys are sorted by code unit, not by code point",
+        "py/adapter.py",
+        "            for key in sorted(value, key=_utf16_units)\n",
+        "            for key in sorted(value)\n",
+        [
+            PY_FAILS,
+            "FAIL [line_keys_sort_by_utf16_code_unit] field=result_line.expect",
+            # the route a caller's keys take into a result
+            "FAIL [validation_issue_detail_keys_beyond_the_plane] field=checkpoint.expect",
+        ],
+        ["FAIL [line_keys_numeric_looking_sort_as_text]"],
+    ),
+    mutant(
+        "py result line: keys are sorted, not left in insertion order",
+        "py/adapter.py",
+        "            for key in sorted(value, key=_utf16_units)\n",
+        "            for key in value\n",
+        [
+            PY_FAILS,
+            "FAIL [line_keys_numeric_looking_sort_as_text] field=result_line.expect",
+        ],
+    ),
+    mutant(
+        "py result line: an integral float is written as an integer",
+        "py/adapter.py",
+        "        value = int(value)\n    if isinstance(value, int):\n",
+        "        return repr(value)\n    if isinstance(value, int):\n",
+        [
+            PY_FAILS,
+            "FAIL [line_integral_floats_are_written_as_integers] field=result_line.expect",
+        ],
+    ),
+    mutant(
+        "py result line: a fraction is refused, not truncated",
+        "py/adapter.py",
+        "        if not value.is_integer():  # false for NaN and the infinities too\n",
+        "        if value != value or value in (float('inf'), float('-inf')):\n",
+        [PY_FAILS, "FAIL [line_fraction_refused] field=result_line.expect"],
+        ["FAIL [line_nan_refused]", "FAIL [line_infinity_refused]"],
+    ),
+    mutant(
+        "py result line: an integer past the range is refused",
+        "py/adapter.py",
+        "        if abs(value) > _SAFE_INTEGER:\n",
+        "        if False:\n",
+        [PY_FAILS, "FAIL [line_integer_past_range_refused] field=result_line.expect"],
+    ),
+    mutant(
+        "py result line: a boolean is not an integer",
+        "py/adapter.py",
+        '    if isinstance(value, bool):\n        return "true" if value else "false"\n    if isinstance(value, str):\n        return _result_string(value)\n',
+        "    if isinstance(value, str):\n        return _result_string(value)\n",
+        [PY_FAILS, "FAIL [line_booleans_and_null] field=result_line.expect"],
+    ),
+    mutant(
+        "py result line: a map with a key that is not a string is refused",
+        "py/adapter.py",
+        "        if not all(isinstance(key, str) for key in value):\n",
+        "        if False:\n",
+        [PY_FAILS, "FAIL [line_non_string_key_refused] field=result_line"],
+    ),
+    mutant(
+        "py result line: an unpaired surrogate is escaped",
+        "py/adapter.py",
+        '        f"\\\\u{ord(ch):04x}" if 0xD800 <= ord(ch) <= 0xDFFF else ch for ch in escaped\n',
+        "        ch for ch in escaped\n",
+        [
+            PY_FAILS,
+            "FAIL [line_key_with_lone_surrogate] field=result_line.missing",
+            "field=adapter.exit",
+        ],
+    ),
+    mutant(
+        "py result line: text beyond ASCII is written as itself",
+        "py/adapter.py",
+        "    escaped = json.dumps(text, ensure_ascii=False)\n",
+        "    escaped = json.dumps(text)\n",
+        [
+            PY_FAILS,
+            "FAIL [line_string_beyond_ascii_is_written_as_itself] field=result_line.expect",
+        ],
+    ),
+]
+
+# --- purity: the mistakes people make, planted; each is refused by structure or by an allowlist.
+# If a setting were loosened - "types": [] given node's types, a name taken off the ESLint list, a module
+# added to the Python allowlist - the mutants below would survive, and that is how the loosening shows.
+CATALOG += [
+    mutant(
+        "ts purity: a file-system import does not exist for a policy module",
+        "ts/checkpoint.ts",
+        'import { createHash } from "node:crypto";',
+        'import { createHash } from "node:crypto";\nimport { readFileSync } from "node:fs";\nvoid readFileSync;',
+        [TS_NO_HOST, "Cannot find module 'node:fs'"],
+    ),
+    mutant(
+        "ts purity: the hash module gives createHash and nothing else",
+        "ts/checkpoint.ts",
+        'import { createHash } from "node:crypto";',
+        'import { createHash, randomBytes } from "node:crypto";\nvoid randomBytes;',
+        [TS_NO_HOST, "has no exported member 'randomBytes'"],
+    ),
+    mutant(
+        "ts purity: the host's clock does not exist for a policy module",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        "export const loadedAt = performance.now();\nexport function canonicalize(value: unknown)",
+        [TS_NO_HOST, "Cannot find name 'performance'"],
+    ),
+    mutant(
+        "ts purity: the process does not exist for a policy module",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        "export const stamp = process.env.HOME ?? String(process.pid);\nexport function canonicalize(value: unknown)",
+        [TS_NO_HOST, "Cannot find name 'process'"],
+    ),
+    mutant(
+        "ts purity: a debugging print does not exist for a policy module",
+        "ts/budget.ts",
+        '    const turns = ledger(charge.turns, "turns");\n',
+        '    console.log(charge);\n    const turns = ledger(charge.turns, "turns");\n',
+        [TS_NO_HOST, "Cannot find name 'console'"],
+    ),
+    mutant(
+        "ts purity: a timer does not exist for a policy module",
+        "ts/slot.ts",
+        "export function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        "setTimeout(() => undefined, 0);\nexport function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        [TS_NO_HOST, "Cannot find name 'setTimeout'"],
+    ),
+    mutant(
+        "ts purity: no clock read in a policy module",
+        "ts/slot.ts",
+        "export function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        "export const loadedAt = Date.now();\nexport function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        [TS_NAMES, "Unexpected use of 'Date'"],
+    ),
+    mutant(
+        "ts purity: a comment cannot switch the rule off",
+        "ts/slot.ts",
+        "export function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        "// eslint-disable-next-line\nexport const loadedAt = Date.now();\nexport function validateSlot(spec: SlotSpec, value: unknown): Verdict {",
+        [TS_NAMES, "Unexpected use of 'Date'"],
+    ),
+    mutant(
+        "ts purity: Math.random reached by destructuring",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        "const { random } = Math;\nexport const SALT = random();\nexport function canonicalize(value: unknown)",
+        [TS_NAMES, "'Math.random' is restricted"],
+    ),
+    mutant(
+        "ts purity: no code built from text",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        'export const stamp = new Function("return 1")();\nexport function canonicalize(value: unknown)',
+        [TS_NAMES, "The Function constructor is eval"],
+    ),
+    mutant(
+        "ts purity: no way to every global through the global object",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        "export const reach = (globalThis as Record<string, unknown>).process;\nexport function canonicalize(value: unknown)",
+        [TS_NAMES, "Unexpected use of 'globalThis'"],
+    ),
+    mutant(
+        "ts purity: no comparison that follows the locale",
+        "ts/checkpoint.ts",
+        "export function canonicalize(value: unknown)",
+        'export const order = "a".localeCompare("B");\nexport function canonicalize(value: unknown)',
+        [TS_NAMES, "'localeCompare' is restricted"],
+    ),
+    Mutant(
+        "ts purity: a helper in a subdirectory is a policy module too",
+        (
+            Edit("ts/helpers/clock.ts", None, "export const loadedAt = Date.now();\n"),
+            Edit(
+                "ts/slot.ts",
+                'import { verdict, type Verdict } from "./verdict.ts";\n',
+                'import { verdict, type Verdict } from "./verdict.ts";\nimport { loadedAt } from "./helpers/clock.ts";\nvoid loadedAt;\n',
+            ),
+        ),
+        (TS_NAMES, "helpers/clock.ts", "Unexpected use of 'Date'"),
+    ),
+    mutant(
+        "py purity: no clock import in a policy module",
+        "py/haltrule/checkpoint.py",
+        "import hashlib\n",
+        "import hashlib\nimport time  # noqa: F401\n",
+        [
+            PY_NAMES,
+            "py/haltrule/checkpoint.py",
+            "imports time, which is not on the allowlist",
+        ],
+    ),
+    mutant(
+        "py purity: no clock import in the budget either",
+        "py/haltrule/budget.py",
+        "from haltrule.verdict import verdict\n",
+        "from haltrule.verdict import verdict\nfrom datetime import datetime  # noqa: F401\n",
+        [
+            PY_NAMES,
+            "py/haltrule/budget.py",
+            "imports from datetime, which is not on the allowlist",
+        ],
+    ),
+    mutant(
+        "py purity: no file I/O through pathlib",
+        "py/haltrule/checkpoint.py",
+        "import hashlib\n",
+        "import hashlib\nimport pathlib\n\n_SELF = pathlib.Path(__file__).read_text()\n",
+        [
+            PY_NAMES,
+            "imports pathlib, which is not on the allowlist",
+            "uses the builtin __file__",
+        ],
+    ),
+    mutant(
+        "py purity: open reached through an alias",
+        "py/haltrule/checkpoint.py",
+        "import hashlib\n",
+        "import hashlib\n\n_read = open\n_SOURCE = _read(__file__).read()\n",
+        [PY_NAMES, "uses the builtin open, which is not on the allowlist"],
+    ),
+    mutant(
+        "py purity: no debugging print",
+        "py/haltrule/budget.py",
+        '        turns = _ledger(turns, "turns")\n',
+        '        print(turns)\n        turns = _ledger(turns, "turns")\n',
+        [PY_NAMES, "uses the builtin print, which is not on the allowlist"],
+    ),
+    mutant(
+        "py purity: no hash() or id() draw",
+        "py/haltrule/checkpoint.py",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n    _nd = hash(at) ^ id(value)  # noqa: F841\n",
+        [PY_NAMES, "uses the builtin hash", "uses the builtin id"],
+    ),
+    mutant(
+        "py purity: no repr() address draw",
+        "py/haltrule/checkpoint.py",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n    _nd = repr(object())  # noqa: F841\n",
+        [PY_NAMES, "uses the builtin repr", "uses the builtin object"],
+    ),
+    mutant(
+        "py purity: a debugging leftover from an allowed module is still not allowed",
+        "py/haltrule/slot.py",
+        "from typing import Any, Mapping, Optional\n",
+        "from typing import Any, Mapping, Optional, reveal_type  # noqa: F401\n",
+        [PY_NAMES, "imports typing.reveal_type, which is not on the allowlist"],
+    ),
+    mutant(
+        "py purity: no value read through an allowed module's own imports",
+        "py/haltrule/budget.py",
+        "from haltrule.verdict import verdict\n",
+        'import typing\n\nfrom haltrule.verdict import verdict\n\n_stamp = typing.sys.modules["os"].getpid()\n',
+        [PY_NAMES, "uses typing.sys, which is not on the allowlist"],
+    ),
+    mutant(
+        "py purity: an allowed module is used by its listed names, never as a value",
+        "py/haltrule/breaker.py",
+        "import math\n",
+        "import math\n\n_M = math\n",
+        [PY_NAMES, "uses the module math as a value"],
+    ),
+    Mutant(
+        "py purity: a helper in the package marker is a policy module too",
+        (
+            Edit(
+                "py/haltrule/__init__.py",
+                '"""haltrule: each part is a module of its own; the package holds nothing else."""\n',
+                '"""haltrule: each part is a module of its own; the package holds nothing else."""\n\nimport time\n\n\ndef read_clock():\n    return time.time()\n',
+            ),
+        ),
+        (
+            PY_NAMES,
+            "py/haltrule/__init__.py",
+            "imports time, which is not on the allowlist",
+        ),
+    ),
+    Mutant(
+        "py purity: a module in a subpackage is not a sibling",
+        (
+            Edit("py/haltrule/sub/__init__.py", None, ""),
+            Edit(
+                "py/haltrule/sub/clock.py", None, "import time\n\nNOW = time.time()\n"
+            ),
+            Edit(
+                "py/haltrule/budget.py",
+                "from haltrule.verdict import verdict\n",
+                "from haltrule.sub.clock import NOW  # noqa: F401\nfrom haltrule.verdict import verdict\n",
+            ),
+        ),
+        (
+            PY_NAMES,
+            "imports from haltrule.sub.clock, which is not a file beside this one",
+        ),
+    ),
+    mutant(
+        "py purity: no reaching behind an object for its class, its globals, or the builtins",
+        "py/haltrule/checkpoint.py",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n",
+        "def _encode_value(value: Any, at: str, depth: int) -> str:\n    _kinds = ().__class__.__base__.__subclasses__()  # noqa: F841\n",
+        [PY_NAMES, "uses the attribute __class__", "uses the attribute __subclasses__"],
+    ),
+    Mutant(
+        "py adapter: a file beside it cannot stand in for the standard library",
+        (
+            Edit(
+                "py/hashlib.py",
+                None,
+                'def sha256(data=b""):\n    raise SystemExit("py/hashlib.py was imported in place of the standard library")\n',
+            ),
+            Edit("py/adapter.py", "sys.path.append(sys.path.pop(0))\n", "pass\n"),
+        ),
+        (PY_FAILS, "field=adapter.exit"),
+    ),
+    mutant(
+        "py determinism: no hash-seeded set order in a result",
+        "py/haltrule/checkpoint.py",
+        "for dependency_id in sorted(expected_dependencies, key=_utf16_key):",
+        "for dependency_id in list(set(expected_dependencies)):",
+        [PY_FAILS, "field=checkpoint.expect"],
+    ),
+]
+
+# --- the driver: the one place that judges, so the one place a blind spot would hide every port's defects.
+# Its self-test is a gate; each of these blinds the driver one way and the self-test must say which.
+CATALOG += [
+    mutant(
+        "driver: a line that differs from the expected line fails",
+        "scripts/conform.py",
+        "        elif raw != want[key]:\n",
+        "        elif False:\n",
+        [DRIVER_FAILS, "corrupted expectation(s) passed"],
+    ),
+    mutant(
+        "driver: a case with no line fails",
+        "scripts/conform.py",
+        "        if (section, case_id) not in seen:\n",
+        "        if False:\n",
+        [DRIVER_FAILS, "a missing line passed", "no output at all passed"],
+    ),
+    mutant(
+        "driver: a line printed twice fails",
+        "scripts/conform.py",
+        "        elif key in seen:\n",
+        "        elif False:\n",
+        [DRIVER_FAILS, "a repeated line passed"],
+    ),
+    mutant(
+        "driver: a line for no case fails",
+        "scripts/conform.py",
+        '            failures.append(\n                f"FAIL [{key[1]}] field={key[0]}.unexpected — no fixture holds this case"\n            )\n',
+        "            continue\n",
+        [DRIVER_FAILS, "a line for no case passed"],
+    ),
+    mutant(
+        "driver: lines out of fixture order fail",
+        "scripts/conform.py",
+        "    if not failures and seen != list(want):\n",
+        "    if False:\n",
+        [DRIVER_FAILS, "lines out of order passed"],
+    ),
+    mutant(
+        "driver: a raw number in an input is refused",
+        "scripts/conform.py",
+        "    if isinstance(node, (int, float)) and not isinstance(node, bool):\n",
+        "    if False:\n",
+        [
+            DRIVER_FAILS,
+            "a raw number in an input was accepted",
+            "a raw 1.0 in an input was accepted",
+        ],
+    ),
+    mutant(
+        "driver: a $number literal is read by the whole grammar",
+        "scripts/conform.py",
+        "            if not NUMBER_LITERAL.fullmatch(literal):\n",
+        "            if not NUMBER_LITERAL.match(literal):\n",
+        [DRIVER_FAILS, "the $number literal '1_0' was accepted"],
+        ["the $number literal 'nan' was accepted"],
+    ),
+    mutant(
+        "driver: the $number grammar has no leading zeros",
+        "scripts/conform.py",
+        'NUMBER_LITERAL = re.compile(\n    r"-?(0|[1-9][0-9]*)',
+        'NUMBER_LITERAL = re.compile(\n    r"-?([0-9]+)',
+        [DRIVER_FAILS, "the $number literal '01' was accepted"],
+    ),
+    mutant(
+        "driver: a $bigint literal is an integer by the grammar",
+        "scripts/conform.py",
+        "            if not INTEGER_LITERAL.fullmatch(literal):\n",
+        "            if False:\n",
+        [DRIVER_FAILS, "the $bigint literal '1.0' was accepted"],
+    ),
+    mutant(
+        "driver: a $number a double would round is refused",
+        "scripts/conform.py",
+        "            if INTEGER_LITERAL.fullmatch(literal) and not _a_double_holds(literal):\n",
+        "            if False:\n",
+        [
+            DRIVER_FAILS,
+            "the $number 9007199254740993, which a double rounds was accepted",
+            "the $number -9007199254740993",
+        ],
+    ),
+    mutant(
+        "driver: an unknown $unsupported kind is refused",
+        "scripts/conform.py",
+        "            if literal not in UNSUPPORTED_KINDS:\n",
+        "            if False:\n",
+        [DRIVER_FAILS, "an unknown $unsupported kind was accepted"],
+    ),
+    mutant(
+        "driver: a fixture file is ASCII",
+        "scripts/conform.py",
+        '        doc = json.loads(raw.decode("ascii"), object_pairs_hook=_no_duplicate_keys)\n',
+        '        doc = json.loads(raw.decode("utf-8"), object_pairs_hook=_no_duplicate_keys)\n',
+        [DRIVER_FAILS, "a non-ASCII byte was accepted"],
+    ),
+    mutant(
+        "driver: an object that repeats a key is refused",
+        "scripts/conform.py",
+        '        doc = json.loads(raw.decode("ascii"), object_pairs_hook=_no_duplicate_keys)\n',
+        '        doc = json.loads(raw.decode("ascii"))\n',
+        [DRIVER_FAILS, "a repeated key was accepted"],
+    ),
+    mutant(
+        "driver: a fixture file names itself by its path",
+        "scripts/conform.py",
+        '    if not isinstance(doc, dict) or doc.get("fixture_version") != name:\n',
+        "    if not isinstance(doc, dict):\n",
+        [DRIVER_FAILS, "a fixture_version that is not the file's path was accepted"],
+    ),
+    mutant(
+        "driver: a digest is sha256 of its canonical form, checked with no port involved",
+        "scripts/conform.py",
+        '                if digest != expect["digest"]:\n',
+        "                if False:\n",
+        [
+            DRIVER_FAILS,
+            "a digest that is not sha256 of its canonical form was accepted",
+        ],
+    ),
+    mutant(
+        "driver: its own lines order keys by UTF-16 code unit",
+        "scripts/conform.py",
+        '        keys = sorted(value, key=lambda key: key.encode("utf-16-be", "surrogatepass"))\n',
+        "        keys = sorted(value)\n",
+        [
+            DRIVER_FAILS,
+            "the driver writes line_keys_sort_by_utf16_code_unit differently from the vector",
+        ],
+    ),
+    mutant(
+        "driver: an adapter that exits non-zero has not conformed",
+        "ts/adapter/adapter.ts",
+        "main();\n",
+        "main();\nprocess.exitCode = 3;\n",
+        [TS_FAILS, "field=adapter.exit"],
+        [PY_FAILS],
+    ),
+]
+
+# --- the fixtures and the adapters
+CATALOG += [
+    mutant(
+        "fixtures: every fixture file is ASCII",
+        "fixtures/checkpoint/v0.json",
+        '"id": "hangul_nfc"',
+        '"id": "hangul_nfc_가"',
+        ["FAIL [fixtures] checkpoint/v0: not ASCII"],
+    ),
+    mutant(
+        "fixtures: a case id is used once across every file",
+        "fixtures/slot/v0.json",
+        '"id": "choice_first_candidate_accepted"',
+        '"id": "no_caps_never_exhausted"',
+        ["FAIL [fixtures] a case id is used twice: no_caps_never_exhausted"],
+    ),
+    Mutant(
+        "fixtures: an added file that names another version is refused",
+        (
+            Edit(
+                "fixtures/checkpoint/v1.json",
+                None,
+                '{"fixture_version": "checkpoint/v999", "canonicalize": [{"id": "added_file_null", "input": null, "expect": {"canonical": "WRONG", "digest": "sha256:WRONG"}}]}\n',
+            ),
+        ),
+        ("FAIL [fixtures] checkpoint/v1: fixture_version must be 'checkpoint/v1'",),
+    ),
+    Mutant(
+        "fixtures: a section no adapter has a function for cannot pass as zero cases",
+        (
+            Edit(
+                "fixtures/extra/v0.json",
+                None,
+                '{"fixture_version": "extra/v0", "never_read": [{"id": "never_read_case", "expect": null}]}\n',
+            ),
+        ),
+        (TS_FAILS, PY_FAILS, "FAIL [never_read_case] field=never_read.missing"),
+    ),
+    mutant(
+        "ts adapter: every section is run",
+        "ts/adapter/adapter.ts",
+        '      if (section === "fixture_version") continue;\n',
+        '      if (section === "fixture_version" || section === "state") continue;\n',
+        [TS_FAILS, "FAIL [trip_at_threshold_three_rate_limit] field=state.missing"],
+        [PY_FAILS],
+    ),
+    mutant(
+        "py adapter: every section is run",
+        "py/adapter.py",
+        '            if section == "fixture_version":\n',
+        '            if section in ("fixture_version", "validate"):\n',
+        [PY_FAILS, "FAIL [choice_first_candidate_accepted] field=validate.missing"],
+        [TS_FAILS],
+    ),
+    mutant(
+        "py adapter: a verdict is compared without its message",
+        "py/adapter.py",
+        '    return {key: value for key, value in result.items() if key != "message"}\n',
+        "    return dict(result)\n",
+        [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+]

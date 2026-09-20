@@ -12,7 +12,7 @@ An argument outside a part's contract — a string where it expects a number, a 
 a refused charge leaves the ledger exactly as it was. A refusal is not a verdict and carries no reason. A
 fixture writes it as `{"refused": true}` where the result would be, so every port is held to the same list of
 refused arguments. A port whose types cannot hold such an argument at all has refused it before it ran: its
-runner answers `refused` for that case when it cannot build the argument. `budget` and `slot` refuse as their
+adapter answers `refused` for that case when it cannot build the argument. `budget` and `slot` refuse as their
 bullets below say; what the breaker does with an argument outside its contract is not defined.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
@@ -198,9 +198,14 @@ sitting in somebody's artifacts. The breaker's reasons are not registered yet.
 
 A port is conformant when:
 
-1. every fixture passes;
-2. corrupting one expected value in a fixture makes the runner fail (the instrument is checked, not trusted);
-3. its dependency list is empty, except SHA-256 where the standard library does not provide it;
-4. its canonical output for the shared vectors is identical to the other implementations': its runner
-   writes one result line per case, as `../fixtures/README.md` defines them, and passes that format's own
-   vectors (`protocol/v0`).
+1. the lines its adapter prints are, byte for byte, the lines the fixtures expect — one line per case, as
+   `../fixtures/README.md` defines them, the format's own vectors (`protocol/v0`) included. One driver,
+   `../scripts/conform.py`, decides that for every language, and the driver is checked, not trusted: every
+   expectation in every fixture is corrupted in turn and must fail under its own id;
+2. its dependency list is empty, except SHA-256 where the standard library does not provide it;
+3. its modules cannot reach the host and name nothing that is not a function of its arguments — shown by how
+   they are built where the language allows it (the TypeScript modules compile with no host types at all),
+   by the language's mainstream linter for what is left, and by an allowlist where neither exists (Python).
+
+An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
+lines. It holds no comparison and no expectation.

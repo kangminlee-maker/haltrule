@@ -7,73 +7,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  gates:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
 
       # The spec targets Python 3.10+; 3.12 here is the floor a vendoring
       # project is most likely to be on, not the newest available.
-
-      - name: Install dev tools
-        run: |
-          python -m pip install --quiet ruff==0.14.3
-          npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
-
-      - name: Deterministic gates
-        run: ./scripts/check.sh
-
-      # The gate script skips a tool it cannot find, so a CI run that quietly
-      # lost ruff or tsc would still report success. Fail here instead.
-      - name: No gate was skipped
-        run: |
-          ./scripts/check.sh | tee /tmp/gates.txt
-          if grep -q '  SKIP  ' /tmp/gates.txt; then
-            echo "A gate was skipped in CI, where every tool is installed:"
-            grep '  SKIP  ' /tmp/gates.txt
-            exit 1
-          fi
-
-  # Proves the gates can fail. A suite that has never been seen to fail is a
-  # claim, not evidence. scripts/mutants.py breaks one promise at a time - in
-  # an implementation, a runner, a fixture, or check.sh itself - in its own
-  # copy of the tree, and requires check.sh to fail with the evidence that
-  # mutant names: which gate caught it and, for a runner, which case and field.
-  # It checks the unmutated tree first and proves it can report a survivor.
-  # The catalog runs as interleaved slices, one job per entry of the matrix
-  # below: each checks every anchor and the baseline itself. check.sh (gate 9)
-  # reads this job: the entries must be 1/N..N/N once each and reach --shard
-  # unchanged, the N slices must hold every mutant exactly once, and the job
-  # may not use exclude, include, if or continue-on-error, which could drop a
-  # slice or excuse its failure. It checks what this file says, not what ran.
-  gates-detect-a-defect:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ["1/4", "2/4", "3/4", "4/4"]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "24"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
+      # Tools for checking, none of them a dependency of the library. A gate
+      # whose tool is missing fails; none is skipped.
       - name: Install dev tools
         run: |
           python -m pip install --quiet ruff==0.14.3
-          npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
+          npm install --no-save --no-audit --no-fund typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8
 
-      - name: Every mutant must make check.sh fail with its own evidence
-        timeout-minutes: 20
-        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}
+      - name: The gates
+        run: ./scripts/check.sh
+
+      # Proves the gates can fail. A suite that has never been seen to fail is
+      # a claim, not evidence. scripts/mutants.py plants one defect at a time -
+      # in a policy module, an adapter, the driver, a fixture - in its own copy
+      # of the tree, and requires check.sh to fail with the evidence that mutant
+      # names. It checks the unmutated tree first and proves it can report a
+      # survivor.
+      - name: Every mutant must make the gates fail with its own evidence
+        run: python3 scripts/mutants.py

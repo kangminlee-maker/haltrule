@@ -54,10 +54,11 @@ function, sleep for you, and read the wall clock themselves. This one reads noth
 
 ## Languages
 
-The spec is the product; the implementations are references that prove it is portable. Each implementation
-passes the same conformance fixtures, and CI compares their output byte for byte. CI also runs
-`scripts/mutants.py`, which breaks one promise at a time — in an implementation, a runner, a fixture, or the
-gates themselves — and requires the gates to catch every one.
+The spec is the product; the implementations are references that prove it is portable. One driver,
+`scripts/conform.py`, judges every language the same way: a port's adapter prints one line per fixture case,
+and the port conforms when those lines are, byte for byte, the lines the fixtures expect. CI also runs
+`scripts/mutants.py`, which plants one defect at a time — in an implementation, an adapter, a fixture, or the
+driver itself — and requires the gates to catch every one.
 
 | Language | Status |
 |---|---|
@@ -67,8 +68,28 @@ gates themselves — and requires the gates to catch every one.
 | Rust | planned, once the spec freezes |
 
 A fifth language will not need a port to interoperate: `canonicalize` is public and its rules are in the
-spec, so anything that can run `sha256sum` computes the same digest. CI checks exactly that, with the
-system's own `sha256sum` over every canonical form in the fixtures.
+spec, so anything that can run `sha256sum` computes the same digest. The driver checks exactly that on the
+fixtures themselves, with no implementation involved.
+
+## Layout, and adding a port
+
+```
+spec/        the contract, in words
+fixtures/    the contract, in cases: one JSON file per part, and the line format's own vectors
+ts/  py/     a port each: the modules, and an adapter that reads the fixtures and prints one line per case
+scripts/     conform.py, the one driver that judges every port; check.sh, the gates; mutants.py, which
+             plants defects and requires the gates to catch them
+```
+
+A port is its modules plus an adapter. The adapter holds no expectation and compares nothing, so a new
+language adds one line to `scripts/check.sh` for its adapter and one for its own mainstream purity tools.
+
+```
+pip install ruff
+npm install --no-save typescript@5 @types/node@24 eslint@10 @typescript-eslint/parser@8
+./scripts/check.sh            # about a second
+python3 scripts/mutants.py    # every planted defect must fail the gates
+```
 
 ## License
 
