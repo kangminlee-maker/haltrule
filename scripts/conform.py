@@ -23,6 +23,7 @@ It imports nothing from any port, the Python one included.
 
 from __future__ import annotations
 
+import decimal
 import hashlib
 import json
 import re
@@ -36,6 +37,8 @@ NUMBER_LITERAL = re.compile(
     r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?|NaN|Infinity|-Infinity"
 )
 INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")
+# The three a decimal cannot spell, and the only $number literals with no value to compare.
+SPELLED_OUT = {"NaN", "Infinity", "-Infinity"}
 UNSUPPORTED_KINDS = {"undefined", "instance", "non_string_key", "sparse_array"}
 
 Case = tuple[
@@ -87,15 +90,20 @@ def _no_duplicate_keys(pairs):
     return dict(pairs)
 
 
-def _a_double_holds(literal: str) -> bool:
-    """JavaScript would round the literal and Python would not: two adapters, two values."""
-    try:
-        return int(float(int(literal))) == int(literal)
-    except (
-        OverflowError,
-        ValueError,
-    ):  # too large for a double, or for int() to read at all
-        return False
+def _a_double_reads_it_back(literal: str) -> bool:
+    """The double a port is handed is the number the literal says.
+
+    A port never sees the text, so the only thing a case can be about is the double the literal
+    reads as. Two ways a literal can name one number and mean another: a written integer the
+    double does not hold, where `1e300` reads as a number 284 digits larger and `9007199254740993`
+    as one smaller; and a written fraction that reads as an integer, where `9007199254740991.5`
+    is 2^53 and `1e-400` is zero. Either way the case tests a value nobody wrote down, and the
+    two kinds are not interchangeable: a port may render an integer-valued double as an integer."""
+    exact = decimal.Decimal(literal)
+    held = decimal.Decimal(float(literal))
+    if exact == exact.to_integral_value():
+        return held == exact
+    return held != held.to_integral_value()
 
 
 def _check_input(node, where: str) -> None:
@@ -119,9 +127,16 @@ def _check_input(node, where: str) -> None:
                 raise Malformed(
                     f"{where}: $number literal {literal!r} is outside the fixture grammar"
                 )
-            if INTEGER_LITERAL.fullmatch(literal) and not _a_double_holds(literal):
+            if literal not in SPELLED_OUT and not _a_double_reads_it_back(literal):
+                # A plain integer has somewhere else to go; anything else has to be rewritten.
+                advice = (
+                    "write $bigint"
+                    if INTEGER_LITERAL.fullmatch(literal)
+                    else "write the value a double holds"
+                )
                 raise Malformed(
-                    f"{where}: $number {literal} is past what a double holds exactly; write $bigint"
+                    f"{where}: $number {literal} is one number written and another read"
+                    f" as a double; {advice}"
                 )
         elif tag == "$bigint":
             if not INTEGER_LITERAL.fullmatch(literal):
@@ -396,7 +411,19 @@ def _malformed_table():
         yield (
             f"the $number {literal}, which a double rounds",
             doc(lambda d, s=literal: case(d).update(input={"$number": s})),
-            "past what a double holds",
+            "another read as a double; write $bigint",
+        )
+    for literal in ("1e300", "-1e308", "1.7976931348623157e308"):
+        yield (
+            f"the $number {literal}, an integer written and a different integer read",
+            doc(lambda d, s=literal: case(d).update(input={"$number": s})),
+            "another read as a double; write the value a double holds",
+        )
+    for literal in ("9007199254740991.5", "1e-400"):
+        yield (
+            f"the $number {literal}, a fraction written and an integer read",
+            doc(lambda d, s=literal: case(d).update(input={"$number": s})),
+            "another read as a double; write the value a double holds",
         )
     yield (
         "an unknown $unsupported kind",
@@ -582,6 +609,8 @@ def self_test() -> int:
         except Malformed as error:
             if refusal not in str(error):
                 problems.append(f"{what} was refused for another reason: {error}")
+        except Exception as error:  # a reader that blows up hides every row after it
+            problems.append(f"{what} broke the reader: {error!r}")
     try:
         read_fixture("part/v0", json.dumps(_VALID).encode("ascii"))
     except Malformed as error:

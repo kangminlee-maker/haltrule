@@ -538,14 +538,15 @@ CATALOG += [
         [DRIVER_FAILS, "the $bigint literal '1.0' was accepted"],
     ),
     mutant(
-        "driver: a $number a double would round is refused",
+        "driver: a $number the double reads back as another number is refused",
         "scripts/conform.py",
-        "            if INTEGER_LITERAL.fullmatch(literal) and not _a_double_holds(literal):\n",
+        "            if literal not in SPELLED_OUT and not _a_double_reads_it_back(literal):\n",
         "            if False:\n",
         [
             DRIVER_FAILS,
             "the $number 9007199254740993, which a double rounds was accepted",
-            "the $number -9007199254740993",
+            "the $number 1e300, an integer written and a different integer read was accepted",
+            "the $number 9007199254740991.5, a fraction written and an integer read was accepted",
         ],
     ),
     mutant(
@@ -967,6 +968,45 @@ CATALOG += [
         "            // Wider than i64, which this language has no integer for.\n            Err(_) => Err(Refusal::Unbuildable),\n",
         "            Err(_) => Ok(Value::Int(0)),\n",
         [RS_FAILS, "FAIL [bigint_far_past_min] field=canonicalize.expect"],
+    ),
+]
+
+# --- the fixture grammar: a literal must mean one number, in every port
+CATALOG += [
+    mutant(
+        "driver: a written integer is one the double holds",
+        "scripts/conform.py",
+        "    if exact == exact.to_integral_value():\n        return held == exact\n",
+        "    if exact == exact.to_integral_value():\n        return True\n",
+        [
+            DRIVER_FAILS,
+            "the $number 1e300, an integer written and a different integer read was accepted",
+            "the $number 9007199254740993, which a double rounds was accepted",
+        ],
+        ["a fraction written and an integer read was accepted"],
+    ),
+    mutant(
+        "driver: a written fraction is still a fraction once read",
+        "scripts/conform.py",
+        "    return held != held.to_integral_value()\n",
+        "    return True\n",
+        [
+            DRIVER_FAILS,
+            "the $number 9007199254740991.5, a fraction written and an integer read was accepted",
+            "the $number 1e-400, a fraction written and an integer read was accepted",
+        ],
+        ["an integer written and a different integer read was accepted"],
+    ),
+    mutant(
+        "driver: a plain integer past a double is sent to $bigint, and nothing else is",
+        "scripts/conform.py",
+        "                    if INTEGER_LITERAL.fullmatch(literal)\n",
+        "                    if True\n",
+        [
+            DRIVER_FAILS,
+            "the $number 1e300, an integer written and a different integer read"
+            " was refused for another reason",
+        ],
     ),
 ]
 

@@ -219,7 +219,11 @@ def run_tool(language: str) -> tuple[list[str], int]:
                     # source file before copying it away, so one worker's copy can be taken while
                     # another's mutation is in the file: a mutant then runs unmutated and is
                     # reported as one no case notices. It cost a minute and bought a list that is
-                    # the same list every run.
+                    # almost always the same list: on 2026-09-21 a single run reported one extra
+                    # survivor, the `<` in lessUTF16's loop condition, which the driver kills in
+                    # 151 cases when the mutation is applied by hand and which no later run
+                    # reported again. A new survivor here is worth applying by hand before it is
+                    # believed.
                     "--workers",
                     "1",
                     # The timeout is the baseline test's own time times this. It is wide because a

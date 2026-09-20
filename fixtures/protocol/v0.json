@@ -305,7 +305,7 @@
     {
       "id": "line_huge_float_refused",
       "value": {
-        "$number": "1e308"
+        "$number": "1267650600228229401496703205376"
       },
       "expect": {
         "refused": true

@@ -50,6 +50,15 @@ not decide: Python's reads `1_0`, ` 7 ` and `nan`; JavaScript's reads `0x10`, ` 
 string as zero. The driver refuses any other literal ("outside the fixture grammar") before an adapter
 builds anything from it, so one literal can never be two values.
 
+Passing the grammar is not enough: the literal has to name the double a port is handed. `1e300` is an
+integer, and the nearest double is a different integer, larger by a number 284 digits long;
+`9007199254740991.5` is a fraction, and the nearest double is the integer 2^53; `1e-400` is a fraction,
+and the nearest double is zero. Each would test a value nobody wrote down, and the two kinds are not interchangeable, because a port
+may render an integer-valued double as an integer. So a `$number` whose written value is an integer must be
+one a double holds exactly — the driver says to write `$bigint` — and one written as a fraction must still
+be a fraction once read, where the driver says to write the value a double holds. `NaN` and the infinities
+are read as themselves and stand outside the rule.
+
 The files are ASCII — the driver refuses one that is not — so every non-ASCII character, and every unpaired surrogate a
 test needs, is a `\u` escape, and no editor or transport can normalize a test value away.
 
