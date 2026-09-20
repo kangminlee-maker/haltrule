@@ -53,6 +53,11 @@ stale along three independent axes — the model version, the question text, and
 Pinning a version, which the vendor recommends, is the easy half; knowing which stored answers the pin
 just orphaned is the half nobody ships.
 
+The response makes that cheap. Its body names the version that actually answered, resolved to a concrete
+one even when the request named a moving alias, so the recorded contract revision is exact without pinning
+anything. A caller may keep asking for the alias and still learn, per item and on the day it happens, that
+the alias moved underneath it.
+
 ## The bar this library does not have yet
 
 `if (score > 0.8)` has no home in `slot`. Neither `choice` nor `text` compares a number to a bar. The
@@ -161,8 +166,6 @@ model exists:
 - Accuracy outside English. The vendor states English is most accurate and that other languages,
   CJK among them, should be tested before production. Any recommendation that skips this measurement is
   not an honest one.
-- Whether the versioned model id comes back in a response header or in the body: the vendor's
-  documentation and a third-party walkthrough disagree.
 - `checkpoint` still returns an issue list rather than a `Verdict`, so anything written against that shape
   is written against a moving one.
 - The breaker's reasons are not in the registry yet.
