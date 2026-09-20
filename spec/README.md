@@ -121,14 +121,19 @@ not name is not reusable.
   Every argument of the breaker's is refused when it is outside the contract, as the other three parts'
   arguments are. A map argument — a policy, a failure entry — holds the fields its bullet names and no
   others; a number is an integer within ±(2^53 − 1), however the language holds it; an id, a message and a
-  class are strings. Absent — null or not given — stands in two places only: a message, which is then no text
-  to read, and a policy's `concurrent`, which is then off. Every other field must be there and hold its
-  type, a failure entry's class included, where null is a value and means the item's own failure. A value of
-  any other type is refused: a boolean where a count belongs, a number where a message belongs. A refused
-  report leaves the batch exactly as it was, as a refused charge leaves the ledger.
+  class are strings. Absent — null or not given — stands in two places only: a message, which is then no
+  text to read, and a policy's `concurrent`, which is then off. Every other field must be there and hold
+  its type, a failure entry's class included, where null is a value and means the item's own failure. A
+  value of any other type is refused: a boolean where a count belongs, a number where a message belongs. A
+  refused report leaves the batch exactly as it was, as a refused charge leaves the ledger.
   - **`classify`** takes a failure message and answers `rate_limit`, `auth`, `transport`, or null — null
     meaning the failure is the item's own and says nothing about the provider. An absent or empty message
     is null; a message that is not a string is refused, `false` and `0` included.
+
+    It is the fallback, not the recommendation. Where a provider answers with fields — an error type, a
+    status — classify on those and hand the class to `state` as `failure_class`, which it accepts and does
+    not judge: a message's wording is nobody's contract. `classify` is for when a string is all there is,
+    which across providers is most of the time.
     Otherwise the message is lowercased by Unicode's full default case conversion
     (U+212A KELVIN SIGN becomes `k`; U+0130 becomes `i` followed by U+0307, so it is not the `i` inside a
     pattern) and the classes are tried in that order: the first with a pattern occurring anywhere in the
@@ -141,11 +146,12 @@ not name is not reusable.
       `error sending request`, `failed to connect to websocket`, `transport channel closed`,
       `http/request failed`, `request failed after`, `timed out`, `timeout`, `econnrefused`, `econnreset`,
       `etimedout`, `socket hang up`, `fetch failed`
-  - **`backoff`** is the delay in milliseconds before retry `attempt + 1`, with no jitter: `cap_ms` when
-    `initial_ms` is zero or less, otherwise `min(cap_ms, initial_ms × 2^max(0, attempt))`. The doubling is
-    exact. A port computes it in integers and stops at the cap, so a product past its integer type is the cap
-    and never an overflow; the references compute it in doubles, where a power of two times an integer in
-    range is exact until it is infinite, which is the same thing.
+  - **`backoff`** is the delay in milliseconds before retry `attempt + 1`: `cap_ms` when `initial_ms` is
+    zero or less, otherwise `min(cap_ms, initial_ms × 2^max(0, attempt))`. There is no jitter, because
+    randomness cannot live in an output compared byte for byte. This is the delay before the jitter, and
+    the caller adds that. The doubling is exact. A port computes it in integers and stops at the cap, so a
+    product past its integer type is the cap and never an overflow; the references compute it in doubles,
+    where a power of two times an integer in range is exact until it is infinite, which is the same thing.
   - **`state`** is one batch. It is made from a policy — `enabled`, `systemic_threshold` (an integer of at
     least 1), `concurrent` (optional, off by default), and `per_call_max_attempts`, `backoff_initial_ms` and
     `backoff_cap_ms`, which are carried for the caller's loop and read by nothing here — and holds four
