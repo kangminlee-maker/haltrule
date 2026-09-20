@@ -134,6 +134,19 @@ function normative(result: Verdict): Omit<Verdict, "message"> {
   return rest;
 }
 
+/** The same for a verdict carrying the fields its reason names beside the
+ * five: those may be there, the five must be, and `message` still goes. */
+function normativeOpen(given: object): Record<string, unknown> {
+  const result = given as Record<string, unknown>;
+  for (const field of VERDICT_FIELDS.split(",")) {
+    if (!(field in result)) throw new Error(`a verdict has no ${field}`);
+  }
+  if (typeof result.message !== "string") throw new Error(`verdict message is ${typeof result.message}, not a string`);
+  const { message, ...rest } = result;
+  void message;
+  return rest;
+}
+
 function classify(tc: Inputs): unknown {
   const result = orRefused(() => classifySystemicDispatchFailure(tc.message as string | null));
   return result === REFUSED ? { refused: true } : result;
@@ -149,7 +162,7 @@ function backoff(tc: Inputs): unknown {
 function state(tc: Inputs): unknown {
   const machine = orRefused(() => new DispatchBreakerState(tc.policy as DispatchBreakerPolicy));
   if (machine === REFUSED) return { refused: true };
-  const returns: (DispatchBreakerTripState | null | Refused)[] = [];
+  const returns: (Record<string, unknown> | null | Refused)[] = [];
   for (const event of tc.events as ({ kind: string } & DispatchDeadLetterEntry)[]) {
     // A refused report leaves the batch as it was, as a refused charge leaves
     // the ledger: the answer is the refusal and the next report goes on.
@@ -169,13 +182,14 @@ function state(tc: Inputs): unknown {
       void kind;
       result = orRefused(() => machine.recordItemFailure(entry));
     }
-    returns.push(result === REFUSED ? { refused: true } : result);
+    returns.push(result === REFUSED ? { refused: true } : result && normativeOpen(result));
   }
+  const tripped = machine.tripped();
   return {
     returns,
     completed: [...machine.completedItemIds()],
     dead_letter: [...machine.deadLetterEntries()],
-    tripped: machine.tripped(),
+    tripped: tripped && normativeOpen(tripped),
   };
 }
 
@@ -184,18 +198,18 @@ function canonicalizeCase(tc: Inputs): unknown {
   const digest = checkpointDigest(tc.input);
   // The two entry points must agree about the same value; if they do not,
   // that is a bug in the implementation, not a result to compare.
-  if ("halt" in canonical || "halt" in digest) {
-    if (!("halt" in canonical && "halt" in digest && canonical.halt === digest.halt)) {
+  if ("verdict" in canonical || "verdict" in digest) {
+    if (!("verdict" in canonical && "verdict" in digest && canonical.reason === digest.reason)) {
       throw new Error("canonicalize and checkpointDigest disagree about halting");
     }
-    return { halt: canonical.halt };
+    return normative(canonical);
   }
   return { canonical: canonical.canonical, digest: digest.digest };
 }
 
 function checkpoint(tc: Inputs): unknown {
   const result = orRefused(() => evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs));
-  return result === REFUSED ? { refused: true } : result;
+  return result === REFUSED ? { refused: true } : result.map(normativeOpen);
 }
 
 function charge(tc: Inputs): unknown {

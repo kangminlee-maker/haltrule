@@ -62,7 +62,7 @@ are read as themselves and stand outside the rule.
 The files are ASCII — the driver refuses one that is not — so every non-ASCII character, and every unpaired surrogate a
 test needs, is a `\u` escape, and no editor or transport can normalize a test value away.
 
-A canonicalize case expects either `{"canonical", "digest"}` or `{"halt": "<reason>"}`. Its canonical form
+A canonicalize case expects either `{"canonical", "digest"}` or a halt verdict. Its canonical form
 is written from the spec, never produced by an implementation, and its digest is `sha256sum` of those
 bytes — which the driver checks on the fixture itself, with no port involved.
 
@@ -108,11 +108,12 @@ A `charge` case runs its charges, in order, against one budget and expects one v
 afterwards (`used`, in decimal strings so 2^63 − 1 survives every JSON parser), or `{"refused": true}`
 alone when the budget's caps are refused; a `validate` case expects one verdict, or `{"refused": true}` for a
 spec outside the contract; a `checkpoint` case gives `args`, under the argument names the spec lists, and
-expects the issue list, or `{"refused": true}` for arguments outside the contract. A `classify` or
+expects the list of verdicts, or `{"refused": true}` for arguments outside the contract. A `classify` or
 `backoff` case expects the answer or `{"refused": true}`; a `state` case runs its events, in order, against
 one batch and expects one answer per event (`returns`) — `{"refused": true}` for a report the batch
 refuses, which changes nothing — or `{"refused": true}` alone when the policy is refused. An adapter
 answers `refused` only for the part's own refusal: inputs are built
 before the part is called, and a verdict of the wrong shape is a failure of the case. An expected verdict
-omits `message`, which is not part of conformance; the adapters check that it is present and a string before
-dropping it.
+omits `message`, which is not part of conformance; the adapters check that it is present and a string
+before dropping it, and where a part hands a verdict back as a map — a checkpoint issue, because a caller's
+own fields go in it — they check the other four are there too.

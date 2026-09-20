@@ -35,13 +35,15 @@ get a `Verdict` back; your loop decides what to do with it.
 | `budget` | whether a run has exhausted its turns, time, or tokens |
 | `slot` | whether a value filled in by a person or a model satisfies its contract |
 
-Every entry point will return one shape, meant to be written straight into your artifact. `budget` and
-`slot` return it today; the breaker and `checkpoint` still return the shapes they had in the pipelines they
-were lifted from.
+Every verdict is one shape, meant to be written straight into your artifact. A part that answers a
+question instead — which failure class, how long to wait, the canonical form — answers with the answer.
 
 ```
 Verdict { spec, verdict: ok | warning | halt, reason, message, resume }
 ```
+
+Some reasons name facts of their own — which dependency moved, how many failures crossed the threshold —
+and those sit beside the five in the same map.
 
 ## What this is not
 

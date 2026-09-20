@@ -178,6 +178,19 @@ def _normative(result: dict) -> dict:
     return {key: value for key, value in result.items() if key != "message"}
 
 
+def _normative_open(result: dict) -> dict:
+    """The same for a verdict carrying the fields its reason names beside the
+    five: those may be there, the five must be, and `message` still goes."""
+    missing = [field for field in _VERDICT_FIELDS if field not in result]
+    if missing:
+        raise AssertionError(f"a verdict has no {missing[0]}")
+    if not isinstance(result["message"], str):
+        raise AssertionError(
+            f"verdict message is {type(result['message']).__name__}, not a string"
+        )
+    return {key: value for key, value in result.items() if key != "message"}
+
+
 def _to_plain(value):
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return dataclasses.asdict(value)
@@ -228,12 +241,21 @@ def _state(tc: dict):
                     DispatchDeadLetterEntry(**entry)
                 )
             )
-        returns.append({"refused": True} if result is _REFUSED else result)
+        if result is _REFUSED:
+            returns.append({"refused": True})
+        else:
+            returns.append(
+                None if result is None else _normative_open(_to_plain(result))
+            )
     return {
         "returns": _to_plain(returns),
         "completed": list(state.completed_item_ids()),
         "dead_letter": _to_plain(list(state.dead_letter_entries())),
-        "tripped": _to_plain(state.tripped()),
+        "tripped": (
+            None
+            if state.tripped() is None
+            else _normative_open(_to_plain(state.tripped()))
+        ),
     }
 
 
@@ -242,18 +264,22 @@ def _canonicalize(tc: dict) -> dict:
     digest = checkpoint_digest(tc["input"])
     # The two entry points must agree about the same value; if they do not,
     # that is a bug in the implementation, not a result to compare.
-    if "halt" in canonical or "halt" in digest:
-        if canonical.get("halt") is None or canonical.get("halt") != digest.get("halt"):
+    if "verdict" in canonical or "verdict" in digest:
+        if canonical.get("reason") is None or canonical.get("reason") != digest.get(
+            "reason"
+        ):
             raise AssertionError(
                 "canonicalize and checkpoint_digest disagree about halting"
             )
-        return {"halt": canonical["halt"]}
+        return _normative(canonical)
     return {"canonical": canonical["canonical"], "digest": digest["digest"]}
 
 
 def _checkpoint(tc: dict):
     result = _or_refused(lambda: evaluate_checkpoint_artifact(**tc["args"]))
-    return {"refused": True} if result is _REFUSED else result
+    if result is _REFUSED:
+        return {"refused": True}
+    return [_normative_open(issue) for issue in result]
 
 
 def _charge(tc: dict) -> dict:

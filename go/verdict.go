@@ -28,3 +28,10 @@ type Verdict struct {
 func verdict(level Level, reason, message string) Verdict {
 	return Verdict{Spec: Spec, Verdict: level, Reason: reason, Message: message}
 }
+
+// knownLevel is whether a level is one of the three. The library never asks it
+// of itself; a caller's own verdict, laid over a checkpoint issue, is the one
+// place a level arrives from outside.
+func knownLevel(level Level) bool {
+	return level == OK || level == Warning || level == Halt
+}

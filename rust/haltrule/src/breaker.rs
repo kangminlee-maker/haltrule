@@ -5,10 +5,12 @@
 //! persisted are the caller's.
 
 use alloc::borrow::{Cow, ToOwned};
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::value::Refused;
+use crate::verdict::{verdict, Level, Verdict};
 
 /// What a failure message says about the provider. `None` where one belongs
 /// means the failure is the item's own and says nothing.
@@ -211,9 +213,12 @@ pub struct DispatchDeadLetterEntry {
     pub attempt_count: i64,
 }
 
-/// The batch's trip, once it has one.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// The batch's trip, once it has one: a halt verdict, and the three facts its
+/// reason names. Its `resume` is `None`, because what a next run picks up is
+/// the pending entries and not a place.
+#[derive(Clone, Debug, PartialEq)]
 pub struct DispatchBreakerTripState {
+    pub verdict: Verdict,
     pub failure_class: FailureClass,
     pub consecutive_item_count: i64,
     pub threshold: i64,
@@ -326,6 +331,16 @@ impl DispatchBreakerState {
             // that crossed even where an entry with its id was already
             // pending and it is the first that is kept.
             let trip = DispatchBreakerTripState {
+                verdict: verdict(
+                    Level::Halt,
+                    "breaker_tripped",
+                    format!(
+                        "{} items in a row failed with {:?}, which is the threshold: the provider,\
+                         and not the items, is the likely cause",
+                        self.pending_systemic.len(),
+                        class.as_str()
+                    ),
+                ),
                 failure_class: class,
                 consecutive_item_count: self.pending_systemic.len() as i64,
                 threshold: self.policy.systemic_threshold,

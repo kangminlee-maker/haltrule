@@ -54,8 +54,8 @@ CATALOG += [
     mutant(
         "ts adapter: a verdict is compared without its message",
         "ts/adapter/adapter.ts",
-        "  const { message, ...rest } = result;\n  void message;\n  return rest;",
-        "  return result;",
+        'function normative(result: Verdict): Omit<Verdict, "message"> {',
+        'function normative(result: Verdict): Verdict {\n  return result;\n}\nfunction unusedNormative(result: Verdict): Omit<Verdict, "message"> {',
         [TS_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
     ),
     mutant(
@@ -664,8 +664,8 @@ CATALOG += [
     mutant(
         "py adapter: a verdict is compared without its message",
         "py/adapter.py",
-        '    return {key: value for key, value in result.items() if key != "message"}\n',
-        "    return dict(result)\n",
+        '    return {key: value for key, value in result.items() if key != "message"}\n\n\ndef _normative_open',
+        "    return dict(result)\n\n\ndef _normative_open",
         [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
     ),
 ]
@@ -675,15 +675,15 @@ CATALOG += [
     mutant(
         "ts adapter: the checkpoint's refusal is a refusal, not a crash",
         "ts/adapter/adapter.ts",
-        "  const result = orRefused(() => evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs));\n  return result === REFUSED ? { refused: true } : result;",
-        "  return evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs);",
+        "  const result = orRefused(() => evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs));\n  return result === REFUSED ? { refused: true } : result.map(normativeOpen);",
+        "  return evaluateCheckpointArtifact(tc.args as EvaluateCheckpointArtifactArgs).map(normativeOpen);",
         [TS_FAILS, "FAIL [refused_artifact_false] field=checkpoint.raised"],
     ),
     mutant(
         "py adapter: the checkpoint's refusal is a refusal, not a crash",
         "py/adapter.py",
-        '    result = _or_refused(lambda: evaluate_checkpoint_artifact(**tc["args"]))\n    return {"refused": True} if result is _REFUSED else result\n',
-        '    return evaluate_checkpoint_artifact(**tc["args"])\n',
+        '    result = _or_refused(lambda: evaluate_checkpoint_artifact(**tc["args"]))\n    if result is _REFUSED:\n        return {"refused": True}\n    return [_normative_open(issue) for issue in result]\n',
+        '    return [\n        _normative_open(issue)\n        for issue in evaluate_checkpoint_artifact(**tc["args"])\n    ]\n',
         [PY_FAILS, "FAIL [refused_artifact_false] field=checkpoint.raised"],
     ),
 ]
@@ -911,9 +911,8 @@ CATALOG += [
     mutant(
         "py adapter: a refused report leaves the batch as it was, and the next is still read",
         "py/adapter.py",
-        '        returns.append({"refused": True} if result is _REFUSED else result)\n',
-        '        if result is _REFUSED:\n            return {"refused": True}\n'
-        "        returns.append(result)\n",
+        '        if result is _REFUSED:\n            returns.append({"refused": True})\n',
+        '        if result is _REFUSED:\n            return {"refused": True}\n',
         [PY_FAILS, "FAIL [report_attempt_count_is_a_string] field=state.expect"],
     ),
     mutant(
@@ -1028,5 +1027,38 @@ CATALOG += [
         '\t"fmt"\n\t"strings"\n\t"unicode/utf8"\n)\n',
         '\t"fmt"\n\t"os"\n\t"strings"\n\t"unicode/utf8"\n)\n\nvar _ = os.Getenv\n',
         [GO_NO_HOST, "imports os, which is not on the allowlist"],
+    ),
+]
+
+# --- the verdict shape where a part hands it back as a map: the adapters check
+# it there, the struct doing that job everywhere else.
+CATALOG += [
+    mutant(
+        "ts adapter: a checkpoint verdict is compared without its message",
+        "ts/adapter/adapter.ts",
+        "  const { message, ...rest } = result;\n  void message;\n  return rest;\n}\n\nfunction classify",
+        "  return result;\n}\n\nfunction classify",
+        [TS_FAILS, "FAIL [artifact_missing] field=checkpoint.expect"],
+    ),
+    mutant(
+        "py adapter: a checkpoint verdict is compared without its message",
+        "py/adapter.py",
+        '    return {key: value for key, value in result.items() if key != "message"}\n\n\ndef _to_plain',
+        "    return dict(result)\n\n\ndef _to_plain",
+        [PY_FAILS, "FAIL [artifact_missing] field=checkpoint.expect"],
+    ),
+    mutant(
+        "go adapter: a checkpoint verdict is compared without its message",
+        "go/adapter/main.go",
+        '\tout := haltrule.Map{}\n\tfor key, value := range from {\n\t\tif key != "message" {\n\t\t\tout[key] = value\n\t\t}\n\t}\n\treturn out, nil\n',
+        "\treturn from, nil\n",
+        [GO_FAILS, "FAIL [artifact_missing] field=checkpoint.expect"],
+    ),
+    mutant(
+        "rust adapter: a checkpoint verdict is compared without its message",
+        "rust/adapter/src/sections.rs",
+        '    let mut held = from;\n    held.remove("message");\n',
+        "    let held = from;\n",
+        [RS_FAILS, "FAIL [artifact_missing] field=checkpoint.expect"],
     ),
 ]

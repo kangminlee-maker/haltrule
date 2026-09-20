@@ -38,6 +38,7 @@
 import { createHash } from "node:crypto";
 import { checkFields } from "./contract.ts";
 import { describe } from "./messages.ts";
+import { isVerdictLevel, verdict, type Verdict, type VerdictLevel } from "./verdict.ts";
 
 // ---------------------------------------------------------------- canonicalize
 
@@ -55,12 +56,12 @@ export type DigestInputReason =
   | "digest_input_int_range"
   | "digest_input_unsupported";
 
-/** A value outside the digest value model: the halt's reason code, and a
- * message naming where the value sits (`$.a[2]`) for the person reading it.
- * The message is for people; only `halt` is part of the spec. */
-export interface DigestInputHalt {
-  halt: DigestInputReason;
-  message: string;
+/** A value outside the digest value model: a halt verdict whose message names
+ * where the value sits (`$.a[2]`) for the person reading it, a path being no
+ * thing two languages spell alike. */
+export interface DigestInputHalt extends Verdict {
+  verdict: "halt";
+  reason: DigestInputReason;
 }
 
 /** Internal: unwinds the recursive encoder to the public boundary, where it
@@ -92,7 +93,9 @@ export function canonicalize(value: unknown): { canonical: string } | DigestInpu
   try {
     return { canonical: encodeValue(value, "$", 0) };
   } catch (error) {
-    if (error instanceof DigestInputError) return { halt: error.reason, message: error.message };
+    if (error instanceof DigestInputError) {
+      return verdict("halt", error.reason, error.message) as DigestInputHalt;
+    }
     throw error;
   }
 }
@@ -102,7 +105,7 @@ export function canonicalize(value: unknown): { canonical: string } | DigestInpu
  * halt {@link canonicalize} returned. */
 export function checkpointDigest(value: unknown): { digest: string } | DigestInputHalt {
   const result = canonicalize(value);
-  if ("halt" in result) return result;
+  if ("verdict" in result) return result;
   return { digest: `sha256:${createHash("sha256").update(result.canonical, "utf8").digest("hex")}` };
 }
 
@@ -204,11 +207,11 @@ const IDENTITY_STATUS_MAP: Readonly<Record<string, ArtifactStatus>> = {
   blocked: "blocked",
 };
 
-export interface CheckpointIssue {
+/** One verdict about an artifact: the five fields, with stage_id and
+ * subject_ref beside them, and what its reason adds. A caller's own issue may
+ * lay any of them over the defaults, so the extra fields are open. */
+export interface CheckpointIssue extends Verdict {
   stage_id: string;
-  status: "valid" | "missing" | "invalid" | "unknown_contract";
-  reason: string;
-  required_resume_from_stage: string | null;
   subject_ref: string | null;
   [detail: string]: unknown;
 }
@@ -288,49 +291,65 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
   const validationIssues = optional(args.validation_issues, isListOfMaps, "validation_issues") ?? [];
   const artifact = optional(args.artifact, isPlainObject, "artifact");
   const base = (
-    status: CheckpointIssue["status"],
+    level: VerdictLevel,
     reason: string,
+    message: string,
     details: Record<string, unknown> = {},
   ): CheckpointIssue => ({
+    ...verdict(level, reason, `${stageId}: ${message}`, requiredResumeFromStage),
     stage_id: stageId,
-    status,
-    reason,
-    required_resume_from_stage: requiredResumeFromStage,
     subject_ref: subjectRef,
     ...details,
   });
 
-  if (artifact === null) return [base("missing", "artifact_missing")];
+  if (artifact === null) return [base("halt", "artifact_missing", "nothing was recorded")];
 
   const issues: CheckpointIssue[] = [];
   const status = artifact.status;
   if (!status) {
-    issues.push(base("invalid", "artifact_status_missing"));
+    issues.push(base("halt", "artifact_status_missing", "what was recorded has no status"));
   } else if (resolveStatus(status, statusMap) !== "complete") {
-    issues.push(base("invalid", "artifact_status_not_reusable", { actual_status: status }));
+    issues.push(
+      base("halt", "artifact_status_not_reusable", "the recorded status is not one that may be reused", {
+        actual_status: status,
+      }),
+    );
   }
 
   if (expectedRevision !== null && !artifact.contract_revision) {
     issues.push(
-      base("unknown_contract", "contract_revision_missing", {
-        expected_contract_revision: expectedRevision,
-      }),
+      base(
+        "halt",
+        "contract_revision_missing",
+        `a contract revision of "${expectedRevision}" is expected and none is recorded`,
+        { expected_contract_revision: expectedRevision },
+      ),
     );
   } else if (expectedRevision !== null && artifact.contract_revision !== expectedRevision) {
     issues.push(
-      base("invalid", "contract_revision_mismatch", {
-        expected_contract_revision: expectedRevision,
-        actual_contract_revision: artifact.contract_revision,
-      }),
+      base(
+        "halt",
+        "contract_revision_mismatch",
+        `the recorded contract revision is not the expected "${expectedRevision}"`,
+        {
+          expected_contract_revision: expectedRevision,
+          actual_contract_revision: artifact.contract_revision,
+        },
+      ),
     );
   }
 
   if (expectedConfig !== null && artifact.stage_config_digest !== expectedConfig) {
     issues.push(
-      base("invalid", "stage_config_digest_mismatch", {
-        expected_stage_config_digest: expectedConfig,
-        actual_stage_config_digest: artifact.stage_config_digest ?? null,
-      }),
+      base(
+        "halt",
+        "stage_config_digest_mismatch",
+        `the recorded stage config digest is not the expected "${expectedConfig}"`,
+        {
+          expected_stage_config_digest: expectedConfig,
+          actual_stage_config_digest: artifact.stage_config_digest ?? null,
+        },
+      ),
     );
   }
 
@@ -343,7 +362,7 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
         : null;
     if (actualDigest !== expectedDigest) {
       issues.push(
-        base("invalid", "dependency_digest_mismatch", {
+        base("halt", "dependency_digest_mismatch", `the dependency "${dependencyId}" moved`, {
           dependency_id: dependencyId,
           expected_digest: expectedDigest,
           actual_digest: actualDigest,
@@ -355,11 +374,22 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
   for (const validationIssue of validationIssues) {
     // A null field is an absent one: the default stands where there is one.
     const given = Object.entries(validationIssue).filter(([, field]) => field != null);
-    issues.push({ ...base("invalid", "validation_issue"), ...Object.fromEntries(given) });
+    for (const [key, field] of given) {
+      // A caller may disagree with a verdict, not sign one, and the three are
+      // as closed a set here as they are anywhere else.
+      if (key === "spec") throw new TypeError("a validation issue carries a spec, which only the library says");
+      if (key === "verdict" && !isVerdictLevel(field)) {
+        throw new TypeError("a validation issue's verdict is not one of the three");
+      }
+    }
+    issues.push({
+      ...base("halt", "validation_issue", "the caller's own validation found something"),
+      ...Object.fromEntries(given),
+    });
   }
 
   if (issues.length === 0) {
-    return [{ ...base("valid", "checkpoint_valid"), required_resume_from_stage: null }];
+    return [{ ...base("ok", "checkpoint_valid", "the artifact may be reused"), resume: null }];
   }
   return issues;
 }

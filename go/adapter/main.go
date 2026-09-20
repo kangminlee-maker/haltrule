@@ -172,6 +172,22 @@ func normative(from haltrule.Verdict) haltrule.Value {
 	}
 }
 
+// normativeMap is the same for a verdict the part hands back as a map, which
+// a checkpoint issue is because a caller's own fields go in it. The message
+// has to be there and be text, the struct doing that job elsewhere.
+func normativeMap(from haltrule.Map) (haltrule.Value, error) {
+	if _, isText := from["message"].(haltrule.String); !isText {
+		return nil, fmt.Errorf("a verdict's message is missing or is not text")
+	}
+	out := haltrule.Map{}
+	for key, value := range from {
+		if key != "message" {
+			out[key] = value
+		}
+	}
+	return out, nil
+}
+
 func optionalText(value *string) haltrule.Value {
 	if value == nil {
 		return nil
@@ -333,11 +349,11 @@ func tripValue(trip *haltrule.DispatchBreakerTripState) haltrule.Value {
 	if trip == nil {
 		return nil
 	}
-	return haltrule.Map{
-		"failure_class":          haltrule.String(string(trip.FailureClass)),
-		"consecutive_item_count": haltrule.Int(trip.ConsecutiveItemCount),
-		"threshold":              haltrule.Int(trip.Threshold),
-	}
+	shown := normative(trip.Verdict).(haltrule.Map)
+	shown["failure_class"] = haltrule.String(string(trip.FailureClass))
+	shown["consecutive_item_count"] = haltrule.Int(trip.ConsecutiveItemCount)
+	shown["threshold"] = haltrule.Int(trip.Threshold)
+	return shown
 }
 
 func entryValue(entry haltrule.DispatchDeadLetterEntry) haltrule.Value {
@@ -394,10 +410,10 @@ func canonicalize(from inputs) (haltrule.Value, error) {
 	if halt != nil || digestHalt != nil {
 		// The two entry points must agree about the same value; if they do
 		// not, that is a bug in the port, not a result to compare.
-		if halt == nil || digestHalt == nil || halt.Halt != digestHalt.Halt {
+		if halt == nil || digestHalt == nil || halt.Reason != digestHalt.Reason {
 			return nil, fmt.Errorf("canonicalize and the digest disagree about halting")
 		}
-		return haltrule.Map{"halt": haltrule.String(halt.Halt)}, nil
+		return normative(*halt), nil
 	}
 	return haltrule.Map{
 		"canonical": haltrule.String(canonical),
@@ -505,7 +521,11 @@ func checkpoint(from inputs) (haltrule.Value, error) {
 	}
 	answered := haltrule.List{}
 	for _, issue := range issues {
-		answered = append(answered, haltrule.Map(issue))
+		shown, err := normativeMap(haltrule.Map(issue))
+		if err != nil {
+			return nil, err
+		}
+		answered = append(answered, shown)
 	}
 	return answered, nil
 }

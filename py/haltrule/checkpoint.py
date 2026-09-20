@@ -21,6 +21,7 @@ import math
 from typing import Any, Literal, Mapping, Optional, Union
 
 from haltrule.messages import describe_number
+from haltrule.verdict import VerdictLevel, is_verdict_level, verdict
 
 # --------------------------------------------------------------- canonicalize
 
@@ -41,9 +42,8 @@ DigestInputReason = Literal[
 
 class _DigestInputError(ValueError):
     """Internal: unwinds the recursive encoder to the public boundary, where
-    it becomes a halt value ({"halt": reason, "message": ...}). The message
-    names where the value sits (`$.a[2]`) and is for people; only "halt" is
-    part of the spec."""
+    it becomes a halt verdict. Its message names where the value sits
+    (`$.a[2]`), a path being no thing two languages spell alike."""
 
     def __init__(self, reason: DigestInputReason, message: str) -> None:
         super().__init__(message)
@@ -77,14 +77,14 @@ def canonicalize(value: Any) -> dict[str, str]:
     the integer 1, as it is in JavaScript), strings of Unicode scalar values,
     lists, and dicts with str keys, nested at most 100 deep.
 
-    Returns {"canonical": ...}, or {"halt": reason, "message": ...} for
-    anything else. Like every verdict here it is a value, never a raise: the
-    caller records it before it stops.
+    Returns {"canonical": ...}, or a halt verdict for anything else. Like
+    every verdict here it is a value, never a raise: the caller records it
+    before it stops.
     """
     try:
         return {"canonical": _encode_value(value, "$", 0)}
     except _DigestInputError as error:
-        return {"halt": error.reason, "message": str(error)}
+        return verdict("halt", error.reason, str(error))
 
 
 def checkpoint_digest(value: Any) -> dict[str, str]:
@@ -92,7 +92,7 @@ def checkpoint_digest(value: Any) -> dict[str, str]:
     form's UTF-8 bytes} - the value `printf '%s' "$canonical" | sha256sum`
     prints - or the halt canonicalize returned."""
     result = canonicalize(value)
-    if "halt" in result:
+    if "verdict" in result:
         return result
     return {
         "digest": "sha256:"
@@ -274,34 +274,43 @@ def evaluate_checkpoint_artifact(
     ):
         raise TypeError("validation_issues must be a list of maps")
 
-    def base(status: str, reason: str, **details: Any) -> dict[str, Any]:
+    def base(
+        level: VerdictLevel, reason: str, message: str, **details: Any
+    ) -> dict[str, Any]:
         return {
+            **verdict(level, reason, f"{stage_id}: {message}", resume),
             "stage_id": stage_id,
-            "status": status,
-            "reason": reason,
-            "required_resume_from_stage": resume,
             "subject_ref": subject_ref,
             **details,
         }
 
     if artifact is None:
-        return [base("missing", "artifact_missing")]
+        return [base("halt", "artifact_missing", "nothing was recorded")]
 
     issues: list[dict[str, Any]] = []
     status = artifact.get("status")
     if _js_falsy(status):
-        issues.append(base("invalid", "artifact_status_missing"))
+        issues.append(
+            base("halt", "artifact_status_missing", "what was recorded has no status")
+        )
     elif _resolve_status(status, status_map) != "complete":
         issues.append(
-            base("invalid", "artifact_status_not_reusable", actual_status=status)
+            base(
+                "halt",
+                "artifact_status_not_reusable",
+                "the recorded status is not one that may be reused",
+                actual_status=status,
+            )
         )
 
     revision = artifact.get("contract_revision")
     if expected_contract_revision is not None and _js_falsy(revision):
         issues.append(
             base(
-                "unknown_contract",
+                "halt",
                 "contract_revision_missing",
+                f"a contract revision of {expected_contract_revision!r} is expected"
+                " and none is recorded",
                 expected_contract_revision=expected_contract_revision,
             )
         )
@@ -310,8 +319,10 @@ def evaluate_checkpoint_artifact(
     ):
         issues.append(
             base(
-                "invalid",
+                "halt",
                 "contract_revision_mismatch",
+                "the recorded contract revision is not the expected"
+                f" {expected_contract_revision!r}",
                 expected_contract_revision=expected_contract_revision,
                 actual_contract_revision=revision,
             )
@@ -323,8 +334,10 @@ def evaluate_checkpoint_artifact(
     ):
         issues.append(
             base(
-                "invalid",
+                "halt",
                 "stage_config_digest_mismatch",
+                "the recorded stage config digest is not the expected"
+                f" {expected_stage_config_digest!r}",
                 expected_stage_config_digest=expected_stage_config_digest,
                 actual_stage_config_digest=config,
             )
@@ -340,8 +353,9 @@ def evaluate_checkpoint_artifact(
         if not _same_text(actual_digest, expected_digest):
             issues.append(
                 base(
-                    "invalid",
+                    "halt",
                     "dependency_digest_mismatch",
+                    f"the dependency {dependency_id!r} moved",
                     dependency_id=dependency_id,
                     expected_digest=expected_digest,
                     actual_digest=actual_digest,
@@ -353,11 +367,32 @@ def evaluate_checkpoint_artifact(
         given = {
             key: field for key, field in validation_issue.items() if field is not None
         }
-        issues.append({**base("invalid", "validation_issue"), **given})
+        for key, field in given.items():
+            # A caller may disagree with a verdict, not sign one, and the three
+            # are as closed a set here as they are anywhere else.
+            if key == "spec":
+                raise TypeError(
+                    "a validation issue carries a spec, which only the library says"
+                )
+            if key == "verdict" and not is_verdict_level(field):
+                raise TypeError("a validation issue's verdict is not one of the three")
+        issues.append(
+            {
+                **base(
+                    "halt",
+                    "validation_issue",
+                    "the caller's own validation found something",
+                ),
+                **given,
+            }
+        )
 
     if not issues:
         return [
-            {**base("valid", "checkpoint_valid"), "required_resume_from_stage": None}
+            {
+                **base("ok", "checkpoint_valid", "the artifact may be reused"),
+                "resume": None,
+            }
         ]
     return issues
 

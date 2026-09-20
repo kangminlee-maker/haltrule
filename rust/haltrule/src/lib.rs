@@ -28,7 +28,7 @@ pub use breaker::{
 pub use budget::{Budget, BudgetCaps, Charge};
 pub use checkpoint::{
     canonicalize, checkpoint_digest, evaluate_checkpoint_artifact, ArtifactStatus, CheckpointArgs,
-    DigestInputHalt, Issue,
+    Issue,
 };
 pub use slot::{validate_slot, SlotKind, SlotSpec};
 pub use value::{Map, Refused, Value};

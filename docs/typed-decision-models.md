@@ -200,9 +200,9 @@ model exists:
 - Accuracy outside English. The vendor states English is most accurate and that other languages,
   CJK among them, should be tested before production. Any recommendation that skips this measurement is
   not an honest one.
-- `checkpoint` still returns an issue list rather than a `Verdict`, so anything written against that shape
-  is written against a moving one.
-- The breaker's reasons are not in the registry yet.
+
+The other two this section carried are settled since: `checkpoint` and the breaker's trip return the
+shared verdict now, and `breaker_tripped` is in the registry.
 
 ## Sources
 

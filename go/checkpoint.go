@@ -28,35 +28,31 @@ const maxSafeInteger = 1<<53 - 1
 // halt at the same depth instead of each crashing at its own.
 const maxDepth = 100
 
-// DigestInputHalt is a value outside the digest value model: the halt's reason
-// code, and a message naming where the value sits. The message is for people;
-// only Halt is part of the spec.
-type DigestInputHalt struct {
-	Halt    string
-	Message string
-}
-
 const (
 	digestInputFloat       = "digest_input_float"
 	digestInputIntRange    = "digest_input_int_range"
 	digestInputUnsupported = "digest_input_unsupported"
 )
 
-func halted(reason, message string) *DigestInputHalt {
-	return &DigestInputHalt{Halt: reason, Message: message}
+// halted is a value outside the digest value model: a halt verdict whose
+// message names where in the value the trouble sits, a path being no thing two
+// languages spell alike.
+func halted(reason, message string) *Verdict {
+	held := verdict(Halt, reason, message)
+	return &held
 }
 
 // Canonicalize is the canonical form of a value: an RFC 8785 subset. Map keys
 // are sorted by UTF-16 code unit, there is no insignificant whitespace,
 // integers are written in decimal, and strings carry the spec's escapes.
 // Strings are not Unicode-normalized.
-func Canonicalize(value Value) (string, *DigestInputHalt) {
+func Canonicalize(value Value) (string, *Verdict) {
 	return encodeValue(value, "$", 0)
 }
 
 // CheckpointDigest is "sha256:" and the lowercase hex SHA-256 of the canonical
 // form's UTF-8 bytes, or the halt Canonicalize returned.
-func CheckpointDigest(value Value) (string, *DigestInputHalt) {
+func CheckpointDigest(value Value) (string, *Verdict) {
 	canonical, halt := Canonicalize(value)
 	if halt != nil {
 		return "", halt
@@ -65,7 +61,7 @@ func CheckpointDigest(value Value) (string, *DigestInputHalt) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func encodeValue(value Value, at string, depth int) (string, *DigestInputHalt) {
+func encodeValue(value Value, at string, depth int) (string, *Verdict) {
 	switch held := value.(type) {
 	case nil:
 		return "null", nil
@@ -157,7 +153,7 @@ func lessUTF16(left, right string) bool {
 // in lowercase hex, and everything else as itself. A Go string that is not
 // valid UTF-8 is not made of scalar values - an unpaired surrogate has no
 // UTF-8 spelling - so it halts.
-func encodeString(value, at string) (string, *DigestInputHalt) {
+func encodeString(value, at string) (string, *Verdict) {
 	if !utf8.ValidString(value) {
 		return "", halted(digestInputUnsupported, at+": string is not made of Unicode scalar values")
 	}
@@ -208,9 +204,11 @@ var identityStatusMap = map[string]ArtifactStatus{
 	"complete": Complete, "partial": Partial, "failed": Failed, "blocked": Blocked,
 }
 
-// Issue is one finding about an artifact: stage_id, status, reason,
-// required_resume_from_stage and subject_ref, and what its reason adds. A
-// caller's own issue may lay any of them over the defaults, so it is a map.
+// Issue is one verdict about an artifact: the five fields of a Verdict, with
+// stage_id and subject_ref beside them, and what its reason adds. A caller's
+// own issue may lay any of them over the defaults, so it is a map and not the
+// struct. Message is in it, being part of the shape; the adapters drop it,
+// being for people.
 type Issue map[string]Value
 
 // CheckpointArgs is what the caller expects of an artifact now. A nil pointer
@@ -260,37 +258,41 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 	if args.RequiredResumeFromStage != nil {
 		resume = *args.RequiredResumeFromStage
 	}
-	base := func(status, reason string) Issue {
+	base := func(level Level, reason, message string) Issue {
 		return Issue{
-			"stage_id":                   String(args.StageID),
-			"status":                     String(status),
-			"reason":                     String(reason),
-			"required_resume_from_stage": String(resume),
-			"subject_ref":                text(args.SubjectRef),
+			"spec":        String(Spec),
+			"verdict":     String(string(level)),
+			"reason":      String(reason),
+			"message":     String(fmt.Sprintf("%s: %s", args.StageID, message)),
+			"resume":      String(resume),
+			"stage_id":    String(args.StageID),
+			"subject_ref": text(args.SubjectRef),
 		}
 	}
 
 	if args.Artifact == nil {
-		return []Issue{base("missing", "artifact_missing")}, nil
+		return []Issue{base(Halt, "artifact_missing", "nothing was recorded")}, nil
 	}
 
 	var issues []Issue
 	status := args.Artifact["status"]
 	if jsFalsy(status) {
-		issues = append(issues, base("invalid", "artifact_status_missing"))
+		issues = append(issues, base(Halt, "artifact_status_missing", "what was recorded has no status"))
 	} else if resolveStatus(status, statusMap) != Complete {
-		issue := base("invalid", "artifact_status_not_reusable")
+		issue := base(Halt, "artifact_status_not_reusable", "the recorded status is not one that may be reused")
 		issue["actual_status"] = status
 		issues = append(issues, issue)
 	}
 
 	revision := args.Artifact["contract_revision"]
 	if args.ExpectedContractRevision != nil && jsFalsy(revision) {
-		issue := base("unknown_contract", "contract_revision_missing")
+		issue := base(Halt, "contract_revision_missing",
+			fmt.Sprintf("a contract revision of %q is expected and none is recorded", *args.ExpectedContractRevision))
 		issue["expected_contract_revision"] = String(*args.ExpectedContractRevision)
 		issues = append(issues, issue)
 	} else if args.ExpectedContractRevision != nil && !sameText(revision, *args.ExpectedContractRevision) {
-		issue := base("invalid", "contract_revision_mismatch")
+		issue := base(Halt, "contract_revision_mismatch",
+			fmt.Sprintf("the recorded contract revision is not the expected %q", *args.ExpectedContractRevision))
 		issue["expected_contract_revision"] = String(*args.ExpectedContractRevision)
 		issue["actual_contract_revision"] = revision
 		issues = append(issues, issue)
@@ -298,7 +300,8 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 
 	config := args.Artifact["stage_config_digest"]
 	if args.ExpectedStageConfigDigest != nil && !sameText(config, *args.ExpectedStageConfigDigest) {
-		issue := base("invalid", "stage_config_digest_mismatch")
+		issue := base(Halt, "stage_config_digest_mismatch",
+			fmt.Sprintf("the recorded stage config digest is not the expected %q", *args.ExpectedStageConfigDigest))
 		issue["expected_stage_config_digest"] = String(*args.ExpectedStageConfigDigest)
 		issue["actual_stage_config_digest"] = config
 		issues = append(issues, issue)
@@ -317,7 +320,8 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 			actual = recorded[id]
 		}
 		if !sameText(actual, expected) {
-			issue := base("invalid", "dependency_digest_mismatch")
+			issue := base(Halt, "dependency_digest_mismatch",
+				fmt.Sprintf("the dependency %q moved", id))
 			issue["dependency_id"] = String(id)
 			issue["expected_digest"] = String(expected)
 			issue["actual_digest"] = actual
@@ -326,19 +330,31 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 	}
 
 	for _, given := range args.ValidationIssues {
-		issue := base("invalid", "validation_issue")
+		issue := base(Halt, "validation_issue", "the caller's own validation found something")
 		// A null field is an absent one: the default stands where there is one.
 		for key, field := range given {
-			if field != nil {
-				issue[key] = field
+			if field == nil {
+				continue
 			}
+			// A caller may disagree with a verdict, not sign one, and the three
+			// are as closed a set here as they are anywhere else.
+			if key == "spec" {
+				return nil, fmt.Errorf("a validation issue carries a spec, which only the library says")
+			}
+			if key == "verdict" {
+				level, isText := field.(String)
+				if !isText || !knownLevel(Level(level)) {
+					return nil, fmt.Errorf("a validation issue's verdict is not one of the three: %v", field)
+				}
+			}
+			issue[key] = field
 		}
 		issues = append(issues, issue)
 	}
 
 	if len(issues) == 0 {
-		valid := base("valid", "checkpoint_valid")
-		valid["required_resume_from_stage"] = nil
+		valid := base(OK, "checkpoint_valid", "the artifact may be reused")
+		valid["resume"] = nil
 		return []Issue{valid}, nil
 	}
 	return issues, nil

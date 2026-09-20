@@ -118,7 +118,10 @@
         "$number": "9007199254740992"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -127,7 +130,10 @@
         "$bigint": "9007199254740993"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -136,7 +142,10 @@
         "$number": "-9007199254740992"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -145,7 +154,10 @@
         "$number": "1267650600228229401496703205376"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -154,7 +166,10 @@
         "$number": "1.5"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -163,7 +178,10 @@
         "$number": "0.1"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -172,7 +190,10 @@
         "$number": "-0.5"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -181,7 +202,10 @@
         "$number": "NaN"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -190,7 +214,10 @@
         "$number": "Infinity"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -199,7 +226,10 @@
         "$number": "-Infinity"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -217,7 +247,10 @@
         ]
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -492,21 +525,30 @@
       "id": "lone_high_surrogate",
       "input": "\ud800",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
       "id": "lone_low_surrogate_mid_string",
       "input": "a\udc00b",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
       "id": "reversed_surrogate_pair",
       "input": "\udc00\ud800",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -517,7 +559,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -531,7 +576,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -542,7 +590,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -551,7 +602,10 @@
         "$unsupported": "sparse_array"
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -560,7 +614,10 @@
         "$unsupported": "non_string_key"
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -573,7 +630,10 @@
         ]
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -1196,7 +1256,10 @@
         ]
       ],
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -1403,7 +1466,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -1442,7 +1508,10 @@
         "$bigint": "9007199254740992"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1451,7 +1520,10 @@
         "$bigint": "-18446744073709551616"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1460,7 +1532,10 @@
         "$bigint": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1474,7 +1549,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -1488,7 +1566,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1502,7 +1583,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1513,7 +1597,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -1527,7 +1614,10 @@
         }
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -1739,7 +1829,10 @@
         ]
       ],
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
@@ -1951,7 +2044,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -1967,7 +2063,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1976,7 +2075,10 @@
         "$bigint": "-9223372036854775808"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -1985,7 +2087,10 @@
         "$number": "-9223372036854775808"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -2491,7 +2596,10 @@
         "$number": "9007199254740992.0"
       },
       "expect": {
-        "halt": "digest_input_int_range"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_int_range",
+        "resume": null
       }
     },
     {
@@ -2708,7 +2816,10 @@
         }
       ],
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
@@ -2761,28 +2872,40 @@
         "$number": "4503599627370495.5"
       },
       "expect": {
-        "halt": "digest_input_float"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_float",
+        "resume": null
       }
     },
     {
       "id": "two_low_surrogates_are_not_a_pair",
       "input": "\udc00\udc01",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
       "id": "high_surrogate_before_private_use_is_unpaired",
       "input": "\ud800\ue000",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     },
     {
       "id": "last_low_surrogate_alone_is_unpaired",
       "input": "\udfff",
       "expect": {
-        "halt": "digest_input_unsupported"
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "digest_input_unsupported",
+        "resume": null
       }
     }
   ],
@@ -2796,10 +2919,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "missing",
+          "verdict": "halt",
           "reason": "artifact_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2818,10 +2942,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "missing",
+          "verdict": "halt",
           "reason": "artifact_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2836,10 +2961,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": null
         }
       ]
@@ -2855,10 +2981,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2872,10 +2999,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2891,10 +3019,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2910,10 +3039,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2929,10 +3059,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2950,10 +3081,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -2969,10 +3101,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": []
         }
@@ -2989,10 +3122,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "partial"
         }
@@ -3009,10 +3143,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "failed"
         }
@@ -3029,10 +3164,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "blocked"
         }
@@ -3049,10 +3185,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "pass"
         }
@@ -3073,10 +3210,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3095,10 +3233,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "complete"
         }
@@ -3119,10 +3258,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "blocked_shipped"
         }
@@ -3139,10 +3279,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "constructor"
         }
@@ -3159,10 +3300,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "__proto__"
         }
@@ -3180,10 +3322,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2"
         }
@@ -3202,10 +3345,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2",
           "actual_contract_revision": "v1"
@@ -3225,10 +3369,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3248,10 +3393,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "2",
           "actual_contract_revision": 2
@@ -3271,10 +3417,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "",
           "actual_contract_revision": "v1"
@@ -3294,10 +3441,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2"
         }
@@ -3318,10 +3466,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2"
         }
@@ -3340,10 +3489,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2"
         }
@@ -3362,10 +3512,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "",
           "actual_stage_config_digest": "sha256:old"
@@ -3385,10 +3536,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "sha256:new",
           "actual_stage_config_digest": ""
@@ -3407,10 +3559,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "sha256:new",
           "actual_stage_config_digest": null
@@ -3430,10 +3583,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "sha256:new",
           "actual_stage_config_digest": "sha256:old"
@@ -3453,10 +3607,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3482,40 +3637,44 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "10",
           "expected_digest": "sha256:n10",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "9",
           "expected_digest": "sha256:n9",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a2",
           "actual_digest": "sha256:a1"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "b",
           "expected_digest": "sha256:b2",
@@ -3541,40 +3700,44 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "\ud800\udc00",
           "expected_digest": "sha256:t",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "\ud83d\ude00",
           "expected_digest": "sha256:s",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "\ue000",
           "expected_digest": "sha256:e",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "\uffff",
           "expected_digest": "sha256:f",
@@ -3601,10 +3764,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "b",
           "expected_digest": "sha256:b2",
@@ -3631,10 +3795,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3656,10 +3821,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "0",
           "expected_digest": "sha256:a1",
@@ -3682,10 +3848,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "constructor",
           "expected_digest": "sha256:c",
@@ -3710,10 +3877,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a1",
@@ -3749,10 +3917,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "validation_issue",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3768,18 +3937,19 @@
         "validation_issues": [
           {
             "reason": "slot_empty",
-            "required_resume_from_stage": "outline",
-            "status": "needs_review",
+            "resume": "outline",
+            "verdict": "warning",
             "slot": "hero"
           }
         ]
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "needs_review",
+          "verdict": "warning",
           "reason": "slot_empty",
-          "required_resume_from_stage": "outline",
+          "resume": "outline",
           "subject_ref": "runs/r1/draft.json",
           "slot": "hero"
         }
@@ -3804,10 +3974,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "validation_issue",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "details": {
             "2": "two",
@@ -3835,10 +4006,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "validation_issue",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "details": {
             "\ue000": "private use",
@@ -3875,10 +4047,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "outline",
+          "resume": "outline",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "partial"
         }
@@ -3896,10 +4069,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -3930,46 +4104,51 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "partial"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2",
           "actual_contract_revision": "v1"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "sha256:new",
           "actual_stage_config_digest": "sha256:old"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a2",
           "actual_digest": "sha256:a1"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "slot_empty",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4299,10 +4478,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "missing",
+          "verdict": "halt",
           "reason": "artifact_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4329,10 +4509,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": null
         }
       ]
@@ -4348,10 +4529,10 @@
         "validation_issues": [
           {
             "reason": null,
-            "status": null,
+            "verdict": null,
             "stage_id": null,
             "subject_ref": null,
-            "required_resume_from_stage": null,
+            "resume": null,
             "slot": null,
             "note": "kept"
           }
@@ -4359,10 +4540,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "validation_issue",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "note": "kept"
         }
@@ -4395,26 +4577,29 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "slot": "a"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": 0,
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "slot": ""
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": false,
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "slot": []
         }
@@ -4432,16 +4617,17 @@
           {
             "stage_id": "outline",
             "subject_ref": "runs/r1/outline.json",
-            "status": "needs_review"
+            "verdict": "warning"
           }
         ]
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "outline",
-          "status": "needs_review",
+          "verdict": "warning",
           "reason": "validation_issue",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/outline.json"
         }
       ]
@@ -4458,10 +4644,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": ""
         }
@@ -4480,10 +4667,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4507,10 +4695,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "",
@@ -4533,10 +4722,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2",
           "actual_contract_revision": [
@@ -4566,19 +4756,21 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "true",
           "actual_stage_config_digest": true
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "1",
@@ -4604,10 +4796,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "valid",
+          "verdict": "ok",
           "reason": "checkpoint_valid",
-          "required_resume_from_stage": null,
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4626,10 +4819,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "missing",
+          "verdict": "halt",
           "reason": "artifact_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4650,10 +4844,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": 1
         }
@@ -4672,10 +4867,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": [
             "complete"
@@ -4695,10 +4891,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "complete"
         }
@@ -4717,10 +4914,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2",
           "actual_contract_revision": {}
@@ -4759,61 +4957,68 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "unknown_contract",
+          "verdict": "halt",
           "reason": "contract_revision_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "sha256:new",
           "actual_stage_config_digest": "sha256:old"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a2",
           "actual_digest": "sha256:a1"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "b",
           "expected_digest": "sha256:b2",
           "actual_digest": "sha256:b1"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "zeta",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "alpha",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -4841,19 +5046,21 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "stage_config_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_stage_config_digest": "7",
           "actual_stage_config_digest": 7
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "1",
@@ -4881,60 +5088,66 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "B",
           "expected_digest": "sha256:6",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "Z",
           "expected_digest": "sha256:4",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "_",
           "expected_digest": "sha256:3",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:2",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a-",
           "expected_digest": "sha256:5",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "ab",
           "expected_digest": "sha256:1",
@@ -4958,20 +5171,22 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a1",
           "actual_digest": null
         },
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "b",
           "expected_digest": "sha256:b1",
@@ -4993,10 +5208,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "dependency_digest_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "dependency_id": "a",
           "expected_digest": "sha256:a1",
@@ -5018,10 +5234,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -5065,10 +5282,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": true
         }
@@ -5087,10 +5305,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": -1
         }
@@ -5109,10 +5328,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_missing",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -5130,10 +5350,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "contract_revision_mismatch",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "expected_contract_revision": "v2",
           "actual_contract_revision": true
@@ -5155,10 +5376,11 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "half_written"
         }
@@ -5179,12 +5401,146 @@
       },
       "expect": [
         {
+          "spec": "haltrule/0",
           "stage_id": "draft",
-          "status": "invalid",
+          "verdict": "halt",
           "reason": "artifact_status_not_reusable",
-          "required_resume_from_stage": "draft",
+          "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "actual_status": "gave_up"
+        }
+      ]
+    },
+    {
+      "id": "issue_verdict_outside_the_three_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "needs_review"
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_verdict_of_another_type_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": true
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_that_signs_the_spec_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "spec": "haltrule/0"
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_verdict_halt_is_the_default_said_out_loud",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "halt"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "halt",
+          "reason": "validation_issue",
+          "resume": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "issue_verdict_ok_says_the_artifact_stands",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "ok",
+            "reason": "reviewed_by_hand"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "ok",
+          "reason": "reviewed_by_hand",
+          "resume": "draft",
+          "subject_ref": "runs/r1/draft.json"
+        }
+      ]
+    },
+    {
+      "id": "issue_field_after_verdict_in_key_order_is_still_the_callers",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "warning",
+            "reason": "slot_thin",
+            "why": "the hero slot reads thin"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "warning",
+          "reason": "slot_thin",
+          "resume": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "why": "the hero slot reads thin"
         }
       ]
     }

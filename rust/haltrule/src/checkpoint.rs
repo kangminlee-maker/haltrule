@@ -15,7 +15,8 @@ use core::cmp::Ordering;
 
 use sha2::{Digest, Sha256};
 
-use crate::value::{Map, Value};
+use crate::value::{Map, Refused, Value};
+use crate::verdict::{verdict, Level, Verdict, SPEC};
 
 /// The largest integer every implementation represents exactly: 2^53 - 1.
 const MAX_SAFE_INTEGER: i64 = (1 << 53) - 1;
@@ -32,33 +33,23 @@ const DIGEST_INPUT_FLOAT: &str = "digest_input_float";
 const DIGEST_INPUT_INT_RANGE: &str = "digest_input_int_range";
 const DIGEST_INPUT_UNSUPPORTED: &str = "digest_input_unsupported";
 
-/// A value outside the digest value model: the halt's reason code, and a
-/// message naming where the value sits. The message is for people; only
-/// `halt` is part of the spec.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DigestInputHalt {
-    pub halt: &'static str,
-    pub message: String,
-}
-
-fn halted(reason: &'static str, message: String) -> DigestInputHalt {
-    DigestInputHalt {
-        halt: reason,
-        message,
-    }
+/// A value outside the digest value model: a halt verdict whose message names
+/// where the value sits, a path being no thing two languages spell alike.
+fn halted(reason: &'static str, message: String) -> Verdict {
+    verdict(Level::Halt, reason, message)
 }
 
 /// The canonical form of a value: an RFC 8785 subset. Map keys are sorted by
 /// UTF-16 code unit, there is no insignificant whitespace, integers are
 /// written in decimal, and strings carry the spec's escapes. Strings are not
 /// Unicode-normalized.
-pub fn canonicalize(value: &Value) -> Result<String, DigestInputHalt> {
+pub fn canonicalize(value: &Value) -> Result<String, Verdict> {
     encode_value(value, "$", 0)
 }
 
 /// "sha256:" and the lowercase hex SHA-256 of the canonical form's UTF-8
 /// bytes, or the halt [`canonicalize`] returned.
-pub fn checkpoint_digest(value: &Value) -> Result<String, DigestInputHalt> {
+pub fn checkpoint_digest(value: &Value) -> Result<String, Verdict> {
     let canonical = canonicalize(value)?;
     let sum = Sha256::digest(canonical.as_bytes());
     let mut out = String::from("sha256:");
@@ -73,7 +64,7 @@ fn hex_digit(nibble: u8) -> char {
     char::from(b"0123456789abcdef"[nibble as usize])
 }
 
-fn encode_value(value: &Value, at: &str, depth: usize) -> Result<String, DigestInputHalt> {
+fn encode_value(value: &Value, at: &str, depth: usize) -> Result<String, Verdict> {
     // The match is exhaustive because `Value` is closed, so there is no other
     // kind to meet: what the reference answers for below its last case cannot
     // be handed to this port at all.
@@ -124,7 +115,7 @@ fn encode_value(value: &Value, at: &str, depth: usize) -> Result<String, DigestI
     }
 }
 
-fn too_deep(at: &str) -> DigestInputHalt {
+fn too_deep(at: &str) -> Verdict {
     halted(
         DIGEST_INPUT_UNSUPPORTED,
         format!("{at}: nested deeper than {MAX_DEPTH} lists and maps"),
@@ -141,7 +132,7 @@ fn too_deep(at: &str) -> DigestInputHalt {
 /// a cast to `i64` truncates and casts back losing nothing, so a number that
 /// survives the round trip unchanged is the integer it looks like. A negative
 /// zero survives it as zero, which is the answer wanted.
-fn encode_float(number: f64, at: &str) -> Result<String, DigestInputHalt> {
+fn encode_float(number: f64, at: &str) -> Result<String, Verdict> {
     if number.is_nan() || number.is_infinite() {
         return Err(not_an_integer(number, at));
     }
@@ -159,7 +150,7 @@ fn encode_float(number: f64, at: &str) -> Result<String, DigestInputHalt> {
     Ok(format!("{whole}"))
 }
 
-fn not_an_integer(number: f64, at: &str) -> DigestInputHalt {
+fn not_an_integer(number: f64, at: &str) -> Verdict {
     halted(
         DIGEST_INPUT_FLOAT,
         format!(
@@ -260,9 +251,10 @@ impl ArtifactStatus {
     }
 }
 
-/// One finding about an artifact: `stage_id`, `status`, `reason`,
-/// `required_resume_from_stage` and `subject_ref`, and what its reason adds. A
-/// caller's own issue may lay any of them over the defaults, so it is a map.
+/// One verdict about an artifact: the five fields of a [`Verdict`], with
+/// `stage_id` and `subject_ref` beside them, and what its reason adds. A
+/// caller's own issue may lay any of them over the defaults, so it is a map
+/// and not the struct, and its `reason` is text and not a `&'static str`.
 pub type Issue = Map;
 
 /// What the caller expects of an artifact now. `None` is absent; an empty map
@@ -300,27 +292,37 @@ fn text(value: Option<&str>) -> Value {
 ///
 /// The reference also refuses a status map that answers outside the
 /// vocabulary. Here [`ArtifactStatus`] is closed and such a map cannot be
-/// built, so there is nothing left to refuse and no call that fails.
-pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
+/// built, so that refusal has nothing to catch; what is left to refuse is a
+/// caller's own validation issue that signs the spec or gives a verdict
+/// outside the three.
+pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Result<Vec<Issue>, Refused> {
     let resume = args
         .required_resume_from_stage
         .as_deref()
         .unwrap_or(&args.stage_id);
-    let base = |status: &str, reason: &str| -> Issue {
+    let base = |level: Level, reason: &str, message: String| -> Issue {
         let mut issue = Issue::new();
-        issue.insert("stage_id".to_owned(), Value::Text(args.stage_id.clone()));
-        issue.insert("status".to_owned(), Value::Text(status.to_owned()));
+        issue.insert("spec".to_owned(), Value::Text(SPEC.to_owned()));
+        issue.insert("verdict".to_owned(), Value::Text(level.as_str().to_owned()));
         issue.insert("reason".to_owned(), Value::Text(reason.to_owned()));
         issue.insert(
-            "required_resume_from_stage".to_owned(),
-            Value::Text(resume.to_owned()),
+            "message".to_owned(),
+            Value::Text(format!("{}: {}", args.stage_id, message)),
         );
+        issue.insert("resume".to_owned(), Value::Text(resume.to_owned()));
+        issue.insert("stage_id".to_owned(), Value::Text(args.stage_id.clone()));
         issue.insert("subject_ref".to_owned(), text(args.subject_ref.as_deref()));
         issue
     };
 
     let artifact = match args.artifact.as_ref() {
-        None => return vec![base("missing", "artifact_missing")],
+        None => {
+            return Ok(vec![base(
+                Level::Halt,
+                "artifact_missing",
+                "nothing was recorded".to_owned(),
+            )])
+        }
         Some(held) => held,
     };
 
@@ -328,9 +330,17 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
 
     let status = artifact.get("status");
     if js_falsy(status) {
-        issues.push(base("invalid", "artifact_status_missing"));
+        issues.push(base(
+            Level::Halt,
+            "artifact_status_missing",
+            "what was recorded has no status".to_owned(),
+        ));
     } else if resolve_status(status, args.status_map.as_ref()) != Some(ArtifactStatus::Complete) {
-        let mut issue = base("invalid", "artifact_status_not_reusable");
+        let mut issue = base(
+            Level::Halt,
+            "artifact_status_not_reusable",
+            "the recorded status is not one that may be reused".to_owned(),
+        );
         issue.insert("actual_status".to_owned(), recorded_value(status));
         issues.push(issue);
     }
@@ -338,14 +348,22 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
     let revision = artifact.get("contract_revision");
     if let Some(expected) = args.expected_contract_revision.as_deref() {
         if js_falsy(revision) {
-            let mut issue = base("unknown_contract", "contract_revision_missing");
+            let mut issue = base(
+                Level::Halt,
+                "contract_revision_missing",
+                format!("a contract revision of {expected:?} is expected and none is recorded"),
+            );
             issue.insert(
                 "expected_contract_revision".to_owned(),
                 Value::Text(expected.to_owned()),
             );
             issues.push(issue);
         } else if !same_text(revision, expected) {
-            let mut issue = base("invalid", "contract_revision_mismatch");
+            let mut issue = base(
+                Level::Halt,
+                "contract_revision_mismatch",
+                format!("the recorded contract revision is not the expected {expected:?}"),
+            );
             issue.insert(
                 "expected_contract_revision".to_owned(),
                 Value::Text(expected.to_owned()),
@@ -361,7 +379,11 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
     let config = artifact.get("stage_config_digest");
     if let Some(expected) = args.expected_stage_config_digest.as_deref() {
         if !same_text(config, expected) {
-            let mut issue = base("invalid", "stage_config_digest_mismatch");
+            let mut issue = base(
+                Level::Halt,
+                "stage_config_digest_mismatch",
+                format!("the recorded stage config digest is not the expected {expected:?}"),
+            );
             issue.insert(
                 "expected_stage_config_digest".to_owned(),
                 Value::Text(expected.to_owned()),
@@ -385,7 +407,11 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
         for (id, expected) in expected_ids {
             let actual = recorded.and_then(|held| held.get(id.as_str()));
             if !same_text(actual, expected) {
-                let mut issue = base("invalid", "dependency_digest_mismatch");
+                let mut issue = base(
+                    Level::Halt,
+                    "dependency_digest_mismatch",
+                    format!("the dependency {id:?} moved"),
+                );
                 issue.insert("dependency_id".to_owned(), Value::Text(id.clone()));
                 issue.insert("expected_digest".to_owned(), Value::Text(expected.clone()));
                 issue.insert("actual_digest".to_owned(), recorded_value(actual));
@@ -395,22 +421,50 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Vec<Issue> {
     }
 
     for given in args.validation_issues.iter().flatten() {
-        let mut issue = base("invalid", "validation_issue");
+        let mut issue = base(
+            Level::Halt,
+            "validation_issue",
+            "the caller's own validation found something".to_owned(),
+        );
         // A null field is an absent one: the default stands where there is one.
         for (key, field) in given {
-            if *field != Value::Null {
-                issue.insert(key.clone(), field.clone());
+            if *field == Value::Null {
+                continue;
             }
+            // A caller may disagree with a verdict, not sign one, and the three
+            // are as closed a set here as they are anywhere else.
+            if key == "spec" {
+                return Err(Refused(
+                    "a validation issue carries a spec, which only the library says",
+                ));
+            }
+            if key == "verdict" && !matches!(field, Value::Text(held) if known_level(held)) {
+                return Err(Refused(
+                    "a validation issue's verdict is not one of the three",
+                ));
+            }
+            issue.insert(key.clone(), field.clone());
         }
         issues.push(issue);
     }
 
     if issues.is_empty() {
-        let mut valid = base("valid", "checkpoint_valid");
-        valid.insert("required_resume_from_stage".to_owned(), Value::Null);
-        return vec![valid];
+        let mut valid = base(
+            Level::Ok,
+            "checkpoint_valid",
+            "the artifact may be reused".to_owned(),
+        );
+        valid.insert("resume".to_owned(), Value::Null);
+        return Ok(vec![valid]);
     }
-    issues
+    Ok(issues)
+}
+
+/// Whether a level is one of the three. The library never asks it of itself;
+/// a caller's own verdict, laid over a checkpoint issue, is the one place a
+/// level arrives from outside, and it arrives as text.
+fn known_level(named: &str) -> bool {
+    named == Level::Ok.as_str() || named == Level::Warning.as_str() || named == Level::Halt.as_str()
 }
 
 fn resolve_status(

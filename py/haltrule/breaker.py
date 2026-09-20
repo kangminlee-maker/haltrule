@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+
+from haltrule.verdict import VerdictLevel, verdict
 from typing import Any, Literal, Optional
 
 SystemicDispatchFailureClass = Literal["rate_limit", "auth", "transport"]
@@ -183,6 +185,15 @@ class DispatchDeadLetterEntry:
 
 @dataclass
 class DispatchBreakerTripState:
+    """The batch's trip, once it has one: a halt verdict, and the three facts
+    its reason names. `resume` is None, because what a next run picks up is
+    the pending entries and not a place."""
+
+    spec: str
+    verdict: VerdictLevel
+    reason: str
+    message: str
+    resume: Optional[str]
     failure_class: SystemicDispatchFailureClass
     consecutive_item_count: int
     threshold: int
@@ -308,6 +319,13 @@ class DispatchBreakerState:
             # happened to cross. It is a best-effort diagnostic label, never
             # recovery-relevant, and is left as the crossing item's class.
             self._trip = DispatchBreakerTripState(
+                **verdict(
+                    "halt",
+                    "breaker_tripped",
+                    f"{len(self._pending_systemic)} items in a row failed with"
+                    f" {entry.failure_class!r}, which is the threshold: the provider,"
+                    " and not the items, is the likely cause",
+                ),
                 failure_class=entry.failure_class,
                 consecutive_item_count=len(self._pending_systemic),
                 threshold=self._threshold,

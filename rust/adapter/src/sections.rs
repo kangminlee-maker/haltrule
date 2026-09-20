@@ -88,6 +88,24 @@ fn normative(from: &Verdict) -> Value {
     Value::Map(held)
 }
 
+/// The same for a verdict carrying the fields its reason names beside the
+/// five: those may be there, the five must be, and `message` still goes.
+fn normative_open(from: Map) -> Result<Value, Trouble> {
+    for field in ["spec", "verdict", "reason", "message", "resume"] {
+        if !from.contains_key(field) {
+            return Err(Trouble::Raised(format!("a verdict has no {field}")));
+        }
+    }
+    if !matches!(from.get("message"), Some(Value::Text(_))) {
+        return Err(Trouble::Raised(
+            "a verdict's message is not text".to_string(),
+        ));
+    }
+    let mut held = from;
+    held.remove("message");
+    Ok(Value::Map(held))
+}
+
 fn map_of(pairs: impl IntoIterator<Item = (&'static str, Value)>) -> Value {
     let mut held = Map::new();
     for (key, value) in pairs {
@@ -168,20 +186,24 @@ fn batch_of(raw: Option<&Json>) -> Built<DispatchBreakerState> {
 }
 
 fn trip_value(trip: Option<&DispatchBreakerTripState>) -> Value {
-    match trip {
-        None => Value::Null,
-        Some(held) => map_of([
-            (
-                "failure_class",
-                Value::Text(held.failure_class.as_str().to_string()),
-            ),
-            (
-                "consecutive_item_count",
-                Value::Int(held.consecutive_item_count),
-            ),
-            ("threshold", Value::Int(held.threshold)),
-        ]),
-    }
+    let held = match trip {
+        None => return Value::Null,
+        Some(held) => held,
+    };
+    let mut shown = match normative(&held.verdict) {
+        Value::Map(fields) => fields,
+        other => return other,
+    };
+    shown.insert(
+        "failure_class".to_string(),
+        Value::Text(held.failure_class.as_str().to_string()),
+    );
+    shown.insert(
+        "consecutive_item_count".to_string(),
+        Value::Int(held.consecutive_item_count),
+    );
+    shown.insert("threshold".to_string(), Value::Int(held.threshold));
+    Value::Map(shown)
 }
 
 fn entry_value(entry: &DispatchDeadLetterEntry) -> Value {
@@ -301,9 +323,7 @@ fn canonicalize_case(from: &Inputs) -> Answer {
             ("canonical", Value::Text(canonical)),
             ("digest", Value::Text(digest)),
         ])),
-        (Err(halt), Err(other)) if halt.halt == other.halt => {
-            Ok(map_of([("halt", Value::Text(halt.halt.to_string()))]))
-        }
+        (Err(halt), Err(other)) if halt.reason == other.reason => Ok(normative(&halt)),
         // The two entry points must agree about the same value; if they do
         // not, that is a bug in the port, not a result to compare.
         _ => Err(Trouble::Raised(
@@ -377,14 +397,24 @@ fn checkpoint(from: &Inputs) -> Answer {
             }
             args.validation_issues = Some(issues);
         }
-        Ok(Value::List(
-            evaluate_checkpoint_artifact(&args)
-                .into_iter()
-                .map(Value::Map)
-                .collect(),
-        ))
+        let issues = evaluate_checkpoint_artifact(&args).map_err(|_| Refusal::Refused)?;
+        Ok(Value::List(issues.into_iter().map(Value::Map).collect()))
     })();
-    or_refused(built)
+    // A verdict's shape is the adapter's to check, and a Refusal cannot carry
+    // that complaint, so the issues come back as maps and are checked here.
+    match or_refused(built)? {
+        Value::List(issues) => {
+            let mut shown = Vec::with_capacity(issues.len());
+            for issue in issues {
+                match issue {
+                    Value::Map(held) => shown.push(normative_open(held)?),
+                    _ => return Err(Trouble::Raised("an issue is not a map".to_string())),
+                }
+            }
+            Ok(Value::List(shown))
+        }
+        refusal => Ok(refusal),
+    }
 }
 
 /// A field that is there and is not null.

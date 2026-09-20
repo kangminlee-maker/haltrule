@@ -78,13 +78,17 @@ The digest is `sha256:` followed by the lowercase hex SHA-256 of the canonical f
 `printf '%s' "$canonical" | sha256sum` computes it without any implementation. A string is always a value:
 its digest covers the quoted, escaped form. A digest of raw text is the caller's to compute.
 
+Either answers with a canonical form, or with a digest, or with the `halt` verdict below; the halt adds
+nothing to the five fields, and where in the value the trouble is sits in its message, because a path is
+not a thing two languages spell alike.
+
 ## Verdict
 
-Every entry point is to return one shape; `budget` and `slot` return it today. The breaker and `checkpoint`
-still return the shapes they had in the pipelines they came from: `checkpoint` returns its issue list, and
-`canonicalize` and the digest return either their result or `{halt, message}` with a `digest_input_*`
-reason. None of them raises for a verdict; `message` is for people and is not part of conformance, so a
-fixture's expected verdict omits it.
+Every verdict a part reaches is one shape. A part that answers a question instead of reaching a verdict
+answers with the answer — `classify` with a class, `backoff` with a number, `canonicalize` with the
+canonical form — and one that reaches no verdict this time answers null, as the breaker's `state` does for
+a report that does not trip the batch. None of them raises for a verdict; `message` is for people and is
+not part of conformance, so a fixture's expected verdict omits it.
 
 ```
 Verdict {
@@ -95,6 +99,10 @@ Verdict {
   resume:  string?   # where the next run should pick up, when that is knowable; null when it is not
 }
 ```
+
+Some reasons name facts of their own — which dependency moved, what the artifact records, how many
+failures crossed the threshold — and those sit beside the five in the same map, under the names the part's
+own table gives them. A reader who knows nothing of the part still reads the five.
 
 It is JSON by construction, so it can be written into a spreadsheet cell, an artifact field, or a database
 column without translation. `budget` and `slot` have nowhere to resume from: their `resume` is always null.
@@ -166,9 +174,11 @@ not name is not reusable.
       whose class is null goes to the dead letter, every time it is reported. Any other entry — whatever its
       class says, the empty string included: the part does not judge it — becomes pending unless one with its
       `item_id` already is — the first is kept. Then, if the policy is enabled, the batch
-      has not tripped, and the number pending has reached `systemic_threshold`, the batch trips: the trip is
-      this entry's `failure_class`, the number pending as `consecutive_item_count`, and the `threshold`. That
-      one report answers with the trip; every other report answers null.
+      has not tripped, and the number pending has reached `systemic_threshold`, the batch trips. The trip is a
+      `halt` verdict, reason `breaker_tripped`, adding this entry's `failure_class`, the number pending as
+      `consecutive_item_count`, and the `threshold`; its `resume` is null, because what a next run picks up
+      is the pending entries and not a place. That one report answers with the trip; every other report
+      answers null.
     - After the trip nothing leaves the pending entries: a success no longer moves them and a failure still
       joins them. They are the outage's victims, to be dispatched again, not written off. With `concurrent`
       on the same holds before the trip, so which items end where does not depend on the order they finished
@@ -197,20 +207,25 @@ not name is not reusable.
   A recorded value equals an expectation only when it is the same string: a recorded `1` is not `"1"`. What
   is recorded beyond what is expected is not looked at.
 
-  The result is a list of issues, never empty. An issue is a map of `stage_id`, `status`, `reason`,
-  `required_resume_from_stage` and `subject_ref` (null when absent), and what its reason adds:
+  The result is a list of verdicts, never empty. Each holds the five fields of a verdict, with
+  `resume` carrying where a rerun must start and `subject_ref` and `stage_id` beside them
+  (`subject_ref` is null when absent), and what its reason adds:
 
-  | `status` | `reason` | adds |
+  | `verdict` | `reason` | adds |
   |---|---|---|
-  | `missing` | `artifact_missing` | |
-  | `invalid` | `artifact_status_missing` | |
-  | `invalid` | `artifact_status_not_reusable` | `actual_status` |
-  | `unknown_contract` | `contract_revision_missing` | `expected_contract_revision` |
-  | `invalid` | `contract_revision_mismatch` | `expected_contract_revision`, `actual_contract_revision` |
-  | `invalid` | `stage_config_digest_mismatch` | `expected_stage_config_digest`, `actual_stage_config_digest` |
-  | `invalid` | `dependency_digest_mismatch` | `dependency_id`, `expected_digest`, `actual_digest` |
-  | `invalid` | `validation_issue` | the caller's fields |
-  | `valid` | `checkpoint_valid` | `required_resume_from_stage` is null |
+  | `halt` | `artifact_missing` | |
+  | `halt` | `artifact_status_missing` | |
+  | `halt` | `artifact_status_not_reusable` | `actual_status` |
+  | `halt` | `contract_revision_missing` | `expected_contract_revision` |
+  | `halt` | `contract_revision_mismatch` | `expected_contract_revision`, `actual_contract_revision` |
+  | `halt` | `stage_config_digest_mismatch` | `expected_stage_config_digest`, `actual_stage_config_digest` |
+  | `halt` | `dependency_digest_mismatch` | `dependency_id`, `expected_digest`, `actual_digest` |
+  | `halt` | `validation_issue` | the caller's fields |
+  | `ok` | `checkpoint_valid` | `resume` is null |
+
+  A reuse verdict is `halt` or it is `ok`: whether the artifact may be reused is the whole question, and
+  what is wrong with it is the reason's to say. The four statuses this list used to carry said the same
+  thing twice.
 
   An `actual_` member is what is recorded, null when nothing is. An absent artifact is one `artifact_missing`
   and nothing else: the expectations and the caller's issues are not looked at. Otherwise every issue found,
@@ -218,10 +233,12 @@ not name is not reusable.
   stage-config digest, dependency digests by UTF-16 code unit order of their ids, the caller's validation
   issues in the order given; with none, a single `checkpoint_valid`.
 
-  A caller's validation issue becomes an `invalid` issue with reason `validation_issue` and the caller's own
-  fields laid over those five defaults — any of them, `status` and `stage_id` included; the part does not
-  judge them. A field that is null is absent: the default stands where there is one, and the field is left
-  out where there is none. Issue ids and file reads stay with the caller.
+  A caller's validation issue becomes a `halt` verdict with reason `validation_issue` and the caller's own
+  fields laid over those defaults — any of them but `spec`, `verdict` and `stage_id` included; the part does
+  not judge what it does not have to. A `verdict` it gives is held to the three, as a `status_map` value is
+  held to the four, and a `spec` it gives is refused: a caller may disagree with a verdict, not sign one. A
+  field that is null is absent: the default stands where there is one, and the field is left out where
+  there is none. Issue ids and file reads stay with the caller.
 - `budget` — a ledger of turns, milliseconds, and tokens against the caps `max_turns`, `time_budget_ms`, and
   `token_budget`, each optional. The caller charges what it measured; `charge` adds it and returns a verdict:
   `warning` naming the first exhausted resource in the order turns, time, tokens (`budget_turns`,
@@ -254,10 +271,11 @@ not name is not reusable.
 ## Reason registry
 
 One table, additions only. A reason code that ships cannot change meaning, because it will already be
-sitting in somebody's artifacts. The breaker's reasons are not registered yet.
+sitting in somebody's artifacts.
 
 | Reason | Part | Meaning |
 |---|---|---|
+| `breaker_tripped` | breaker | enough items failed in a row that the provider, and not the items, is the likely cause |
 | `digest_input_float` | checkpoint | a digest input holds a fractional, NaN, or infinite number |
 | `digest_input_int_range` | checkpoint | a digest input holds an integer outside ±(2^53 − 1) |
 | `digest_input_unsupported` | checkpoint | a digest input holds anything else outside the value model, or nests deeper than 100 |

@@ -23,3 +23,10 @@ export interface Verdict {
 export function verdict(level: VerdictLevel, reason: string, message: string, resume: string | null = null): Verdict {
   return { spec: SPEC, verdict: level, reason, message, resume };
 }
+
+/** Whether a level is one of the three. The library never asks it of itself;
+ * a caller's own verdict, laid over a checkpoint issue, is the one place a
+ * level arrives from outside. */
+export function isVerdictLevel(value: unknown): value is VerdictLevel {
+  return value === "ok" || value === "warning" || value === "halt";
+}

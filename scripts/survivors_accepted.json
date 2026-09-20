@@ -164,7 +164,7 @@
     "why": "the entry point reads the arguments and opens the output; the bridge test calls the reading and the writing directly, as a mutation run needs it to, so nothing runs main itself"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:304:36: replace match guard halt.halt == other.halt with true in canonicalize_case",
+    "survivor": "rust/adapter/src/sections.rs:326:36: replace match guard halt.reason == other.reason with true in canonicalize_case",
     "why": "canonicalize and the digest are one walk of the same value, so no case can make them disagree; the guard is there to catch a defect in this port, not to answer a case. Every port has it"
   },
   {
@@ -172,11 +172,11 @@
     "why": "at a sum of exactly 2^63 - 1 both answers are 2^63 - 1: the ledger saturates to the value it already holds"
   },
   {
-    "survivor": "rust/haltrule/src/checkpoint.rs:443:9: delete match arm Some(Value::Int(held)) in js_falsy",
+    "survivor": "rust/haltrule/src/checkpoint.rs:497:9: delete match arm Some(Value::Int(held)) in js_falsy",
     "why": "a recorded field never holds an integer in the fixtures: every number a case writes is a $number, which is a double, and $bigint may not appear in an artifact. The arm answers a caller, and no case can tell it apart"
   },
   {
-    "survivor": "rust/haltrule/src/checkpoint.rs:443:41: replace == with != in js_falsy",
+    "survivor": "rust/haltrule/src/checkpoint.rs:497:41: replace == with != in js_falsy",
     "why": "a recorded field never holds an integer in the fixtures: every number a case writes is a $number, which is a double, and $bigint may not appear in an artifact. The arm answers a caller, and no case can tell it apart"
   }
 ]

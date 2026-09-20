@@ -10,6 +10,7 @@
  */
 
 import { requireFields } from "./contract.ts";
+import { verdict, type Verdict } from "./verdict.ts";
 
 /** 2^53 - 1: the largest integer every language holds, and so the breaker's. */
 const WHOLE_MAX = 9007199254740991;
@@ -191,7 +192,10 @@ export interface DispatchDeadLetterEntry {
 }
 
 
-export interface DispatchBreakerTripState {
+/** The batch's trip, once it has one: a halt verdict, and the three facts its
+ * reason names. `resume` is null, because what a next run picks up is the
+ * pending entries and not a place. */
+export interface DispatchBreakerTripState extends Verdict {
   failure_class: SystemicDispatchFailureClass;
   consecutive_item_count: number;
   threshold: number;
@@ -315,6 +319,12 @@ export class DispatchBreakerState {
       // diagnostic label, never recovery-relevant, and is left as the
       // crossing item's class.
       this.trip = {
+        ...verdict(
+          "halt",
+          "breaker_tripped",
+          `${this.pendingSystemic.length} items in a row failed with "${entry.failure_class}",` +
+            " which is the threshold: the provider, and not the items, is the likely cause",
+        ),
         failure_class: entry.failure_class,
         consecutive_item_count: this.pendingSystemic.length,
         threshold: this.threshold,

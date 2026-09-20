@@ -829,6 +829,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -837,6 +841,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -914,6 +922,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -935,6 +947,10 @@
           }
         ],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -1074,6 +1090,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -1084,6 +1104,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -1144,6 +1168,10 @@
         "returns": [
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -1156,6 +1184,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -1219,6 +1251,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -1229,6 +1265,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -1296,6 +1336,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -1304,6 +1348,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -1434,6 +1482,10 @@
         "returns": [
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -1442,6 +1494,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -1569,6 +1625,10 @@
       "expect": {
         "returns": [
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 1,
             "threshold": 1
@@ -1577,6 +1637,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 1,
           "threshold": 1
@@ -1930,6 +1994,10 @@
       "expect": {
         "returns": [
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 1,
             "threshold": 1
@@ -1942,6 +2010,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 1,
           "threshold": 1
@@ -2087,6 +2159,10 @@
       "expect": {
         "returns": [
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 1,
             "threshold": 1
@@ -2103,6 +2179,10 @@
           }
         ],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 1,
           "threshold": 1
@@ -2272,6 +2352,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "transport",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -2282,6 +2366,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "transport",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -2347,6 +2435,10 @@
         "returns": [
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "transport",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -2357,6 +2449,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "transport",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -2434,6 +2530,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "transport",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -2455,6 +2555,10 @@
           }
         ],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "transport",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -2507,6 +2611,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -2517,6 +2625,10 @@
         ],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -2662,6 +2774,10 @@
           null,
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "transport",
             "consecutive_item_count": 3,
             "threshold": 3
@@ -2679,6 +2795,10 @@
           }
         ],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "transport",
           "consecutive_item_count": 3,
           "threshold": 3
@@ -2982,6 +3102,10 @@
         "returns": [
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -2990,6 +3114,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "",
           "consecutive_item_count": 2,
           "threshold": 2
@@ -3415,6 +3543,10 @@
           },
           null,
           {
+            "spec": "haltrule/0",
+            "verdict": "halt",
+            "reason": "breaker_tripped",
+            "resume": null,
             "failure_class": "rate_limit",
             "consecutive_item_count": 2,
             "threshold": 2
@@ -3423,6 +3555,10 @@
         "completed": [],
         "dead_letter": [],
         "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "halt",
+          "reason": "breaker_tripped",
+          "resume": null,
           "failure_class": "rate_limit",
           "consecutive_item_count": 2,
           "threshold": 2

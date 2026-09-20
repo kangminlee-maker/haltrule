@@ -26,3 +26,10 @@ def verdict(
         "message": message,
         "resume": resume,
     }
+
+
+def is_verdict_level(value: Any) -> bool:
+    """Whether a level is one of the three. The library never asks it of
+    itself; a caller's own verdict, laid over a checkpoint issue, is the one
+    place a level arrives from outside."""
+    return value in ("ok", "warning", "halt")
