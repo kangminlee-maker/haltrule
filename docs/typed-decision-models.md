@@ -3,7 +3,10 @@
 A new kind of model answers a question with a typed value instead of a sentence. You hand it some state
 and a set of questions declared in advance — is this true, which of these, what score — and it returns a
 probability per option with a confidence, in 70 to 500 milliseconds, for $0.042 per million input tokens
-with output free. It cannot violate the schema, because the schema is fixed before the call. TypeSafe's
+with output free. Both numbers deserve a caveat their vendor does not give them: the lower latency is a
+regional floor, unreachable across an ocean, and the headline cost multiples are measured against slow
+expensive models — an independent recalculation against models of comparable accuracy put it nearer 25
+times faster and 76 times cheaper, and nearer 8 times against small ones. It cannot violate the schema, because the schema is fixed before the call. TypeSafe's
 Jev is the one this page was written against, in September 2026.
 
 That removes a whole class of work: no prompt to parse, no field to clip back into range, no batching
@@ -31,9 +34,11 @@ so a network call does not typecheck and does not import. That is not a rule any
 modules are built.
 
 And conformance is byte-for-byte across languages. The strongest claim made for a model of this kind is
-that it "returns similar answers for similar inputs". Similar is a failure here. This library is the ruler;
-a model of this kind is someone very good at estimating by eye, and you cannot draw the ruler's marks by
-eye.
+that it "returns similar answers for similar inputs". Similar is a failure here, and independent testing
+suggests similar is the right word: one evaluation reported the same benchmark at 91.7% and 93.3% on
+repeated runs, and asking one identical question two ways — as the probability a statement is true, or as
+a two-way choice — returned 0.22 one way and a 0.99 "no" the other. This library is the ruler; a model of
+this kind is someone very good at estimating by eye, and you cannot draw the ruler's marks by eye.
 
 ## The seams the spec already leaves
 
@@ -47,7 +52,10 @@ The division of labour is one sentence. **The model answers what is true, and wi
 library answers whether that may be written down, and if not, where the next run picks up.**
 
 The pairing that is worth the most is not a judgment at all. It is invalidation. A cached judgment goes
-stale along three independent axes — the model version, the question text, and the input state — and
+stale along three independent axes — the model version, the question text, and the input state — and the
+middle one is not cosmetic: in the same independent testing, splitting one judgment into five questions
+moved a benchmark from 62.6% to 95.0%, which is to say a change in how you ask can matter more than a
+change in what you ask about. A question set is a contract, and
 `checkpoint` is a three-axis staleness check with a per-axis reason: `contract_revision_mismatch`,
 `stage_config_digest_mismatch`, `dependency_digest_mismatch`, the last naming which dependency moved.
 Pinning a version, which the vendor recommends, is the easy half; knowing which stored answers the pin
@@ -172,6 +180,11 @@ model exists:
 
 ## Sources
 
-Read on 2026-09-20: TypeSafe's model documentation and blog; the Pydantic AI, OpenRouter, Cloudflare
-Workers AI and LangChain integration pages, for how many languages this reaches; two third-party
-walkthroughs. The four digest collisions and the sort-order divergence above were run, not read.
+Read on 2026-09-20: TypeSafe's model documentation, API reference and blog; the Pydantic AI, OpenRouter,
+Cloudflare Workers AI and LangChain integration pages, for how many languages this reaches; and four
+third-party pieces — two walkthroughs, one independent evaluation that measured the run-to-run and
+question-shape variation quoted above, and one that recalculated the cost and latency multiples against
+comparable models. Nobody has published accuracy for this model outside English, which is why the last
+section says what it says.
+
+The four digest collisions and the sort-order divergence were run, not read.
