@@ -2,12 +2,15 @@
 
 A new kind of model answers a question with a typed value instead of a sentence. You hand it some state
 and a set of questions declared in advance — is this true, which of these, what score — and it returns a
-probability per option with a confidence, in 70 to 500 milliseconds, for $0.042 per million input tokens
-with output free. Both numbers deserve a caveat their vendor does not give them: the lower latency is a
-regional floor, unreachable across an ocean, and the headline cost multiples are measured against slow
-expensive models — an independent recalculation against models of comparable accuracy put it nearer 25
-times faster and 76 times cheaper, and nearer 8 times against small ones. It cannot violate the schema, because the schema is fixed before the call. TypeSafe's
-Jev is the one this page was written against, in September 2026.
+probability per option with a confidence. It cannot violate the schema, because the schema is fixed before
+the call. TypeSafe's Jev is the one this page was written against, in September 2026.
+
+It quotes 70 to 500 milliseconds and $0.042 per million input tokens with output free. Both figures
+deserve a caveat their vendor does not give them. The latency is a regional floor: measured from this side
+of the Pacific the median was around 600 milliseconds and nothing came back under half a second, with the
+first call of a session near a second and a half. And the headline cost multiples are against slow
+expensive models — recalculated against models of comparable accuracy they are nearer 25 times faster and
+76 times cheaper, and nearer 8 times against small ones.
 
 That removes a whole class of work: no prompt to parse, no field to clip back into range, no batching
 twenty items into one call to keep the cost down, no realigning an answer set that drifted from the
@@ -34,11 +37,18 @@ so a network call does not typecheck and does not import. That is not a rule any
 modules are built.
 
 And conformance is byte-for-byte across languages. The strongest claim made for a model of this kind is
-that it "returns similar answers for similar inputs". Similar is a failure here, and independent testing
-suggests similar is the right word: one evaluation reported the same benchmark at 91.7% and 93.3% on
-repeated runs, and asking one identical question two ways — as the probability a statement is true, or as
-a two-way choice — returned 0.22 one way and a 0.99 "no" the other. This library is the ruler; a model of
-this kind is someone very good at estimating by eye, and you cannot draw the ruler's marks by eye.
+that it "returns similar answers for similar inputs". Similar is a failure here, and similar is the right
+word. Twenty identical requests, one question about one unchanging state, every one answered by the same
+version: 0.85, 0.86, 0.87, 0.88, 0.89 — five distinct answers, a spread of 0.04, a standard deviation of
+0.009, no errors. Nothing moved and the answer moved anyway.
+
+Asking one identical judgment two ways moves it further. As a probability that the meaning was preserved,
+a translation that drops a condition scores 0.14; asked as a two-way choice, the same judgment about the
+same text comes back "no" at 0.97, with a confidence of 0.95. Read as one number those are 0.86 and 0.97,
+a gap of a tenth where the run-to-run spread is 0.04.
+
+This library is the ruler; a model of this kind is someone very good at estimating by eye, and you cannot
+draw the ruler's marks by eye.
 
 ## The seams the spec already leaves
 
@@ -53,7 +63,7 @@ library answers whether that may be written down, and if not, where the next run
 
 The pairing that is worth the most is not a judgment at all. It is invalidation. A cached judgment goes
 stale along three independent axes — the model version, the question text, and the input state — and the
-middle one is not cosmetic: in the same independent testing, splitting one judgment into five questions
+middle one is not cosmetic: in independent testing, splitting one judgment into five questions
 moved a benchmark from 62.6% to 95.0%, which is to say a change in how you ask can matter more than a
 change in what you ask about. A question set is a contract, and
 `checkpoint` is a three-axis staleness check with a per-axis reason: `contract_revision_mismatch`,
@@ -70,9 +80,14 @@ the alias moved underneath it.
 
 `if (score > 0.8)` has no home in `slot`. Neither `choice` nor `text` compares a number to a bar. The
 design is settled and deliberately not yet built: a `score` kind whose value is an integer at a declared
-scale, so 0.87 arrives as 870 at scale 1000 and the caller does the rounding where it can be reviewed.
+scale, so 0.87 arrives as 87 at scale 100 and the caller does the rounding where it can be reviewed.
 That is the stance the spec already takes on floats in a digest input, so it adds no special case, and it
 removes cross-language float comparison entirely.
+
+Measurement picked that scale. The model answers in hundredths, and its own spread across identical
+requests was 0.04, so a scale of 1000 would carry three digits of which the last two are noise. A bar has
+to stand outside that spread before it is a bar at all, and declaring the scale is what makes that
+question askable instead of implicit.
 
 The line it will not cross: this library owns the acceptance bar — may this judgment be recorded — and
 never the routing bar — is this ticket urgent. The second is the caller's domain, and taking it would
@@ -191,7 +206,11 @@ model exists:
 
 ## Sources
 
-Read on 2026-09-20: TypeSafe's model documentation, API reference and blog; the Pydantic AI, OpenRouter,
+Measured on 2026-09-20 against `jev-1.13.0`: the run-to-run spread, the two question shapes, the
+hundredths the model answers in, and the latency. The harness is standard library only and its results
+are kept beside it.
+
+Read the same day: TypeSafe's model documentation, API reference and blog; the Pydantic AI, OpenRouter,
 Cloudflare Workers AI and LangChain integration pages, for how many languages this reaches; and four
 third-party pieces — two walkthroughs, one independent evaluation that measured the run-to-run and
 question-shape variation quoted above, and one that recalculated the cost and latency multiples against
