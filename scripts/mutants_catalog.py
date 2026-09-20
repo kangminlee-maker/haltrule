@@ -731,3 +731,64 @@ CATALOG += [
         [SURVIVORS_FAIL, "FAIL [self-test] a cosmic-ray dump is read"],
     ),
 ]
+
+# --- what not every language can hold: a port may sit out those cases, and only those
+CATALOG += [
+    mutant(
+        "driver: unbuildable is taken only for an input not every language can hold",
+        "scripts/conform.py",
+        "            if key in may_be_unbuildable:\n",
+        "            if key in want:\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] unbuildable, of an input every language holds passed",
+        ],
+    ),
+    mutant(
+        "driver: a port held to every input may not say unbuildable",
+        "scripts/conform.py",
+        "        if not every_language and not every_input\n",
+        "        if not every_language\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] a port held to every input said unbuildable and passed",
+        ],
+    ),
+    mutant(
+        "driver: an unpaired surrogate in a key is beyond some languages too",
+        "scripts/conform.py",
+        "            every_language_holds(key) and every_language_holds(value)\n",
+        "            every_language_holds(value)\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] an unpaired surrogate in a key was read as within every language",
+        ],
+    ),
+    mutant(
+        "driver: an $unsupported value is beyond some languages",
+        "scripts/conform.py",
+        '        return "$unsupported" not in node and all(\n',
+        "        return all(\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] an $unsupported value was read as within every language",
+        ],
+    ),
+    mutant(
+        "ts adapter: a port that can build every input may not sit a case out",
+        "ts/adapter/adapter.ts",
+        "        let text: string;\n",
+        '        if (section === "validate" && typeof tc.value === "string" && !tc.value.isWellFormed()) {\n          console.log(canonicalStringify({ id, section, unbuildable: true }));\n          continue;\n        }\n        let text: string;\n',
+        [
+            TS_FAILS,
+            "FAIL [text_lone_high_surrogate_is_invalid] field=validate.unbuildable",
+        ],
+    ),
+    mutant(
+        "py adapter: a port that can build every input may not sit a case out",
+        "py/adapter.py",
+        '                line = {"id": case["id"], "section": section}\n',
+        '                line = {"id": case["id"], "section": section}\n                if section == "canonicalize" and "$unsupported" in json.dumps(case):\n                    print(_canonical_json({**line, "unbuildable": True}))\n                    continue\n',
+        [PY_FAILS, "FAIL [sparse_array] field=canonicalize.unbuildable"],
+    ),
+]

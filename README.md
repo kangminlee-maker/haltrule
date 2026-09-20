@@ -85,6 +85,8 @@ scripts/     conform.py, the one driver that judges every port; check.sh, the ga
 
 A port is its modules plus an adapter. The adapter holds no expectation and compares nothing, so a new
 language adds one line to `scripts/check.sh` for its adapter and one for its own mainstream purity tools.
+A language whose types cannot hold some inputs at all — Rust has no string with an unpaired surrogate —
+answers `unbuildable` for those cases; the driver knows from the input which they may be, and counts them.
 
 Whether the fixtures would notice a defect in a port is asked by that language's mainstream mutation tool -
 StrykerJS for TypeScript, cosmic-ray for Python - with the shared driver as its only test. What survives

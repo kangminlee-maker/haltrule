@@ -9,6 +9,15 @@ value of the kinds JSON has — null, a boolean, a number, a string, a list, a m
 integer is an integer however the language holds it. What a language can hold beyond those (JavaScript's
 `undefined`, a class instance) is no argument at all; only a digest input is asked about it.
 
+Not every language can hold everything the fixtures hand a part. A string with an unpaired surrogate is an
+ordinary value in JavaScript and Python and cannot exist in Rust; `undefined` exists in one language only. A
+port whose types cannot build such an input says so for that case (`unbuildable`, see
+`../fixtures/README.md`) and conforms on the rest: its types have shut out, before it ran, what the others
+must answer for. Which cases those are is read off the input itself — an unpaired surrogate in a string or
+a key, or one of the `$unsupported` values — so it is not a list anyone keeps, and a port cannot choose what
+to sit out. The driver accepts `unbuildable` for those cases only, says how many there were, and holds a port
+in a language that can build them all to every one.
+
 **Null and not given are the same thing: absent.** A port whose types cannot tell the two apart loses
 nothing. An absent field takes its default where it has one — no cap, no bound, nothing used, `concurrent`
 off — and nothing else is a way to be absent: `false`, `0` and `""` are values.
@@ -108,8 +117,9 @@ not name is not reusable.
   the retries and what is persisted are the caller's. Its numbers are integers within ±(2^53 − 1). The three
   fixture sections are its three entry points.
   - **`classify`** takes a failure message and answers `rate_limit`, `auth`, `transport`, or null — null
-    meaning the failure is the item's own and says nothing about the provider. A message that is not a
-    non-empty string is null. Otherwise the message is lowercased by Unicode's full default case conversion
+    meaning the failure is the item's own and says nothing about the provider. An absent or empty message
+    is null; a message that is not a string is outside the contract, like every argument of the breaker's.
+    Otherwise the message is lowercased by Unicode's full default case conversion
     (U+212A KELVIN SIGN becomes `k`; U+0130 becomes `i` followed by U+0307, so it is not the `i` inside a
     pattern) and the classes are tried in that order: the first with a pattern occurring anywhere in the
     lowercased message wins. A pattern is a plain substring — `429` matches inside `14290`.

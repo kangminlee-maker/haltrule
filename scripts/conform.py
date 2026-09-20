@@ -8,8 +8,15 @@ line per case (fixtures/README.md, "Result lines"). Everything that judges is
 here, once, for every language: which line each case expects, whether a fixture
 file is well formed, and whether a wrong expectation would be noticed.
 
-    conform.py check <adapter command...>   compare an adapter's lines with the fixtures
-    conform.py self-test                    show that this driver can fail
+    conform.py check [--every-input] <adapter command...>   compare an adapter's lines with the fixtures
+    conform.py self-test                                    show that this driver can fail
+
+A few cases hand a part what not every language can hold - a string with an
+unpaired surrogate, an $unsupported value. A port whose types cannot build such
+an input prints {"id", "section", "unbuildable": true} for it and conforms on
+the rest; the driver accepts that for those cases only - it reads which they
+are off the input itself - and says how many there were. --every-input is for a
+port in a language that can build them all: it may not say unbuildable at all.
 
 It imports nothing from any port, the Python one included.
 """
@@ -31,7 +38,9 @@ NUMBER_LITERAL = re.compile(
 INTEGER_LITERAL = re.compile(r"-?(0|[1-9][0-9]*)")
 UNSUPPORTED_KINDS = {"undefined", "instance", "non_string_key", "sparse_array"}
 
-Case = tuple[str, str, object]  # section, id, expect
+Case = tuple[
+    str, str, object, bool
+]  # section, id, expect, and: can every language hold its input?
 
 
 class Malformed(Exception):
@@ -129,6 +138,27 @@ def _check_input(node, where: str) -> None:
         _check_input(value, where)
 
 
+def every_language_holds(node) -> bool:
+    """False for an input some languages cannot build at all: a string or a key with an unpaired
+    surrogate (json.loads has already joined the pairs, so any surrogate left is alone), or one of the
+    $unsupported values. Decided from the input alone; it is not a list anyone keeps."""
+    if isinstance(node, str):
+        return not any(0xD800 <= ord(character) <= 0xDFFF for character in node)
+    if isinstance(node, list):
+        return all(every_language_holds(item) for item in node)
+    if isinstance(node, dict):
+        return "$unsupported" not in node and all(
+            every_language_holds(key) and every_language_holds(value)
+            for key, value in node.items()
+        )
+    return True
+
+
+def unbuildable_line(section: str, case_id: str) -> str:
+    """What a port prints for a case whose input its types cannot hold."""
+    return line_of({"id": case_id, "section": section, "unbuildable": True})
+
+
 def read_fixture(name: str, raw: bytes) -> list[Case]:
     """The cases of one fixture file, `name` being its path under fixtures/ without .json."""
     try:
@@ -155,14 +185,12 @@ def read_fixture(name: str, raw: bytes) -> list[Case]:
             ):
                 raise Malformed(f"{name}: a {section} case lacks an id or an expect")
             where = f"{name} [{entry['id']}]"
-            _check_input(
-                {
-                    key: value
-                    for key, value in entry.items()
-                    if key not in ("id", "expect")
-                },
-                where,
-            )
+            inputs = {
+                key: value
+                for key, value in entry.items()
+                if key not in ("id", "expect")
+            }
+            _check_input(inputs, where)
             expect = entry["expect"]
             try:
                 line_of(expect)
@@ -180,7 +208,7 @@ def read_fixture(name: str, raw: bytes) -> list[Case]:
                     raise Malformed(
                         f"{where}: the digest is not sha256 of the canonical form"
                     )
-            cases.append((section, entry["id"], expect))
+            cases.append((section, entry["id"], expect, every_language_holds(inputs)))
     return cases
 
 
@@ -196,7 +224,7 @@ def read_fixtures() -> list[Case]:
             path.relative_to(ROOT / "fixtures").with_suffix("").as_posix(),
             path.read_bytes(),
         )
-    ids = [case_id for _, case_id, _ in cases]
+    ids = [case_id for _, case_id, _, _ in cases]
     repeated = sorted({case_id for case_id in ids if ids.count(case_id) > 1})
     if repeated:
         raise Malformed(f"a case id is used twice: {repeated[0]}")
@@ -208,14 +236,24 @@ def read_fixtures() -> list[Case]:
 # --------------------------------------------------------------- the verdict
 
 
-def compare(cases: list[Case], output: str) -> list[str]:
-    """What is wrong with an adapter's output; nothing, when it conforms."""
+def compare(
+    cases: list[Case], output: str, every_input: bool = False
+) -> tuple[list[str], int]:
+    """What is wrong with an adapter's output - nothing, when it conforms - and how many inputs the
+    port said its types cannot hold. It may say so only of an input not every language can hold, and
+    not at all when it is held to every input, as a port in a language that can build them all is."""
     want = {
         (section, case_id): line_of(
             {"actual": expect, "id": case_id, "section": section}
         )
-        for section, case_id, expect in cases
+        for section, case_id, expect, _ in cases
     }
+    may_be_unbuildable = {
+        (section, case_id)
+        for section, case_id, _, every_language in cases
+        if not every_language and not every_input
+    }
+    unbuilt = 0
     failures: list[str] = []
     seen: list[tuple[str, str]] = []
     if output and not output.endswith("\n"):
@@ -237,6 +275,13 @@ def compare(cases: list[Case], output: str) -> list[str]:
             )
         elif key in seen:
             failures.append(f"FAIL [{key[1]}] field={key[0]}.repeated")
+        elif raw == unbuildable_line(*key):
+            if key in may_be_unbuildable:
+                unbuilt += 1
+            else:
+                failures.append(
+                    f"FAIL [{key[1]}] field={key[0]}.unbuildable — this port has to build this input"
+                )
         elif raw != want[key]:
             field = "raised" if "raised" in parsed else "expect"
             failures.append(
@@ -252,10 +297,10 @@ def compare(cases: list[Case], output: str) -> list[str]:
         failures.append(
             "FAIL [output] field=output.order — the lines are right and not in fixture order"
         )
-    return failures
+    return failures, unbuilt
 
 
-def check(command: list[str]) -> int:
+def check(command: list[str], every_input: bool) -> int:
     cases = read_fixtures()
     run = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, timeout=300)
     try:
@@ -263,7 +308,7 @@ def check(command: list[str]) -> int:
     except UnicodeDecodeError:
         print("FAIL [output] field=output.encoding — the output is not UTF-8")
         return 1
-    failures = compare(cases, output)
+    failures, unbuilt = compare(cases, output, every_input)
     if run.returncode != 0:
         failures.append(
             f"FAIL [output] field=adapter.exit — the adapter exited {run.returncode}"
@@ -273,7 +318,13 @@ def check(command: list[str]) -> int:
     if failures:
         print(f"{len(failures)} problem(s) across {len(cases)} cases")
         return 1
-    print(f"OK: {len(cases)} cases, each line as the fixtures expect it")
+    if unbuilt:
+        print(
+            f"OK: {len(cases)} cases: {len(cases) - unbuilt} lines as the fixtures expect them, "
+            f"and {unbuilt} inputs this port's types cannot hold"
+        )
+    else:
+        print(f"OK: {len(cases)} cases, each line as the fixtures expect it")
     return 0
 
 
@@ -380,31 +431,66 @@ def self_test() -> int:
     cases = read_fixtures()
     perfect = "".join(
         line_of({"actual": expect, "id": case_id, "section": section}) + "\n"
-        for section, case_id, expect in cases
+        for section, case_id, expect, _ in cases
     )
     lines = perfect.split("\n")[:-1]
 
-    def failing(output: str, against=cases) -> list[str]:
-        return [failure.split("\n")[0] for failure in compare(against, output)]
+    def failing(output: str, against=cases, every_input=False) -> list[str]:
+        failures, _ = compare(against, output, every_input)
+        return [failure.split("\n")[0] for failure in failures]
 
     if failing(perfect):
         problems.append("the lines the fixtures expect do not pass")
     # Every case, not a sample: an expectation that is wrong must fail under its own id.
     corrupted = [
-        (section, case_id, {"corrupted": expect}) for section, case_id, expect in cases
+        (section, case_id, {"corrupted": expect}, every)
+        for section, case_id, expect, every in cases
     ]
     noticed = failing(perfect, corrupted)
     unnoticed = [
         case_id
-        for section, case_id, _ in cases
+        for section, case_id, _, _ in cases
         if f"FAIL [{case_id}] field={section}.expect" not in noticed
     ]
     if unnoticed:
         problems.append(
             f"{len(unnoticed)} corrupted expectation(s) passed, the first being {unnoticed[0]}"
         )
-    section, case_id, _ = cases[0]
+    # A port whose types cannot hold an input says so, and only of an input not every language holds.
+    typed = "".join(
+        (line if every else unbuildable_line(section, case_id)) + "\n"
+        for line, (section, case_id, _, every) in zip(lines, cases)
+    )
+    beyond = [case for case in cases if not case[3]]
+    if compare(cases, typed) != ([], len(beyond)) or len(beyond) < 20:
+        problems.append(
+            "a port that cannot build what not every language holds did not pass, or few such cases were found"
+        )
+    held = " ".join(failing(typed, every_input=True))
+    if (
+        not beyond
+        or f"FAIL [{beyond[0][1]}] field={beyond[0][0]}.unbuildable" not in held
+    ):
+        problems.append("a port held to every input said unbuildable and passed")
+    for what, inputs, every in [
+        ("a plain input", {"value": ["a\U0001f600", {"k": None}]}, True),
+        ("an unpaired surrogate in a value", {"value": ["a\ud83d"]}, False),
+        ("an unpaired surrogate in a key", {"value": {"\udc00": 1}}, False),
+        ("an $unsupported value", {"args": [{"$unsupported": "undefined"}]}, False),
+    ]:
+        if every_language_holds(inputs) is not every:
+            problems.append(
+                f"{what} was read as {'beyond' if every else 'within'} every language"
+            )
+    section, case_id, _, every = cases[0]
+    if not every:
+        problems.append("the first case is no longer one every language can build")
     for what, output, evidence in [
+        (
+            "unbuildable, of an input every language holds",
+            perfect.replace(lines[0], unbuildable_line(section, case_id), 1),
+            f"FAIL [{case_id}] field={section}.unbuildable",
+        ),
         (
             "a missing line",
             "\n".join(lines[1:]) + "\n",
@@ -482,8 +568,10 @@ def self_test() -> int:
 
 def main(argv: list[str]) -> int:
     try:
+        if argv[:2] == ["check", "--every-input"] and len(argv) > 2:
+            return check(argv[2:], every_input=True)
         if argv[:1] == ["check"] and len(argv) > 1:
-            return check(argv[1:])
+            return check(argv[1:], every_input=False)
         if argv == ["self-test"]:
             return self_test()
     except Malformed as error:

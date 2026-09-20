@@ -62,13 +62,6 @@
       "expect": null
     },
     {
-      "id": "non_string_number_message",
-      "message": {
-        "$number": "429"
-      },
-      "expect": null
-    },
-    {
       "id": "no_match_message",
       "message": "The user provided an invalid JSON payload",
       "expect": null
@@ -257,13 +250,6 @@
       "id": "spec_classify_quota_inside_a_longer_word",
       "message": "unterminated quotation mark in the reply",
       "expect": "rate_limit"
-    },
-    {
-      "id": "spec_classify_list_holding_a_pattern_is_null",
-      "message": [
-        "429"
-      ],
-      "expect": null
     },
     {
       "id": "spec_classify_two_spaces_are_not_one",

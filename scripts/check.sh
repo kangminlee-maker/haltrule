@@ -40,10 +40,11 @@ gate "a survivor of the mutation tools that is not on the list fails, and so doe
   python3 scripts/survivors.py self-test
 
 echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect"
-gate "typescript conforms" python3 scripts/conform.py check node ts/adapter/adapter.ts
+# Both languages here can build every input, so neither may answer "unbuildable".
+gate "typescript conforms" python3 scripts/conform.py check --every-input node ts/adapter/adapter.ts
 # String hashing is seeded per process; a result that follows set order moves with the seed.
 for seed in 0 1 2; do
-  gate "python conforms (hash seed $seed)" env PYTHONHASHSEED="$seed" python3 scripts/conform.py check python3 py/adapter.py
+  gate "python conforms (hash seed $seed)" env PYTHONHASHSEED="$seed" python3 scripts/conform.py check --every-input python3 py/adapter.py
 done
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
