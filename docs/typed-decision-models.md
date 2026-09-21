@@ -192,11 +192,12 @@ consume something simply has no entry for it.
 
 ### Three verdicts, none of them with a resume
 
-All three codebases invented a verdict. One returns `ok | failed | skipped` with a prose error string,
-which a metric filter downstream matches on, so rewording the message breaks the filter silently. One
-returns a boolean, a violation list and an action, three encodings of one fact, with the action fusing the
-verdict and the response. One builds reason codes by interpolation, giving an unbounded set that nothing
-can count or alert on.
+All three codebases invented a verdict. One returns `ok | failed | skipped` with a prose error string. Its
+alert reads the status, so rewording breaks nothing; what the prose costs is the reason. Of 128 failures it
+recorded, 74 say only `ValueError` before the colon, and which failure it was is in the sentence after it.
+One returns a boolean, a violation list and an action, three encodings of one fact, with the action fusing
+the verdict and the response. One builds a reason by interpolating a status word; its records hold three
+such words and its tests pin four, so the set is closed in practice and listed nowhere.
 
 None of them carries a resume point, so the orchestrator derives it again each time.
 
