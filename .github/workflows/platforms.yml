@@ -1,0 +1,81 @@
+name: platforms
+
+# The spec promises the same bytes from every port. check.yml proves that on one
+# operating system and one processor; this asks it of the others a reader might
+# be on. Only conformance runs here: purity, lint and the mutation suites are
+# properties of the source, and one platform answers for them.
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    # macOS and Windows minutes are dear, and a change to the documents cannot
+    # move a byte an adapter prints.
+    paths:
+      - "fixtures/**"
+      - "ts/**"
+      - "py/**"
+      - "go/**"
+      - "rust/**"
+      - "scripts/conform.py"
+      - ".github/workflows/platforms.yml"
+
+jobs:
+  conform:
+    strategy:
+      # One platform failing says nothing about the next; let each answer.
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest      # linux, amd64
+          - ubuntu-24.04-arm   # linux, arm64
+          - macos-latest       # darwin, arm64
+          - macos-15-intel     # darwin, amd64
+          - windows-latest     # windows, amd64
+          - windows-11-arm     # windows, arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Where this is running
+        run: |
+          python -c "import platform; print(platform.platform(), platform.machine())"
+          node -p "'node ' + process.version + ' ' + process.arch"
+          go version
+          rustc -vV | grep host
+      # A compiled adapter is named with the platform's own suffix, or Windows
+      # will not find it.
+      - name: The go and rust adapters build
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then EXE=.exe; else EXE=; fi
+          echo "EXE=$EXE" >> "$GITHUB_ENV"
+          go build -C go -o "../.bin/go-adapter$EXE" ./adapter
+          cargo build --quiet --manifest-path rust/Cargo.toml
+      - name: The judge can fail here too
+        if: ${{ !cancelled() }}
+        run: python scripts/conform.py self-test
+      - name: typescript conforms
+        if: ${{ !cancelled() }}
+        run: python scripts/conform.py check --every-input node ts/adapter/adapter.ts
+      - name: python conforms
+        if: ${{ !cancelled() }}
+        run: python scripts/conform.py check --every-input python py/adapter.py
+      - name: go conforms
+        if: ${{ !cancelled() }}
+        run: python scripts/conform.py check ".bin/go-adapter$EXE"
+      - name: rust conforms
+        if: ${{ !cancelled() }}
+        run: python scripts/conform.py check "rust/target/debug/rust-adapter$EXE"
