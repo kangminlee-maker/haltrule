@@ -158,7 +158,7 @@ type DispatchDeadLetterEntry struct {
 	AttemptCount   int64
 }
 
-// DispatchBreakerTripState is the batch's trip, once it has one: a halt
+// DispatchBreakerTripState is the batch's trip, once it has one: a warning
 // verdict, and the three facts its reason names. Its Resume is nil, because
 // what a next run picks up is the pending entries and not a place.
 type DispatchBreakerTripState struct {
@@ -252,7 +252,7 @@ func (state *DispatchBreakerState) RecordItemFailure(entry DispatchDeadLetterEnt
 		int64(len(state.pendingSystemic)) >= state.policy.SystemicThreshold {
 		// The first crossing is the trip, and later reports do not rewrite it.
 		state.trip = &DispatchBreakerTripState{
-			Verdict: verdict(Halt, "breaker_tripped", fmt.Sprintf(
+			Verdict: verdict(Warning, "breaker_tripped", fmt.Sprintf(
 				"%d items in a row failed with %q, which is the threshold: the provider, and not the items, is the likely cause",
 				len(state.pendingSystemic), string(*entry.FailureClass))),
 			FailureClass:         *entry.FailureClass,

@@ -175,7 +175,8 @@ not name is not reusable.
       class says, the empty string included: the part does not judge it — becomes pending unless one with its
       `item_id` already is — the first is kept. Then, if the policy is enabled, the batch
       has not tripped, and the number pending has reached `systemic_threshold`, the batch trips. The trip is a
-      `halt` verdict, reason `breaker_tripped`, adding this entry's `failure_class`, the number pending as
+      `warning` verdict, reason `breaker_tripped` — a `warning` and not a `halt`, because nothing it leaves
+      behind is contaminated: what completed stays valid and what is pending is dispatched again — adding this entry's `failure_class`, the number pending as
       `consecutive_item_count`, and the `threshold`; its `resume` is null, because what a next run picks up
       is the pending entries and not a place. That one report answers with the trip; every other report
       answers null.

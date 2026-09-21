@@ -192,7 +192,7 @@ export interface DispatchDeadLetterEntry {
 }
 
 
-/** The batch's trip, once it has one: a halt verdict, and the three facts its
+/** The batch's trip, once it has one: a warning verdict, and the three facts its
  * reason names. `resume` is null, because what a next run picks up is the
  * pending entries and not a place. */
 export interface DispatchBreakerTripState extends Verdict {
@@ -320,7 +320,7 @@ export class DispatchBreakerState {
       // crossing item's class.
       this.trip = {
         ...verdict(
-          "halt",
+          "warning",
           "breaker_tripped",
           `${this.pendingSystemic.length} items in a row failed with "${entry.failure_class}",` +
             " which is the threshold: the provider, and not the items, is the likely cause",

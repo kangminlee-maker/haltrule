@@ -185,7 +185,7 @@ class DispatchDeadLetterEntry:
 
 @dataclass
 class DispatchBreakerTripState:
-    """The batch's trip, once it has one: a halt verdict, and the three facts
+    """The batch's trip, once it has one: a warning verdict, and the three facts
     its reason names. `resume` is None, because what a next run picks up is
     the pending entries and not a place."""
 
@@ -320,7 +320,7 @@ class DispatchBreakerState:
             # recovery-relevant, and is left as the crossing item's class.
             self._trip = DispatchBreakerTripState(
                 **verdict(
-                    "halt",
+                    "warning",
                     "breaker_tripped",
                     f"{len(self._pending_systemic)} items in a row failed with"
                     f" {entry.failure_class!r}, which is the threshold: the provider,"

@@ -213,7 +213,7 @@ pub struct DispatchDeadLetterEntry {
     pub attempt_count: i64,
 }
 
-/// The batch's trip, once it has one: a halt verdict, and the three facts its
+/// The batch's trip, once it has one: a warning verdict, and the three facts its
 /// reason names. Its `resume` is `None`, because what a next run picks up is
 /// the pending entries and not a place.
 #[derive(Clone, Debug, PartialEq)]
@@ -332,7 +332,7 @@ impl DispatchBreakerState {
             // pending and it is the first that is kept.
             let trip = DispatchBreakerTripState {
                 verdict: verdict(
-                    Level::Halt,
+                    Level::Warning,
                     "breaker_tripped",
                     format!(
                         "{} items in a row failed with {:?}, which is the threshold: the provider,\

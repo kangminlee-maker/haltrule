@@ -830,7 +830,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -842,7 +842,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -923,7 +923,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -948,7 +948,7 @@
         ],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1091,7 +1091,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1105,7 +1105,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1169,7 +1169,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1185,7 +1185,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1252,7 +1252,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1266,7 +1266,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1337,7 +1337,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1349,7 +1349,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1483,7 +1483,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1495,7 +1495,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1626,7 +1626,7 @@
         "returns": [
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -1638,7 +1638,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -1995,7 +1995,7 @@
         "returns": [
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -2011,7 +2011,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -2160,7 +2160,7 @@
         "returns": [
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -2180,7 +2180,7 @@
         ],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -2353,7 +2353,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "transport",
@@ -2367,7 +2367,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "transport",
@@ -2436,7 +2436,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "transport",
@@ -2450,7 +2450,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "transport",
@@ -2531,7 +2531,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "transport",
@@ -2556,7 +2556,7 @@
         ],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "transport",
@@ -2612,7 +2612,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -2626,7 +2626,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
@@ -2775,7 +2775,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "transport",
@@ -2796,7 +2796,7 @@
         ],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "transport",
@@ -3103,7 +3103,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "",
@@ -3115,7 +3115,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "",
@@ -3544,7 +3544,7 @@
           null,
           {
             "spec": "haltrule/0",
-            "verdict": "halt",
+            "verdict": "warning",
             "reason": "breaker_tripped",
             "resume": null,
             "failure_class": "rate_limit",
@@ -3556,7 +3556,7 @@
         "dead_letter": [],
         "tripped": {
           "spec": "haltrule/0",
-          "verdict": "halt",
+          "verdict": "warning",
           "reason": "breaker_tripped",
           "resume": null,
           "failure_class": "rate_limit",
