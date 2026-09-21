@@ -79,15 +79,23 @@ the alias moved underneath it.
 ## The bar this library does not have yet
 
 `if (score > 0.8)` has no home in `slot`. Neither `choice` nor `text` compares a number to a bar. The
-design is settled and deliberately not yet built: a `score` kind whose value is an integer at a declared
-scale, so 0.87 arrives as 87 at scale 100 and the caller does the rounding where it can be reviewed.
-That is the stance the spec already takes on floats in a digest input, so it adds no special case, and it
-removes cross-language float comparison entirely.
+design is settled and deliberately not yet built: a `score` kind whose value is **an integer at a scale**,
+so 0.87 arrives as 87 and the caller does the rounding where it can be reviewed. That is the stance the
+spec already takes on floats in a digest input, so it adds no special case, and it removes cross-language
+float comparison entirely.
 
-Measurement picked that scale. The model answers in hundredths, and its own spread across identical
-requests was 0.04, so a scale of 1000 would carry three digits of which the last two are noise. A bar has
-to stand outside that spread before it is a bar at all, and declaring the scale is what makes that
-question askable instead of implicit.
+The scale is not decoration. It is the value's domain: a value outside `0..scale` is refused, the way
+every other bound in `slot` is. And it defaults to **100**, because hundredths is what a probability
+arrives in — the model measured here answers in them, and a spec that made every caller choose would
+reproduce, one level up, the divergence the rest of this library exists to remove. A rating out of five
+says `scale: 5` and a risk in basis points says `scale: 10000`; a probability says nothing and gets 100.
+That is the same move as capping integers at 2^53 − 1 because the limit is JavaScript's and therefore
+everyone's.
+
+What the scale must not be is finer than the thing being measured. The model measured here moved 0.04
+across twenty identical requests, so at a scale of 1000 the last two digits would be noise wearing the
+clothes of precision. A bar has to stand outside that spread before it is a bar at all, and naming the
+scale is what makes that question askable instead of implicit.
 
 The line it will not cross: this library owns the acceptance bar — may this judgment be recorded — and
 never the routing bar — is this ticket urgent. The second is the caller's domain, and taking it would
