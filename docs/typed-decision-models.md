@@ -79,23 +79,38 @@ the alias moved underneath it.
 ## The bar this library does not have yet
 
 `if (score > 0.8)` has no home in `slot`. Neither `choice` nor `text` compares a number to a bar. The
-design is settled and deliberately not yet built: a `score` kind whose value is **an integer at a scale**,
-so 0.87 arrives as 87 and the caller does the rounding where it can be reviewed. That is the stance the
-spec already takes on floats in a digest input, so it adds no special case, and it removes cross-language
-float comparison entirely.
+design is settled and deliberately not yet built: a `score` kind that takes the number as it arrives —
+a finite number held against an optional `min` and `max`, with NaN, an infinity, a boolean or a string
+refused — and does nothing to it but compare.
 
-The scale is not decoration. It is the value's domain: a value outside `0..scale` is refused, the way
-every other bound in `slot` is. And it defaults to **100**, because hundredths is what a probability
-arrives in — the model measured here answers in them, and a spec that made every caller choose would
-reproduce, one level up, the divergence the rest of this library exists to remove. A rating out of five
-says `scale: 5` and a risk in basis points says `scale: 10000`; a probability says nothing and gets 100.
-That is the same move as capping integers at 2^53 − 1 because the limit is JavaScript's and therefore
-everyone's.
+An earlier version of this page had it as an integer at a declared scale, on the premise that comparing
+floats is where languages part ways. That premise had never been run, and run it failed. A thousand and
+one decimal strings, read by the standard parser of Python, JavaScript, Go and Rust and held against
+four bars, on linux, darwin and windows, amd64 and arm64 each: not one comparison of 4,004 came out
+differently anywhere. IEEE 754 fixes parsing, comparison and the four operations bit for bit, and the
+four languages keep to it.
 
-What the scale must not be is finer than the thing being measured. The model measured here moved 0.04
-across twenty identical requests, so at a scale of 1000 the last two digits would be noise wearing the
-clothes of precision. A bar has to stand outside that spread before it is a bar at all, and naming the
-scale is what makes that question askable instead of implicit.
+What does differ is narrower, and none of it is comparison. Writing a double as text: `1.0` is `1.0` in
+Python and `1` in JavaScript, and NaN is `NaN`, `null` or an error — which is why the canonical form
+refuses floats, and that rule stands, because a digest is bytes. Rounding: Python rounds a half to even
+and the other three away from zero, so the conversion the integer design needed — 0.865 into 86 or 87 —
+disagreed between languages on 46 of 1,001 inputs. The design had added the one step that diverges. And
+arithmetic on some processors: Go fuses `x*y + z` on arm64 and not on amd64, on all three operating
+systems, and the last bit moves; Rust fuses only when asked.
+
+So the number goes in as it is, on one condition: the library does nothing with a score but compare it.
+Sums, weights and averages stay with the caller, which is where the line below already put them.
+
+One seam remains. A bar of 0.8 cannot go into a digest, because the canonical form refuses it, and the
+bar belongs in the stage's configuration digest — change the bar and every judgment made under the old
+one is stale. The spec's standing answer covers it: render it as a string. A bar is a constant somebody
+typed into a configuration file, so the string is the text they typed, and there is no rounding to
+argue about.
+
+Two things for whoever sets a bar, neither of them the spec's. It has to stand outside the instrument's
+own spread: the model measured here moved 0.04 across twenty identical requests, and a bar inside that
+is a coin. And a caller who must round should name the rounding instead of taking the language's
+default; with round-half-even named in all four languages, the 46 disagreements go to none.
 
 The line it will not cross: this library owns the acceptance bar — may this judgment be recorded — and
 never the routing bar — is this ticket urgent. The second is the caller's domain, and taking it would
@@ -217,6 +232,9 @@ shared verdict now, and `breaker_tripped` is in the registry.
 Measured on 2026-09-20 against `jev-1.13.0`: the run-to-run spread, the two question shapes, the
 hundredths the model answers in, and the latency. The harness is standard library only and its results
 are kept beside it.
+
+Run on 2026-09-21: the comparison and rounding of parsed doubles in four languages, on six hosted
+runners — linux, darwin and windows, amd64 and arm64 each.
 
 Read the same day: TypeSafe's model documentation, API reference and blog; the Pydantic AI, OpenRouter,
 Cloudflare Workers AI and LangChain integration pages, for how many languages this reaches; and four
