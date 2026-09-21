@@ -2577,6 +2577,656 @@
       "expect": {
         "refused": true
       }
+    },
+    {
+      "id": "refused_choice_with_candidates_that_are_not_strings_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          true
+        ]
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_candidates_that_are_not_strings_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          true
+        ]
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min_length": "3"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min_length": "3"
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_max_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_max_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_length_above_max_length_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_length_above_max_length_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min": "0"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min": "0"
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_max_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_max_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_above_max_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_min_above_max_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_candidates_that_are_not_strings_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "candidates": [
+          true
+        ]
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_candidates_that_are_not_strings_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "candidates": [
+          true
+        ]
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min_length": "3"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min_length": "3"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_max_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_max_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_length_above_max_length_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_length_above_max_length_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min": "0"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min": "0"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_max_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_max_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_above_max_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_min_above_max_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "text",
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_candidates_that_are_not_strings_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "candidates": [
+          true
+        ]
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_candidates_that_are_not_strings_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "candidates": [
+          true
+        ]
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min_length": "3"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min_length": "3"
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_max_length_that_is_not_an_integer_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_max_length_that_is_not_an_integer_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "max_length": {
+          "$number": "NaN"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_length_above_max_length_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_length_above_max_length_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min_length": {
+          "$number": "3"
+        },
+        "max_length": {
+          "$number": "2"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min": "0"
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min": "0"
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_max_that_is_not_a_number_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_max_that_is_not_a_number_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_above_max_given_null",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": null,
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_with_min_above_max_given_a_value",
+      "spec": {
+        "name": "s",
+        "kind": "score",
+        "min": {
+          "$number": "2"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "refused": true
+      }
     }
   ]
 }

@@ -902,6 +902,49 @@ CATALOG += [
     ),
 ]
 
+# --- a slot spec is refused whatever its kind and whatever the value (the score cross-review): each
+# mutant hands the port a spec with one field gone, on the inputs only one cell of the table reaches.
+_PY_SLOT_CALL = (
+    '    result = _or_refused(lambda: validate_slot(tc["value"], **tc["spec"]))\n'
+)
+CATALOG += [
+    mutant(
+        "py adapter: a bad bar is refused when the value is null too",
+        "py/adapter.py",
+        _PY_SLOT_CALL,
+        '    spec = {**tc["spec"], "min": None} if tc["value"] is None and isinstance(tc["spec"], dict) else tc["spec"]\n'
+        '    result = _or_refused(lambda: validate_slot(tc["value"], **spec))\n',
+        [
+            PY_FAILS,
+            "FAIL [refused_choice_with_min_that_is_not_a_number_given_null] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py adapter: a score is held to the fields it does not read",
+        "py/adapter.py",
+        _PY_SLOT_CALL,
+        '    unread = {"candidates": None, "min_length": None, "max_length": None}\n'
+        '    spec = {**tc["spec"], **unread} if isinstance(tc["spec"], dict) and tc["spec"].get("kind") == "score" else tc["spec"]\n'
+        '    result = _or_refused(lambda: validate_slot(tc["value"], **spec))\n',
+        [
+            PY_FAILS,
+            "FAIL [refused_score_with_candidates_that_are_not_strings_given_a_value] field=validate.expect",
+        ],
+    ),
+    mutant(
+        "py adapter: min above max is refused for every kind",
+        "py/adapter.py",
+        _PY_SLOT_CALL,
+        '    both = isinstance(tc["spec"], dict) and {"min", "max"} <= tc["spec"].keys() and tc["spec"].get("kind") != "score"\n'
+        '    spec = {key: held for key, held in tc["spec"].items() if key != "max"} if both else tc["spec"]\n'
+        '    result = _or_refused(lambda: validate_slot(tc["value"], **spec))\n',
+        [
+            PY_FAILS,
+            "FAIL [refused_text_with_min_above_max_given_a_value] field=validate.expect",
+        ],
+    ),
+]
+
 # --- the breaker's argument contract: refusing what the other three parts refuse
 CATALOG += [
     mutant(
