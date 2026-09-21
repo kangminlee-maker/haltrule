@@ -1566,6 +1566,1017 @@
         "reason": "slot_invalid",
         "resume": null
       }
+    },
+    {
+      "id": "score_within_both_bounds",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_at_min_is_accepted",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "0.8"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_at_max_is_accepted",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "1"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_min_equal_to_max_accepts_that_value",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.5"
+        },
+        "max": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_with_only_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$number": "0.7"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_with_only_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$number": "0.2"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_without_bounds_accepts_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "123.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_null_bounds_are_no_bounds",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": null,
+        "max": null
+      },
+      "value": {
+        "$number": "-40.25"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_integer_value",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "1"
+        },
+        "max": {
+          "$number": "5"
+        }
+      },
+      "value": {
+        "$number": "3"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_negative_zero_meets_a_zero_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0"
+        }
+      },
+      "value": {
+        "$number": "-0"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_largest_shared_integer_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "9007199254740991"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_smallest_shared_integer_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "-9007199254740991"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_tiny_fraction_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0"
+        }
+      },
+      "value": {
+        "$number": "1e-300"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_ignores_the_fields_it_does_not_read",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "candidates": [
+          "a"
+        ],
+        "min_length": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_below_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "0.79"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_above_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        },
+        "max": {
+          "$number": "1"
+        }
+      },
+      "value": {
+        "$number": "1.01"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_one_double_below_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        }
+      },
+      "value": {
+        "$number": "0.7999999999999999"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_one_double_above_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$number": "0.8"
+        }
+      },
+      "value": {
+        "$number": "0.8000000000000002"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_string_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0"
+        }
+      },
+      "value": "0.9",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_boolean_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": true,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_false_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": false,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_nan_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "NaN"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_infinity_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "Infinity"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_negative_infinity_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "-Infinity"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_integer_past_the_shared_range_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "9007199254740992"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_negative_integer_past_the_shared_range_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "-9007199254740992"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_integral_double_written_with_an_exponent_is_an_integer",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$number": "1e20"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_list_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": [
+        {
+          "$number": "0.9"
+        }
+      ],
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_map_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "value": {
+          "$number": "0.9"
+        }
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_lone_surrogate_string_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": "\ud800",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_null_is_missing",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        }
+      },
+      "value": null,
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_empty_string_is_missing",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        }
+      },
+      "value": "",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_blank_string_is_missing",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.8"
+        }
+      },
+      "value": " \t",
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "warning",
+        "reason": "slot_missing",
+        "resume": null
+      }
+    },
+    {
+      "id": "refused_score_min_above_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "1"
+        },
+        "max": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$number": "0.7"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_nan_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "NaN"
+        }
+      },
+      "value": {
+        "$number": "0.7"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_infinite_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$number": "Infinity"
+        }
+      },
+      "value": {
+        "$number": "0.7"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_string_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": "0.8"
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_boolean_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": true
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_integral_min_past_the_shared_range",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "9007199254740992"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_integral_max_past_the_shared_range",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$number": "-9007199254740992"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_text_with_a_string_min",
+      "spec": {
+        "name": "confidence",
+        "kind": "text",
+        "min": "1"
+      },
+      "value": "x",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_choice_with_a_nan_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "choice",
+        "candidates": [
+          "a"
+        ],
+        "max": {
+          "$number": "NaN"
+        }
+      },
+      "value": "a",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_field_beyond_the_seven",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "threshold": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "score_an_integer_held_as_a_bigint_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.5"
+        },
+        "max": {
+          "$number": "2"
+        }
+      },
+      "value": {
+        "$bigint": "1"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_bigint_below_min_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$bigint": "0"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_a_bigint_above_max_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$number": "0.5"
+        }
+      },
+      "value": {
+        "$bigint": "1"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_largest_shared_integer_as_a_bigint_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$bigint": "9007199254740991"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_smallest_shared_integer_as_a_bigint_is_a_number",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$bigint": "-9007199254740991"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_bigint_past_the_shared_range_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$bigint": "9007199254740992"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_negative_bigint_past_the_shared_range_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score"
+      },
+      "value": {
+        "$bigint": "-9007199254740992"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_within_bars_held_as_bigints",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "1"
+        },
+        "max": {
+          "$bigint": "3"
+        }
+      },
+      "value": {
+        "$number": "2.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "ok",
+        "reason": "slot_accepted",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_below_a_bigint_min_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "1"
+        },
+        "max": {
+          "$bigint": "3"
+        }
+      },
+      "value": {
+        "$number": "0.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "score_above_a_bigint_max_is_invalid",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "1"
+        },
+        "max": {
+          "$bigint": "3"
+        }
+      },
+      "value": {
+        "$number": "3.5"
+      },
+      "expect": {
+        "spec": "haltrule/0",
+        "verdict": "halt",
+        "reason": "slot_invalid",
+        "resume": null
+      }
+    },
+    {
+      "id": "refused_score_bigint_min_above_max",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "2"
+        },
+        "max": {
+          "$number": "1.5"
+        }
+      },
+      "value": {
+        "$number": "1.7"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_bigint_min_past_the_shared_range",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "9007199254740992"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_bigint_max_past_the_shared_range",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "max": {
+          "$bigint": "-9007199254740992"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "refused_score_bigint_min_a_double_cannot_hold",
+      "spec": {
+        "name": "confidence",
+        "kind": "score",
+        "min": {
+          "$bigint": "9007199254740993"
+        }
+      },
+      "value": {
+        "$number": "0.9"
+      },
+      "expect": {
+        "refused": true
+      }
     }
   ]
 }

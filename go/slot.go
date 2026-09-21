@@ -2,10 +2,10 @@ package haltrule
 
 // Slot - does a value a person or a model filled in satisfy its contract?
 //
-// Two kinds cover it: Choice, a value that must be one of the candidates
-// exactly, and Text, a value of the person's own within length bounds. A
-// reference to something that exists is a Choice whose candidates are the
-// known identifiers.
+// Three kinds cover it: Choice, a value that must be one of the candidates
+// exactly, Text, a value of the person's own within length bounds, and Score,
+// a number held against a bar. A reference to something that exists is a
+// Choice whose candidates are the known identifiers.
 //
 // A missing value is a warning: the judgment has not been made yet. A present
 // value that fails its contract is a halt: it would be written to a ledger as
@@ -16,9 +16,12 @@ package haltrule
 // that is not made of them fails its contract. In Go that is a string which is
 // not valid UTF-8, which is the same thing: an unpaired surrogate has no UTF-8
 // spelling. A shape beyond length - a UUID, a URL - is the caller's to check.
+// A score is only compared: rounding it, summing it or weighting it is the
+// caller's, done first, where it can be reviewed.
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,6 +32,7 @@ type SlotKind string
 const (
 	Choice SlotKind = "choice"
 	Text   SlotKind = "text"
+	Score  SlotKind = "score"
 )
 
 // boundMax is the largest integer every language holds exactly: JavaScript's
@@ -49,6 +53,9 @@ type SlotSpec struct {
 	// each in 0..2^53 - 1; nil for no bound.
 	MinLength *int64
 	MaxLength *int64
+	// Min and Max are a Score's bar, both included; nil for none.
+	Min *float64
+	Max *float64
 }
 
 func bound(value *int64, what string, absent int64) (int64, error) {
@@ -61,15 +68,46 @@ func bound(value *int64, what string, absent int64) (int64, error) {
 	return *value, nil
 }
 
+// isNumber reports whether a double is a number as this spec has it: finite,
+// and an integral one an integer within +/-(2^53 - 1), as every other number
+// in the spec is. Every double past 2^53 - 1 is integral, so that is one range
+// test, which NaN and the infinities fail too.
+func isNumber(number float64) bool {
+	return math.Abs(number) <= boundMax
+}
+
+// scoreOf reads a value as a score, or reports that it is not one.
+func scoreOf(value Value) (float64, bool) {
+	switch held := value.(type) {
+	case Int:
+		// Within 2^53 - 1 the conversion is exact.
+		return float64(held), held >= -boundMax && held <= boundMax
+	case Float:
+		return float64(held), isNumber(float64(held))
+	}
+	return 0, false
+}
+
+func bar(value *float64, what string, absent float64) (float64, error) {
+	if value == nil {
+		return absent, nil
+	}
+	if !isNumber(*value) {
+		return 0, fmt.Errorf("%s must be a finite number, an integral one within 2^53 - 1, got %v", what, *value)
+	}
+	return *value, nil
+}
+
 func isBlank(text string) bool {
 	return strings.Trim(text, asciiWhitespace) == ""
 }
 
 // ValidateSlot refuses a spec outside the contract - an unknown kind, a Choice
-// without candidates, a bound outside 0..2^53 - 1, MinLength above MaxLength -
-// and otherwise answers a verdict.
+// without candidates, a bound outside 0..2^53 - 1, MinLength above MaxLength,
+// a Min or Max that is not a number, Min above Max - and otherwise answers a
+// verdict.
 func ValidateSlot(spec SlotSpec, value Value) (Verdict, error) {
-	if spec.Kind != Choice && spec.Kind != Text {
+	if spec.Kind != Choice && spec.Kind != Text && spec.Kind != Score {
 		return Verdict{}, fmt.Errorf("slot %s: unknown kind %q", spec.Name, spec.Kind)
 	}
 	if spec.Kind == Choice && spec.Candidates == nil {
@@ -87,11 +125,36 @@ func ValidateSlot(spec SlotSpec, value Value) (Verdict, error) {
 	if minimum > maximum {
 		return Verdict{}, fmt.Errorf("slot %s: min_length %d exceeds max_length %d", spec.Name, minimum, maximum)
 	}
+	floor, floorErr := bar(spec.Min, fmt.Sprintf("slot %s: min", spec.Name), math.Inf(-1))
+	if floorErr != nil {
+		return Verdict{}, floorErr
+	}
+	ceiling, ceilingErr := bar(spec.Max, fmt.Sprintf("slot %s: max", spec.Name), math.Inf(1))
+	if ceilingErr != nil {
+		return Verdict{}, ceilingErr
+	}
+	if floor > ceiling {
+		return Verdict{}, fmt.Errorf("slot %s: min %v exceeds max %v", spec.Name, floor, ceiling)
+	}
 
 	if value == nil {
 		return verdict(Warning, "slot_missing", fmt.Sprintf("slot %s: no value", spec.Name)), nil
 	}
 	text, isText := value.(String)
+	if spec.Kind == Score && !isText {
+		score, isScore := scoreOf(value)
+		if !isScore {
+			return verdict(Halt, "slot_invalid",
+				fmt.Sprintf("slot %s: %s is not a number this spec holds", spec.Name, describeValue(value))), nil
+		}
+		if score < floor {
+			return verdict(Halt, "slot_invalid", fmt.Sprintf("slot %s: %v is below %v", spec.Name, score, floor)), nil
+		}
+		if score > ceiling {
+			return verdict(Halt, "slot_invalid", fmt.Sprintf("slot %s: %v is above %v", spec.Name, score, ceiling)), nil
+		}
+		return verdict(OK, "slot_accepted", fmt.Sprintf("slot %s: %v", spec.Name, score)), nil
+	}
 	if !isText {
 		return verdict(Halt, "slot_invalid",
 			fmt.Sprintf("slot %s: %s is not a string", spec.Name, describeValue(value))), nil
@@ -102,6 +165,10 @@ func ValidateSlot(spec SlotSpec, value Value) (Verdict, error) {
 	}
 	if isBlank(string(text)) {
 		return verdict(Warning, "slot_missing", fmt.Sprintf("slot %s: blank", spec.Name)), nil
+	}
+	if spec.Kind == Score {
+		return verdict(Halt, "slot_invalid",
+			fmt.Sprintf("slot %s: a string is not a number, however it reads", spec.Name)), nil
 	}
 
 	if spec.Kind == Choice {

@@ -621,6 +621,8 @@ type specJSON struct {
 	Candidates *[]string       `json:"candidates"`
 	MinLength  json.RawMessage `json:"min_length"`
 	MaxLength  json.RawMessage `json:"max_length"`
+	Min        json.RawMessage `json:"min"`
+	Max        json.RawMessage `json:"max"`
 }
 
 func validate(from inputs) (haltrule.Value, error) {
@@ -640,10 +642,12 @@ func validate(from inputs) (haltrule.Value, error) {
 	}
 	minimum, minErr := decodeOptionalInt64(given.MinLength)
 	maximum, maxErr := decodeOptionalInt64(given.MaxLength)
-	if err := errors.Join(minErr, maxErr); err != nil {
+	floor, floorErr := decodeOptionalFloat64(given.Min)
+	ceiling, ceilingErr := decodeOptionalFloat64(given.Max)
+	if err := errors.Join(minErr, maxErr, floorErr, ceilingErr); err != nil {
 		return refused, nil
 	}
-	spec := haltrule.SlotSpec{Name: *given.Name, MinLength: minimum, MaxLength: maximum}
+	spec := haltrule.SlotSpec{Name: *given.Name, MinLength: minimum, MaxLength: maximum, Min: floor, Max: ceiling}
 	if given.Kind != nil {
 		spec.Kind = haltrule.SlotKind(*given.Kind)
 	}

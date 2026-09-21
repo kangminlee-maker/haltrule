@@ -1,9 +1,10 @@
 //! Slot - does a value a person or a model filled in satisfy its contract?
 //!
-//! Two kinds cover it: [`SlotKind::Choice`], a value that must be one of the
-//! candidates exactly, and [`SlotKind::Text`], a value of the person's own
-//! within length bounds. A reference to something that exists is a choice
-//! whose candidates are the known identifiers.
+//! Three kinds cover it: [`SlotKind::Choice`], a value that must be one of the
+//! candidates exactly, [`SlotKind::Text`], a value of the person's own within
+//! length bounds, and [`SlotKind::Score`], a number held against a bar. A
+//! reference to something that exists is a choice whose candidates are the
+//! known identifiers.
 //!
 //! A missing value is a warning: the judgment has not been made yet. A present
 //! value that fails its contract is a halt: it would be written to a ledger as
@@ -14,7 +15,8 @@
 //! a string that is not made of them fails its contract. In Rust such a string
 //! cannot be built at all: `String` is UTF-8, and an unpaired surrogate has no
 //! UTF-8 spelling. A shape beyond length - a UUID, a URL - is the caller's to
-//! check.
+//! check. A score is only compared: rounding it, summing it or weighting it is
+//! the caller's, done first, where it can be reviewed.
 
 use alloc::format;
 use alloc::string::String;
@@ -30,17 +32,21 @@ use crate::verdict::{verdict, Level, Verdict};
 pub enum SlotKind {
     Choice,
     Text,
+    Score,
 }
 
 /// The largest integer every language holds exactly: JavaScript's limit, as
 /// for digest inputs.
 const BOUND_MAX: i64 = (1 << 53) - 1;
 
+/// The same limit as a double, which holds it exactly.
+const BOUND_MAX_AS_FLOAT: f64 = BOUND_MAX as f64;
+
 const ASCII_WHITESPACE: [char; 6] = [' ', '\t', '\n', '\r', '\u{000c}', '\u{000b}'];
 
 /// What a value is held to. A field the contract does not name cannot be set:
 /// the struct has no such field.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SlotSpec {
     pub name: String,
     pub kind: SlotKind,
@@ -51,6 +57,9 @@ pub struct SlotSpec {
     /// 0..2^53 - 1; `None` for no bound.
     pub min_length: Option<i64>,
     pub max_length: Option<i64>,
+    /// A score's bar, both ends included; `None` for none.
+    pub min: Option<f64>,
+    pub max: Option<f64>,
 }
 
 fn bound(value: Option<i64>, refusal: &'static str, absent: i64) -> Result<i64, Refused> {
@@ -61,14 +70,65 @@ fn bound(value: Option<i64>, refusal: &'static str, absent: i64) -> Result<i64, 
     }
 }
 
+/// A number as this spec has it: a finite double, and an integral one an
+/// integer within +/-(2^53 - 1), as every other number in the spec is. Every
+/// double past 2^53 - 1 is integral, so that is one range test, which NaN and
+/// the infinities fail too.
+fn is_number(number: f64) -> bool {
+    (-BOUND_MAX_AS_FLOAT..=BOUND_MAX_AS_FLOAT).contains(&number)
+}
+
+/// A value read as a score, or `None` when it is not one.
+fn score_of(value: &Value) -> Option<f64> {
+    match value {
+        // Within 2^53 - 1 the conversion is exact.
+        Value::Int(held) if (-BOUND_MAX..=BOUND_MAX).contains(held) => Some(*held as f64),
+        Value::Float(held) if is_number(*held) => Some(*held),
+        _ => None,
+    }
+}
+
+fn bar(value: Option<f64>, refusal: &'static str, absent: f64) -> Result<f64, Refused> {
+    match value {
+        None => Ok(absent),
+        Some(value) if !is_number(value) => Err(Refused(refusal)),
+        Some(value) => Ok(value),
+    }
+}
+
+fn judge_score(name: &str, value: &Value, floor: f64, ceiling: f64) -> Verdict {
+    match score_of(value) {
+        None => verdict(
+            Level::Halt,
+            "slot_invalid",
+            format!(
+                "slot {}: {} is not a number this spec holds",
+                name,
+                describe_value(value)
+            ),
+        ),
+        Some(score) if score < floor => verdict(
+            Level::Halt,
+            "slot_invalid",
+            format!("slot {name}: {score} is below {floor}"),
+        ),
+        Some(score) if score > ceiling => verdict(
+            Level::Halt,
+            "slot_invalid",
+            format!("slot {name}: {score} is above {ceiling}"),
+        ),
+        Some(score) => verdict(Level::Ok, "slot_accepted", format!("slot {name}: {score}")),
+    }
+}
+
 fn is_blank(text: &str) -> bool {
     text.trim_matches(|c: char| ASCII_WHITESPACE.contains(&c))
         .is_empty()
 }
 
 /// Refuses a spec outside the contract - a choice without candidates, a bound
-/// outside 0..2^53 - 1, a min_length above max_length - and otherwise answers
-/// a verdict. An unknown kind is the fourth refusal the other ports make, and
+/// outside 0..2^53 - 1, a min_length above max_length, a min or max that is not
+/// a number, a min above max - and otherwise answers a verdict. An unknown kind is the fourth refusal the other ports make, and
 /// [`SlotKind`] has already made it.
 pub fn validate_slot(spec: &SlotSpec, value: &Value) -> Result<Verdict, Refused> {
     if spec.kind == SlotKind::Choice && spec.candidates.is_none() {
@@ -88,6 +148,19 @@ pub fn validate_slot(spec: &SlotSpec, value: &Value) -> Result<Verdict, Refused>
     if minimum > maximum {
         return Err(Refused("min_length exceeds max_length"));
     }
+    let floor = bar(
+        spec.min,
+        "min must be a finite number, an integral one within 2^53 - 1",
+        f64::NEG_INFINITY,
+    )?;
+    let ceiling = bar(
+        spec.max,
+        "max must be a finite number, an integral one within 2^53 - 1",
+        f64::INFINITY,
+    )?;
+    if floor > ceiling {
+        return Err(Refused("min exceeds max"));
+    }
 
     let text = match value {
         Value::Null => {
@@ -98,6 +171,9 @@ pub fn validate_slot(spec: &SlotSpec, value: &Value) -> Result<Verdict, Refused>
             ))
         }
         Value::Text(text) => text,
+        other if spec.kind == SlotKind::Score => {
+            return Ok(judge_score(&spec.name, other, floor, ceiling))
+        }
         other => {
             return Ok(verdict(
                 Level::Halt,
@@ -118,6 +194,16 @@ pub fn validate_slot(spec: &SlotSpec, value: &Value) -> Result<Verdict, Refused>
             Level::Warning,
             "slot_missing",
             format!("slot {}: blank", spec.name),
+        ));
+    }
+    if spec.kind == SlotKind::Score {
+        return Ok(verdict(
+            Level::Halt,
+            "slot_invalid",
+            format!(
+                "slot {}: a string is not a number, however it reads",
+                spec.name
+            ),
         ));
     }
 

@@ -76,12 +76,14 @@ one even when the request named a moving alias, so the recorded contract revisio
 anything. A caller may keep asking for the alias and still learn, per item and on the day it happens, that
 the alias moved underneath it.
 
-## The bar this library does not have yet
+## The bar
 
-`if (score > 0.8)` has no home in `slot`. Neither `choice` nor `text` compares a number to a bar. The
-design is settled and deliberately not yet built: a `score` kind that takes the number as it arrives —
-a finite number held against an optional `min` and `max`, with NaN, an infinity, a boolean or a string
-refused — and does nothing to it but compare.
+`if (score > 0.8)` had no home in `slot`: neither `choice` nor `text` compares a number to a bar. It has
+one now, a `score` kind that takes the number as it arrives and holds it against an optional `min` and
+`max`, both included. A value that is not such a number — NaN, an infinity, a boolean, a string that is
+not blank, an integer past ±(2^53 − 1) — is `slot_invalid`, a present value failing its contract; a bar
+that is not one is refused, as any spec outside the contract is. The kind does nothing to the number but
+compare it.
 
 An earlier version of this page had it as an integer at a declared scale, on the premise that comparing
 floats is where languages part ways. That premise had never been run, and run it failed. A thousand and

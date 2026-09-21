@@ -106,6 +106,20 @@ pub fn decode_optional_i64(raw: Option<&Json>) -> Built<Option<i64>> {
     }
 }
 
+/// A number that may be any double - a score's bar - or absent, and is then
+/// None. A value that is not a number - a string, a boolean - is outside the
+/// contract; whether a double is one the spec holds is the part's to say.
+pub fn decode_optional_f64(raw: Option<&Json>) -> Built<Option<f64>> {
+    match raw {
+        None | Some(Json::Null) => Ok(None),
+        given => match decode_value(given)? {
+            Value::Float(held) => Ok(Some(held)),
+            Value::Int(held) => Ok(Some(held as f64)),
+            _ => Err(Refusal::Refused),
+        },
+    }
+}
+
 /// Refuses a map argument that is not a map, or that holds a field the
 /// contract does not name. Go's struct and Python's keyword signature do this
 /// for their ports; here the fields arrive as JSON and the names are checked.

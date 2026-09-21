@@ -2,7 +2,8 @@
 //! and answers the value the line carries. It holds no expectation.
 
 use crate::decode::{
-    decode_i64, decode_optional_i64, decode_value, optional_text, strictly, text, Built, Refusal,
+    decode_i64, decode_optional_f64, decode_optional_i64, decode_value, optional_text, strictly,
+    text, Built, Refusal,
 };
 use crate::line::refused;
 use crate::run::Inputs;
@@ -486,7 +487,15 @@ fn charge(from: &Inputs) -> Answer {
 
 // --------------------------------------------------------------------- slot
 
-const SPEC_FIELDS: [&str; 5] = ["name", "kind", "candidates", "min_length", "max_length"];
+const SPEC_FIELDS: [&str; 7] = [
+    "name",
+    "kind",
+    "candidates",
+    "min_length",
+    "max_length",
+    "min",
+    "max",
+];
 
 fn validate(from: &Inputs) -> Answer {
     let value = match decode_value(from.get("value")) {
@@ -503,6 +512,7 @@ fn validate(from: &Inputs) -> Answer {
         let kind = match given.get("kind").and_then(Json::as_str) {
             Some("choice") => SlotKind::Choice,
             Some("text") => SlotKind::Text,
+            Some("score") => SlotKind::Score,
             // A kind outside the vocabulary has no spelling here, which is the
             // refusal the other ports write out.
             _ => return Err(Refusal::Refused),
@@ -524,6 +534,8 @@ fn validate(from: &Inputs) -> Answer {
             candidates,
             min_length: decode_optional_i64(given.get("min_length"))?,
             max_length: decode_optional_i64(given.get("max_length"))?,
+            min: decode_optional_f64(given.get("min"))?,
+            max: decode_optional_f64(given.get("max"))?,
         };
         validate_slot(&spec, &value)
             .map(|answer| normative(&answer))

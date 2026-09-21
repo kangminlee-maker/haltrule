@@ -150,6 +150,29 @@ func decodeOptionalInt64(raw json.RawMessage) (*int64, error) {
 	return &value, nil
 }
 
+// decodeOptionalFloat64 reads a number that may be any double: a score's bar.
+// A value that is not a number - a string, a boolean - is outside the
+// contract; whether a double is one the spec holds is the part's to say.
+func decodeOptionalFloat64(raw json.RawMessage) (*float64, error) {
+	if isNull(raw) {
+		return nil, nil
+	}
+	value, err := decodeValue(raw)
+	if err != nil {
+		return nil, fmt.Errorf("not a number this port holds")
+	}
+	var number float64
+	switch held := value.(type) {
+	case haltrule.Float:
+		number = float64(held)
+	case haltrule.Int:
+		number = float64(held)
+	default:
+		return nil, fmt.Errorf("not a number")
+	}
+	return &number, nil
+}
+
 func isNull(raw json.RawMessage) bool {
 	return len(raw) == 0 || string(raw) == "null"
 }

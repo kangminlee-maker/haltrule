@@ -164,7 +164,7 @@
     "why": "the entry point reads the arguments and opens the output; the bridge test calls the reading and the writing directly, as a mutation run needs it to, so nothing runs main itself"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:329:36: replace match guard normative(&halt) == normative(&other) with true in canonicalize_case",
+    "survivor": "rust/adapter/src/sections.rs:330:36: replace match guard normative(&halt) == normative(&other) with true in canonicalize_case",
     "why": "canonicalize and the digest are one walk of the same value, so no case can make them disagree; the guard is there to catch a defect in this port, not to answer a case. Every port has it, and scripts/mutants_catalog.py plants the disagreement by hand"
   },
   {

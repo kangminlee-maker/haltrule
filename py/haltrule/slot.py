@@ -7,10 +7,10 @@
 # accepts only a pick from a closed set, a workflow worker that rejects a
 # model-filled slot outside its contract before anything is written, and a
 # hold flow that takes a person's own sentence and checks only its display
-# contract. Two kinds cover them: "choice", a value that must be one of the
-# candidates exactly, and "text", a value of the person's own within length
-# bounds. A reference to something that exists is a "choice" whose candidates
-# are the known identifiers.
+# contract. Three kinds cover them: "choice", a value that must be one of the
+# candidates exactly, "text", a value of the person's own within length
+# bounds, and "score", a number held against a bar. A reference to something
+# that exists is a "choice" whose candidates are the known identifiers.
 #
 # A missing value is a warning: the judgment has not been made yet. A present
 # value that fails its contract is a halt: it would be written to a ledger as
@@ -20,7 +20,9 @@
 # Lengths count Unicode scalar values, so every language counts the same, and
 # a string that is not made of them (it holds a lone surrogate) fails its
 # contract. A shape beyond length - a UUID, a URL - is the caller's to check,
-# as a float's rendering is the caller's in a digest.
+# as a float's rendering is the caller's in a digest. A score is only
+# compared: rounding it, summing it or weighting it is the caller's, done
+# first, where it can be reviewed.
 #
 # The spec is the keyword arguments, so the call itself refuses a spec that is
 # not a map or holds a field the contract does not name.
@@ -64,6 +66,26 @@ def _bound(value: Any, what: str) -> Optional[int]:
     return value
 
 
+def _is_number(value: Any) -> bool:
+    # A number as this spec has it: a finite double, and an integral one an
+    # integer within +/-(2^53 - 1), as every other number in the spec is. Every
+    # double past 2^53 - 1 is integral, so that is one range test, which NaN
+    # and the infinities fail too; it compares an int of any size exactly.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return abs(value) <= _BOUND_MAX
+
+
+def _bar(value: Any, what: str) -> Optional[float]:
+    if value is None:
+        return None
+    if not _is_number(value):
+        raise TypeError(
+            f"{what} must be a finite number, an integral one within 2^53 - 1, got {value!r}"
+        )
+    return value
+
+
 def validate_slot(
     value: Any,
     *,
@@ -72,16 +94,20 @@ def validate_slot(
     candidates: Any = None,
     min_length: Any = None,
     max_length: Any = None,
+    # The spec's own field names; the body calls neither builtin they shadow.
+    min: Any = None,
+    max: Any = None,
 ) -> dict[str, Any]:
     """The spec is the keyword arguments - `validate_slot(value, **spec)` - so a
-    spec that is not a map, or holds a field beyond these five, is refused by
-    the call itself: `name`, `kind` ("choice" or "text"), and for a choice
-    `candidates` (strings, compared exactly), for a text `min_length` and
-    `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1; None
+    spec that is not a map, or holds a field beyond these seven, is refused by
+    the call itself: `name`, `kind` ("choice", "text" or "score"), and for a
+    choice `candidates` (strings, compared exactly), for a text `min_length`
+    and `max_length` (bounds in Unicode scalar values, each in 0..2^53 - 1;
+    None for none), for a score `min` and `max` (numbers, both included; None
     for none)."""
     if not isinstance(name, str):
         raise TypeError(f"slot spec without a string name: {name!r}")
-    if kind not in ("choice", "text"):
+    if kind not in ("choice", "text", "score"):
         raise TypeError(f"slot {name}: unknown kind {kind!r}")
     # A field that is given is held to its type whatever the kind, as the bounds are below.
     if candidates is not None and not (
@@ -97,9 +123,29 @@ def validate_slot(
         raise ValueError(
             f"slot {name}: min_length {minimum} exceeds max_length {maximum}"
         )
+    floor = _bar(min, f"slot {name}: min")
+    ceiling = _bar(max, f"slot {name}: max")
+    if floor is not None and ceiling is not None and floor > ceiling:
+        raise ValueError(f"slot {name}: min {floor!r} exceeds max {ceiling!r}")
 
     if value is None:
         return verdict("warning", "slot_missing", f"slot {name}: no value")
+    if kind == "score" and not isinstance(value, str):
+        if not _is_number(value):
+            return verdict(
+                "halt",
+                "slot_invalid",
+                f"slot {name}: {value!r} is not a number this spec holds",
+            )
+        if floor is not None and value < floor:
+            return verdict(
+                "halt", "slot_invalid", f"slot {name}: {value!r} is below {floor!r}"
+            )
+        if ceiling is not None and value > ceiling:
+            return verdict(
+                "halt", "slot_invalid", f"slot {name}: {value!r} is above {ceiling!r}"
+            )
+        return verdict("ok", "slot_accepted", f"slot {name}: {value!r}")
     if not isinstance(value, str):
         return verdict(
             "halt",
@@ -114,6 +160,12 @@ def validate_slot(
         )
     if _is_blank(value):
         return verdict("warning", "slot_missing", f"slot {name}: blank")
+    if kind == "score":
+        return verdict(
+            "halt",
+            "slot_invalid",
+            f"slot {name}: a string is not a number, however it reads",
+        )
 
     if kind == "choice":
         if value in candidates:

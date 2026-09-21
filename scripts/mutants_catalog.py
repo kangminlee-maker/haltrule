@@ -848,6 +848,17 @@ CATALOG += [
         [GO_FAILS, "FAIL [refused_slot_bound_past_2_53_1] field=validate.expect"],
     ),
     mutant(
+        "rust slot: a score's range ends at 2^53 - 1",
+        "rust/haltrule/src/slot.rs",
+        "const BOUND_MAX_AS_FLOAT: f64 = BOUND_MAX as f64;",
+        "const BOUND_MAX_AS_FLOAT: f64 = (BOUND_MAX + 1) as f64;",
+        [
+            RS_FAILS,
+            "FAIL [score_integer_past_the_shared_range_is_invalid] field=validate.expect",
+            "FAIL [refused_score_integral_min_past_the_shared_range] field=validate.expect",
+        ],
+    ),
+    mutant(
         "go canonicalize: the largest integer is 2^53 - 1",
         "go/checkpoint.go",
         "const maxSafeInteger = 1<<53 - 1",
@@ -1024,8 +1035,8 @@ CATALOG += [
     mutant(
         "go purity: the file system is not on the allowlist",
         "go/slot.go",
-        '\t"fmt"\n\t"strings"\n\t"unicode/utf8"\n)\n',
-        '\t"fmt"\n\t"os"\n\t"strings"\n\t"unicode/utf8"\n)\n\nvar _ = os.Getenv\n',
+        '\t"fmt"\n\t"math"\n\t"strings"\n\t"unicode/utf8"\n)\n',
+        '\t"fmt"\n\t"math"\n\t"os"\n\t"strings"\n\t"unicode/utf8"\n)\n\nvar _ = os.Getenv\n',
         [GO_NO_HOST, "imports os, which is not on the allowlist"],
     ),
 ]

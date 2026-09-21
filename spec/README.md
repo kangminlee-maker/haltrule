@@ -258,19 +258,27 @@ not name is not reusable.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
   and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
   in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
-  0..2^53 − 1 (the limit every language shares, as for digest inputs). A value of null, or a string
+  0..2^53 − 1 (the limit every language shares, as for digest inputs); `score` accepts a number within
+  `min`..`max`, both included, each optional and, when given, a number. A number here is a finite double,
+  and an integral one is an integer within ±(2^53 − 1), as every other number in this spec is; every double
+  past 2^53 − 1 is integral, so the two tests are one, a double within ±(2^53 − 1). A value that is not one
+  — a string that is not blank, a boolean, NaN, an infinity, an integer past that range — fails its
+  contract. The part does nothing to a score but compare it. Parsing and comparing a double come out the
+  same in every language, and rounding and arithmetic do not, so a caller who rounds, sums or weights a
+  score does it first, where it can be reviewed. A value of null, or a string
   that is empty or holds only ASCII whitespace — U+0020, U+0009, U+000A, U+000B, U+000C and U+000D, and no
   other: U+001C–U+001F, U+0085 and U+00A0 are characters like any — is missing: `warning`, `slot_missing`. A present value that
   fails its contract is `halt`, `slot_invalid`; one that meets it is `ok`, `slot_accepted`. Comparison is
   exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar
   values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
-  are the known identifiers. A spec outside the contract — one that is not a map, a field beyond those five,
+  are the known identifiers. A spec outside the contract — one that is not a map, a field beyond those seven,
   an unknown `kind`, a `choice` without `candidates`, `candidates` that are not a list of strings,
-  `min_length` above `max_length`, a bound that is not an integer in 0..2^53 − 1 (a boolean, a string, NaN,
-  or an infinity is not one), a spec without a string `name` — is refused. A field that is given is held to
-  its type whatever the `kind`: a `text` with `candidates` that are not strings is refused though it never
-  reads them, as a `choice` with a bad bound is.
+  `min_length` above `max_length`, a length bound that is not an integer in 0..2^53 − 1 (a boolean, a
+  string, NaN, or an infinity is not one), a `min` or `max` that is not a number as above, `min` above
+  `max`, a spec without a string `name` — is refused. A field that is given is held to its type whatever
+  the `kind`: a `text` with `candidates` that are not strings is refused though it never reads them, as a
+  `choice` with a bad bound is.
 
 ## Reason registry
 
