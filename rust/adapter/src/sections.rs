@@ -323,7 +323,10 @@ fn canonicalize_case(from: &Inputs) -> Answer {
             ("canonical", Value::Text(canonical)),
             ("digest", Value::Text(digest)),
         ])),
-        (Err(halt), Err(other)) if halt.reason == other.reason => Ok(normative(&halt)),
+        // They must agree in the whole verdict, not only the reason: only one
+        // of the two is printed, so a field this comparison leaves out is a
+        // field no case can see.
+        (Err(halt), Err(other)) if normative(&halt) == normative(&other) => Ok(normative(&halt)),
         // The two entry points must agree about the same value; if they do
         // not, that is a bug in the port, not a result to compare.
         _ => Err(Trouble::Raised(

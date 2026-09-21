@@ -221,11 +221,13 @@ not name is not reusable.
   | `halt` | `stage_config_digest_mismatch` | `expected_stage_config_digest`, `actual_stage_config_digest` |
   | `halt` | `dependency_digest_mismatch` | `dependency_id`, `expected_digest`, `actual_digest` |
   | `halt` | `validation_issue` | the caller's fields |
-  | `ok` | `checkpoint_valid` | `resume` is null |
+  | `ok` | `checkpoint_valid` | |
 
-  A reuse verdict is `halt` or it is `ok`: whether the artifact may be reused is the whole question, and
-  what is wrong with it is the reason's to say. The four statuses this list used to carry said the same
-  thing twice.
+  An `ok` verdict has no resume, so `resume` is null wherever the verdict is `ok`, whoever set it. What
+  checkpoint reaches on its own is `halt` or `ok`: whether the artifact may be reused is the whole
+  question, and what is wrong with it is the reason's to say — the four statuses this list used to carry
+  said the same thing twice. A caller's own issue may also be `warning`, which is that caller's reading of
+  what it found and not the part's.
 
   An `actual_` member is what is recorded, null when nothing is. An absent artifact is one `artifact_missing`
   and nothing else: the expectations and the caller's issues are not looked at. Otherwise every issue found,
@@ -234,11 +236,12 @@ not name is not reusable.
   issues in the order given; with none, a single `checkpoint_valid`.
 
   A caller's validation issue becomes a `halt` verdict with reason `validation_issue` and the caller's own
-  fields laid over those defaults — any of them but `spec`, `verdict` and `stage_id` included; the part does
-  not judge what it does not have to. A `verdict` it gives is held to the three, as a `status_map` value is
-  held to the four, and a `spec` it gives is refused: a caller may disagree with a verdict, not sign one. A
-  field that is null is absent: the default stands where there is one, and the field is left out where
-  there is none. Issue ids and file reads stay with the caller.
+  fields laid over those defaults. A field the verdict itself names is held to what the verdict promises
+  for it: `verdict` is one of the three, as a `status_map` value is one of the four, and `reason`,
+  `message`, `resume`, `stage_id` and `subject_ref` are strings. `spec` is refused outright: a caller may
+  disagree with a verdict, not sign one. Every other field is the caller's own and is not judged — a slot
+  name, a count, a list. A field that is null is absent: the default stands where there is one, and the
+  field is left out where there is none. Issue ids and file reads stay with the caller.
 - `budget` — a ledger of turns, milliseconds, and tokens against the caps `max_turns`, `time_budget_ms`, and
   `token_budget`, each optional. The caller charges what it measured; `charge` adds it and returns a verdict:
   `warning` naming the first exhausted resource in the order turns, time, tokens (`budget_turns`,

@@ -368,14 +368,7 @@ def evaluate_checkpoint_artifact(
             key: field for key, field in validation_issue.items() if field is not None
         }
         for key, field in given.items():
-            # A caller may disagree with a verdict, not sign one, and the three
-            # are as closed a set here as they are anywhere else.
-            if key == "spec":
-                raise TypeError(
-                    "a validation issue carries a spec, which only the library says"
-                )
-            if key == "verdict" and not is_verdict_level(field):
-                raise TypeError("a validation issue's verdict is not one of the three")
+            _holds_what_a_verdict_promises(key, field)
         issues.append(
             {
                 **base(
@@ -388,13 +381,30 @@ def evaluate_checkpoint_artifact(
         )
 
     if not issues:
-        return [
-            {
-                **base("ok", "checkpoint_valid", "the artifact may be reused"),
-                "resume": None,
-            }
-        ]
+        issues.append(base("ok", "checkpoint_valid", "the artifact may be reused"))
+    # An ok verdict has no resume, whoever set it.
+    for issue in issues:
+        if issue["verdict"] == "ok":
+            issue["resume"] = None
     return issues
+
+
+_TEXT_FIELDS = ("reason", "message", "resume", "stage_id", "subject_ref")
+
+
+def _holds_what_a_verdict_promises(key: str, field: Any) -> None:
+    """Refuse a caller's field that would leave the issue outside the shape it
+    is laid over. Everything the verdict does not name is the caller's own and
+    is not judged."""
+    if key == "spec":
+        # A caller may disagree with a verdict, not sign one.
+        raise TypeError(
+            "a validation issue carries a spec, which only the library says"
+        )
+    if key == "verdict" and not is_verdict_level(field):
+        raise TypeError("a validation issue's verdict is not one of the three")
+    if key in _TEXT_FIELDS and not isinstance(field, str):
+        raise TypeError(f"a validation issue's {key} is not text")
 
 
 def _resolve_status(

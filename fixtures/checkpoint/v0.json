@@ -4564,14 +4564,14 @@
             "slot": "a"
           },
           {
-            "reason": {
+            "slot": "",
+            "found": {
               "$number": "0"
-            },
-            "slot": ""
+            }
           },
           {
-            "reason": false,
-            "slot": []
+            "slot": [],
+            "found": false
           }
         ]
       },
@@ -4589,19 +4589,21 @@
           "spec": "haltrule/0",
           "stage_id": "draft",
           "verdict": "halt",
-          "reason": 0,
+          "reason": "validation_issue",
           "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
-          "slot": ""
+          "slot": "",
+          "found": 0
         },
         {
           "spec": "haltrule/0",
           "stage_id": "draft",
           "verdict": "halt",
-          "reason": false,
+          "reason": "validation_issue",
           "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
-          "slot": []
+          "slot": [],
+          "found": false
         }
       ]
     },
@@ -5511,7 +5513,7 @@
           "stage_id": "draft",
           "verdict": "ok",
           "reason": "reviewed_by_hand",
-          "resume": "draft",
+          "resume": null,
           "subject_ref": "runs/r1/draft.json"
         }
       ]
@@ -5541,6 +5543,168 @@
           "resume": "draft",
           "subject_ref": "runs/r1/draft.json",
           "why": "the hero slot reads thin"
+        }
+      ]
+    },
+    {
+      "id": "issue_reason_that_is_not_text_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "reason": false
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_message_that_is_not_text_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "message": {
+              "$number": "1"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_resume_that_is_not_text_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "resume": {
+              "$number": "2"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_stage_id_that_is_not_text_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "stage_id": {
+              "$number": "3"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_subject_ref_that_is_not_text_is_refused",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "subject_ref": false
+          }
+        ]
+      },
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "issue_ok_loses_its_resume_and_the_halt_beside_it_keeps_one",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "ok",
+            "reason": "reviewed_by_hand"
+          },
+          {
+            "reason": "slot_empty",
+            "slot": "hero"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "ok",
+          "reason": "reviewed_by_hand",
+          "resume": null,
+          "subject_ref": "runs/r1/draft.json"
+        },
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "halt",
+          "reason": "slot_empty",
+          "resume": "draft",
+          "subject_ref": "runs/r1/draft.json",
+          "slot": "hero"
+        }
+      ]
+    },
+    {
+      "id": "issue_ok_drops_even_a_resume_the_caller_gave",
+      "args": {
+        "stage_id": "draft",
+        "subject_ref": "runs/r1/draft.json",
+        "artifact": {
+          "status": "complete"
+        },
+        "validation_issues": [
+          {
+            "verdict": "ok",
+            "reason": "reviewed_by_hand",
+            "resume": "outline"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "spec": "haltrule/0",
+          "stage_id": "draft",
+          "verdict": "ok",
+          "reason": "reviewed_by_hand",
+          "resume": null,
+          "subject_ref": "runs/r1/draft.json"
         }
       ]
     }

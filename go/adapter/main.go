@@ -408,10 +408,23 @@ func canonicalize(from inputs) (haltrule.Value, error) {
 	canonical, halt := haltrule.Canonicalize(value)
 	digest, digestHalt := haltrule.CheckpointDigest(value)
 	if halt != nil || digestHalt != nil {
-		// The two entry points must agree about the same value; if they do
-		// not, that is a bug in the port, not a result to compare.
-		if halt == nil || digestHalt == nil || halt.Reason != digestHalt.Reason {
+		// The two entry points must agree about the same value, and agree in
+		// the whole verdict: only one of the two is printed, so a field this
+		// comparison leaves out is a field no case can see. A disagreement is
+		// a bug in the port, not a result to compare.
+		if halt == nil || digestHalt == nil {
 			return nil, fmt.Errorf("canonicalize and the digest disagree about halting")
+		}
+		shown, err := writeValue(normative(*halt))
+		if err != nil {
+			return nil, err
+		}
+		other, err := writeValue(normative(*digestHalt))
+		if err != nil {
+			return nil, err
+		}
+		if shown != other {
+			return nil, fmt.Errorf("canonicalize halts with %s and the digest with %s", shown, other)
 		}
 		return normative(*halt), nil
 	}

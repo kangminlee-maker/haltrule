@@ -265,13 +265,16 @@ def _canonicalize(tc: dict) -> dict:
     # The two entry points must agree about the same value; if they do not,
     # that is a bug in the implementation, not a result to compare.
     if "verdict" in canonical or "verdict" in digest:
-        if canonical.get("reason") is None or canonical.get("reason") != digest.get(
-            "reason"
-        ):
+        # They must agree in the whole verdict, not only the reason: only one
+        # of the two is printed, so a field this comparison leaves out is a
+        # field no case can see.
+        shown = _normative(canonical) if "verdict" in canonical else None
+        other = _normative(digest) if "verdict" in digest else None
+        if shown != other:
             raise AssertionError(
-                "canonicalize and checkpoint_digest disagree about halting"
+                f"canonicalize halts with {shown} and the digest with {other}"
             )
-        return _normative(canonical)
+        return shown
     return {"canonical": canonical["canonical"], "digest": digest["digest"]}
 
 

@@ -336,16 +336,8 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 			if field == nil {
 				continue
 			}
-			// A caller may disagree with a verdict, not sign one, and the three
-			// are as closed a set here as they are anywhere else.
-			if key == "spec" {
-				return nil, fmt.Errorf("a validation issue carries a spec, which only the library says")
-			}
-			if key == "verdict" {
-				level, isText := field.(String)
-				if !isText || !knownLevel(Level(level)) {
-					return nil, fmt.Errorf("a validation issue's verdict is not one of the three: %v", field)
-				}
+			if err := holdsWhatAVerdictPromises(key, field); err != nil {
+				return nil, err
 			}
 			issue[key] = field
 		}
@@ -353,11 +345,36 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 	}
 
 	if len(issues) == 0 {
-		valid := base(OK, "checkpoint_valid", "the artifact may be reused")
-		valid["resume"] = nil
-		return []Issue{valid}, nil
+		issues = append(issues, base(OK, "checkpoint_valid", "the artifact may be reused"))
+	}
+	// An ok verdict has no resume, whoever set it.
+	for _, issue := range issues {
+		if issue["verdict"] == String(OK) {
+			issue["resume"] = nil
+		}
 	}
 	return issues, nil
+}
+
+// holdsWhatAVerdictPromises refuses a caller's field that would leave the
+// issue outside the shape it is laid over. Everything the verdict does not
+// name is the caller's own and is not judged.
+func holdsWhatAVerdictPromises(key string, field Value) error {
+	switch key {
+	case "spec":
+		// A caller may disagree with a verdict, not sign one.
+		return fmt.Errorf("a validation issue carries a spec, which only the library says")
+	case "verdict":
+		level, isText := field.(String)
+		if !isText || !knownLevel(Level(level)) {
+			return fmt.Errorf("a validation issue's verdict is not one of the three: %v", field)
+		}
+	case "reason", "message", "resume", "stage_id", "subject_ref":
+		if _, isText := field.(String); !isText {
+			return fmt.Errorf("a validation issue's %s is not text: %v", key, field)
+		}
+	}
+	return nil
 }
 
 func resolveStatus(status Value, statusMap map[string]ArtifactStatus) ArtifactStatus {

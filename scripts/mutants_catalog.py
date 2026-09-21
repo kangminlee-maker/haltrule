@@ -1062,3 +1062,41 @@ CATALOG += [
         [RS_FAILS, "FAIL [artifact_missing] field=checkpoint.expect"],
     ),
 ]
+
+# --- canonicalize and the digest hand back the same verdict. Only one of the
+# two is printed, so nothing but the adapters' own comparison can see the
+# other; a case cannot make them disagree, and these make them disagree.
+CATALOG += [
+    mutant(
+        "ts: the digest's halt says something canonicalize's does not",
+        "ts/checkpoint.ts",
+        '  const result = canonicalize(value);\n  if ("verdict" in result) return result;\n',
+        '  const result = canonicalize(value);\n  if ("verdict" in result) return { ...result, resume: result.reason };\n',
+        [TS_FAILS, "FAIL [fraction] field=canonicalize.raised"],
+    ),
+    mutant(
+        "py: the digest's halt says something canonicalize's does not",
+        "py/haltrule/checkpoint.py",
+        '    result = canonicalize(value)\n    if "verdict" in result:\n        return result\n',
+        '    result = canonicalize(value)\n    if "verdict" in result:\n        return {**result, "verdict": "warning"}\n',
+        [PY_FAILS, "FAIL [fraction] field=canonicalize.raised"],
+    ),
+    mutant(
+        "go: the digest's halt says something canonicalize's does not",
+        "go/checkpoint.go",
+        '\tcanonical, halt := Canonicalize(value)\n\tif halt != nil {\n\t\treturn "", halt\n\t}\n',
+        "\tcanonical, halt := Canonicalize(value)\n\tif halt != nil {\n"
+        '\t\tother := *halt\n\t\tother.Verdict = Warning\n\t\treturn "", &other\n\t}\n',
+        [GO_FAILS, "FAIL [fraction] field=canonicalize.raised"],
+    ),
+    mutant(
+        "rust: the digest's halt says something canonicalize's does not",
+        "rust/haltrule/src/checkpoint.rs",
+        "    let canonical = canonicalize(value)?;\n",
+        "    let canonical = canonicalize(value).map_err(|mut halt| {\n"
+        "        halt.verdict = Level::Warning;\n"
+        "        halt\n"
+        "    })?;\n",
+        [RS_FAILS, "FAIL [fraction] field=canonicalize.raised"],
+    ),
+]

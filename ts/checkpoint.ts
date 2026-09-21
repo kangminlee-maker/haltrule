@@ -374,14 +374,7 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
   for (const validationIssue of validationIssues) {
     // A null field is an absent one: the default stands where there is one.
     const given = Object.entries(validationIssue).filter(([, field]) => field != null);
-    for (const [key, field] of given) {
-      // A caller may disagree with a verdict, not sign one, and the three are
-      // as closed a set here as they are anywhere else.
-      if (key === "spec") throw new TypeError("a validation issue carries a spec, which only the library says");
-      if (key === "verdict" && !isVerdictLevel(field)) {
-        throw new TypeError("a validation issue's verdict is not one of the three");
-      }
-    }
+    for (const [key, field] of given) holdsWhatAVerdictPromises(key, field);
     issues.push({
       ...base("halt", "validation_issue", "the caller's own validation found something"),
       ...Object.fromEntries(given),
@@ -389,9 +382,24 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
   }
 
   if (issues.length === 0) {
-    return [{ ...base("ok", "checkpoint_valid", "the artifact may be reused"), resume: null }];
+    issues.push(base("ok", "checkpoint_valid", "the artifact may be reused"));
   }
-  return issues;
+  // An ok verdict has no resume, whoever set it.
+  return issues.map((issue) => (issue.verdict === "ok" ? { ...issue, resume: null } : issue));
+}
+
+/** Refuses a caller's field that would leave the issue outside the shape it is
+ * laid over. Everything the verdict does not name is the caller's own and is
+ * not judged. */
+function holdsWhatAVerdictPromises(key: string, field: unknown): void {
+  // A caller may disagree with a verdict, not sign one.
+  if (key === "spec") throw new TypeError("a validation issue carries a spec, which only the library says");
+  if (key === "verdict" && !isVerdictLevel(field)) {
+    throw new TypeError("a validation issue's verdict is not one of the three");
+  }
+  if (["reason", "message", "resume", "stage_id", "subject_ref"].includes(key) && !isText(field)) {
+    throw new TypeError(`a validation issue's ${key} is not text`);
+  }
 }
 
 function resolveStatus(

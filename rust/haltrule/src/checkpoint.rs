@@ -431,33 +431,47 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Result<Vec<Issue>,
             if *field == Value::Null {
                 continue;
             }
-            // A caller may disagree with a verdict, not sign one, and the three
-            // are as closed a set here as they are anywhere else.
-            if key == "spec" {
-                return Err(Refused(
-                    "a validation issue carries a spec, which only the library says",
-                ));
-            }
-            if key == "verdict" && !matches!(field, Value::Text(held) if known_level(held)) {
-                return Err(Refused(
-                    "a validation issue's verdict is not one of the three",
-                ));
-            }
+            holds_what_a_verdict_promises(key, field)?;
             issue.insert(key.clone(), field.clone());
         }
         issues.push(issue);
     }
 
     if issues.is_empty() {
-        let mut valid = base(
+        issues.push(base(
             Level::Ok,
             "checkpoint_valid",
             "the artifact may be reused".to_owned(),
-        );
-        valid.insert("resume".to_owned(), Value::Null);
-        return Ok(vec![valid]);
+        ));
+    }
+    // An ok verdict has no resume, whoever set it.
+    for issue in issues.iter_mut() {
+        if issue.get("verdict") == Some(&Value::Text(Level::Ok.as_str().to_owned())) {
+            issue.insert("resume".to_owned(), Value::Null);
+        }
     }
     Ok(issues)
+}
+
+/// Refuses a caller's field that would leave the issue outside the shape it is
+/// laid over. Everything the verdict does not name is the caller's own and is
+/// not judged.
+fn holds_what_a_verdict_promises(key: &str, field: &Value) -> Result<(), Refused> {
+    match key {
+        // A caller may disagree with a verdict, not sign one.
+        "spec" => Err(Refused(
+            "a validation issue carries a spec, which only the library says",
+        )),
+        "verdict" if !matches!(field, Value::Text(held) if known_level(held)) => Err(Refused(
+            "a validation issue's verdict is not one of the three",
+        )),
+        "reason" | "message" | "resume" | "stage_id" | "subject_ref"
+            if !matches!(field, Value::Text(_)) =>
+        {
+            Err(Refused("a validation issue's field is not text"))
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Whether a level is one of the three. The library never asks it of itself;

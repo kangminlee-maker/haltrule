@@ -27,7 +27,13 @@ import {
   type DispatchDeadLetterEntry,
 } from "../breaker.ts";
 import { Budget, type BudgetCaps, type Charge } from "../budget.ts";
-import { canonicalize, checkpointDigest, evaluateCheckpointArtifact, type EvaluateCheckpointArtifactArgs } from "../checkpoint.ts";
+import {
+  canonicalize,
+  checkpointDigest,
+  evaluateCheckpointArtifact,
+  type DigestInputHalt,
+  type EvaluateCheckpointArtifactArgs,
+} from "../checkpoint.ts";
 import { validateSlot, type SlotSpec } from "../slot.ts";
 import type { Verdict } from "../verdict.ts";
 
@@ -199,10 +205,15 @@ function canonicalizeCase(tc: Inputs): unknown {
   // The two entry points must agree about the same value; if they do not,
   // that is a bug in the implementation, not a result to compare.
   if ("verdict" in canonical || "verdict" in digest) {
-    if (!("verdict" in canonical && "verdict" in digest && canonical.reason === digest.reason)) {
-      throw new Error("canonicalize and checkpointDigest disagree about halting");
+    // They must agree in the whole verdict, not only the reason: only one of
+    // the two is printed, so a field this comparison leaves out is a field no
+    // case can see.
+    const shown = "verdict" in canonical ? canonicalStringify(normative(canonical)) : "";
+    const other = "verdict" in digest ? canonicalStringify(normative(digest)) : "";
+    if (shown !== other) {
+      throw new Error(`canonicalize halts with ${shown} and the digest with ${other}`);
     }
-    return normative(canonical);
+    return normative(canonical as DigestInputHalt);
   }
   return { canonical: canonical.canonical, digest: digest.digest };
 }
