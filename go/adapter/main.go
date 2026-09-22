@@ -145,13 +145,7 @@ func writeString(value string) (string, error) {
 // lessUTF16 orders keys by UTF-16 code unit, which is the protocol's order and
 // not Go's own: the two disagree above U+FFFF.
 func lessUTF16(left, right string) bool {
-	leftUnits, rightUnits := utf16.Encode([]rune(left)), utf16.Encode([]rune(right))
-	for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {
-		if leftUnits[index] != rightUnits[index] {
-			return leftUnits[index] < rightUnits[index]
-		}
-	}
-	return len(leftUnits) < len(rightUnits)
+	return slices.Compare(utf16.Encode([]rune(left)), utf16.Encode([]rune(right))) < 0
 }
 
 // ------------------------------------------------- one function per section

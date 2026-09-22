@@ -84,14 +84,6 @@
     "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
   },
   {
-    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 28 | return leftUnits[index] < rightUnits[index]",
-    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
-  },
-  {
-    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 24 | return len(leftUnits) < len(rightUnits)",
-    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
-  },
-  {
     "survivor": "go/adapter/main.go | CONDITIONALS_NEGATION | column 11 | case err != nil:",
     "why": "no fixture makes this port raise, so the line that would report one under the case's id is never reached"
   },
@@ -124,14 +116,6 @@
     "why": "Value is closed, so nothing reaches the return Go requires after a switch over it"
   },
   {
-    "survivor": "go/checkpoint.go | CONDITIONALS_BOUNDARY | column 28 | return leftUnits[index] < rightUnits[index]",
-    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
-  },
-  {
-    "survivor": "go/checkpoint.go | CONDITIONALS_BOUNDARY | column 24 | return len(leftUnits) < len(rightUnits)",
-    "why": "inside a branch the two units are already known to differ, so < and <= are the same answer, and two keys of a map are never the same string"
-  },
-  {
     "survivor": "go/checkpoint.go | ARITHMETIC_BASE | column 47 | return \"\", halted(digestInputUnsupported, at+\": string is not made of Unicode scalar values\")",
     "why": "a string that is not valid UTF-8 is one this port cannot be handed: those are the cases it sits out"
   },
@@ -146,10 +130,6 @@
   {
     "survivor": "go/slot.go | ARITHMETIC_BASE | column 24 | const boundMax = 1<<53 - 1",
     "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
-  },
-  {
-    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 24 | for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {",
-    "why": "the keys are put in Go's own order before the spec's, and every key a fixture can build here is inside the Basic Multilingual Plane, where the two orders agree, so the sort is asked only whether a later key comes before an earlier one and never reads past the end of the left key. The bound on the right key beside it is read, and mutating that one is killed"
   },
   {
     "survivor": "go/breaker.go | INVERT_NEGATIVES | column 24 | const wholeMax = 1<<53 - 1",
@@ -178,5 +158,13 @@
   {
     "survivor": "rust/haltrule/src/checkpoint.rs:519:41: replace == with != in js_falsy",
     "why": "a recorded field never holds an integer in the fixtures: every number a case writes is a $number, which is a double, and $bigint may not appear in an artifact. The arm answers a caller, and no case can tell it apart"
+  },
+  {
+    "survivor": "go/checkpoint.go | CONDITIONALS_BOUNDARY | column 81 | return slices.Compare(utf16.Encode([]rune(left)), utf16.Encode([]rune(right))) < 0",
+    "why": "the two strings are keys of one map, never the same string, so Compare never answers 0 and < 0 and <= 0 are the same answer"
+  },
+  {
+    "survivor": "go/adapter/main.go | CONDITIONALS_BOUNDARY | column 81 | return slices.Compare(utf16.Encode([]rune(left)), utf16.Encode([]rune(right))) < 0",
+    "why": "the two strings are keys of one map, never the same string, so Compare never answers 0 and < 0 and <= 0 are the same answer"
   }
 ]

@@ -31,6 +31,7 @@ ALLOWED = {
     "errors",
     "fmt",
     "math",
+    "slices",
     "sort",
     "strconv",
     "strings",

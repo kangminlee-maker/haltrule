@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -123,29 +124,28 @@ func encodeValue(value Value, at string, depth int) (string, *Verdict) {
 	return "", halted(digestInputUnsupported, at+": outside the digest value model")
 }
 
-// sortedKeys orders map keys by UTF-16 code unit, which is the spec's order
-// and not Go's own, because they disagree above U+FFFF.
+// sortedKeys orders a map's keys as the spec does, by UTF-16 code unit.
 func sortedKeys(held Map) []string {
 	keys := make([]string, 0, len(held))
 	for key := range held {
 		keys = append(keys, key)
 	}
-	// Go hands out a map's keys in a different order every run, so they are put
-	// in one order before being put in the spec's. The answer is the same
-	// either way; what this settles is the work done to reach it.
+	return inSpecOrder(keys)
+}
+
+// inSpecOrder sorts keys by UTF-16 code unit, which is the spec's order and
+// not Go's own, because they disagree above U+FFFF. Go hands out a map's keys
+// in a different order every run, so they are put in one order before being
+// put in the spec's. The answer is the same either way; what this settles is
+// the work done to reach it, so that a run is the same run every time.
+func inSpecOrder(keys []string) []string {
 	sort.Strings(keys)
 	sort.SliceStable(keys, func(left, right int) bool { return lessUTF16(keys[left], keys[right]) })
 	return keys
 }
 
 func lessUTF16(left, right string) bool {
-	leftUnits, rightUnits := utf16.Encode([]rune(left)), utf16.Encode([]rune(right))
-	for index := 0; index < len(leftUnits) && index < len(rightUnits); index++ {
-		if leftUnits[index] != rightUnits[index] {
-			return leftUnits[index] < rightUnits[index]
-		}
-	}
-	return len(leftUnits) < len(rightUnits)
+	return slices.Compare(utf16.Encode([]rune(left)), utf16.Encode([]rune(right))) < 0
 }
 
 // encodeString writes a string of Unicode scalar values, quoted, with exactly
@@ -325,8 +325,7 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 	for id := range args.ExpectedDependencyDigests {
 		expectedIDs = append(expectedIDs, id)
 	}
-	sort.Slice(expectedIDs, func(left, right int) bool { return lessUTF16(expectedIDs[left], expectedIDs[right]) })
-	for _, id := range expectedIDs {
+	for _, id := range inSpecOrder(expectedIDs) {
 		expected := args.ExpectedDependencyDigests[id]
 		var actual Value
 		if recordedIsMap {
