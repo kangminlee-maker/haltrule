@@ -349,13 +349,14 @@ def defects(t: dict) -> list:
 def broken(rng: random.Random, t: dict, name: str = "", as_element: bool = False):
     """(what was done, the broken value) for every defect one value of type `t` can carry - its own
     type missed, and one level in: an element, a field, a rule. A one_of is told apart by a key the
-    fixture protocol owns, so a one_of that is not a map is no case; a map that is an element of a
-    list may be null, which is one more thing it is not."""
+    fixture protocol owns, so a one_of that is not a map is no case; an element of a list may be
+    null, which is one more thing it is not - a list has no absent element, so null there is not
+    absence but a value of the wrong kind, except where the element is a value of any kind at all."""
     kind = t["type"]
     if kind != "one_of":
         for bad in defects(t):
             yield f"{name or kind} = {json.dumps(bad)}", bad
-        if as_element and kind in ("map", "open_map"):
+        if as_element and kind != "value":
             yield f"{name} null", None
     if kind == "list":
         for what, bad in broken(rng, t["of"], f"{name}[]", as_element=True):

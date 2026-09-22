@@ -492,23 +492,10 @@ func run(from inputs) (haltrule.Value, error) {
 	if err != nil {
 		return refused, nil
 	}
-	// A list of ids, each a string; absent - null - or anything else is
-	// refused. Go reads null into a string without complaint, so each
-	// element is asked for by shape.
-	if isNull(from["items"]) {
+	// A list of ids, each a string; absent - null - or anything else is refused.
+	items, err := decodeStrings(from["items"])
+	if err != nil || items == nil {
 		return refused, nil
-	}
-	var raws []json.RawMessage
-	if err := json.Unmarshal(from["items"], &raws); err != nil {
-		return refused, nil
-	}
-	items := []string{}
-	for _, raw := range raws {
-		var id string
-		if isNull(raw) || json.Unmarshal(raw, &id) != nil {
-			return refused, nil
-		}
-		items = append(items, id)
 	}
 	answers, scripted, err := scriptOf(from["answers"])
 	if err != nil {
@@ -781,7 +768,7 @@ func oneCharge(budget *haltrule.Budget, raw json.RawMessage) haltrule.Value {
 type specJSON struct {
 	Name       *string         `json:"name"`
 	Kind       *string         `json:"kind"`
-	Candidates *[]string       `json:"candidates"`
+	Candidates json.RawMessage `json:"candidates"`
 	MinLength  json.RawMessage `json:"min_length"`
 	MaxLength  json.RawMessage `json:"max_length"`
 	Min        json.RawMessage `json:"min"`
@@ -807,19 +794,16 @@ func validate(from inputs) (haltrule.Value, error) {
 	maximum, maxErr := decodeOptionalInt64(given.MaxLength)
 	floor, floorErr := decodeOptionalFloat64(given.Min)
 	ceiling, ceilingErr := decodeOptionalFloat64(given.Max)
-	if err := errors.Join(minErr, maxErr, floorErr, ceilingErr); err != nil {
+	candidates, candidatesErr := decodeStrings(given.Candidates)
+	if err := errors.Join(minErr, maxErr, floorErr, ceilingErr, candidatesErr); err != nil {
 		return refused, nil
 	}
 	spec := haltrule.SlotSpec{Name: *given.Name, MinLength: minimum, MaxLength: maximum, Min: floor, Max: ceiling}
 	if given.Kind != nil {
 		spec.Kind = haltrule.SlotKind(*given.Kind)
 	}
-	if given.Candidates != nil {
-		spec.Candidates = *given.Candidates
-		if spec.Candidates == nil {
-			spec.Candidates = []string{}
-		}
-	}
+	// Absent is nil, which the part answers for; given and empty is not.
+	spec.Candidates = candidates
 	answer, err := haltrule.ValidateSlot(spec, value)
 	if err != nil {
 		return refused, nil

@@ -173,6 +173,33 @@ func decodeOptionalFloat64(raw json.RawMessage) (*float64, error) {
 	return &number, nil
 }
 
+// decodeStrings reads a list of strings. Go's decoder reads null into a string
+// without complaining and leaves it as it was - an empty string where the case
+// held no string at all - so every element is asked for by shape. The list
+// itself absent - not given here, null there - is nil, which the caller tells
+// from the empty list it is not.
+func decodeStrings(raw json.RawMessage) ([]string, error) {
+	if isNull(raw) {
+		return nil, nil
+	}
+	var elements []json.RawMessage
+	if err := json.Unmarshal(raw, &elements); err != nil {
+		return nil, err
+	}
+	held := []string{}
+	for _, element := range elements {
+		if isNull(element) {
+			return nil, errors.New("a list of strings holds null")
+		}
+		var text string
+		if err := json.Unmarshal(element, &text); err != nil {
+			return nil, err
+		}
+		held = append(held, text)
+	}
+	return held, nil
+}
+
 func isNull(raw json.RawMessage) bool {
 	return len(raw) == 0 || string(raw) == "null"
 }
