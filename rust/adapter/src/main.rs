@@ -55,6 +55,17 @@ fn fail(why: &str) -> ! {
 mod bridge {
     use std::io::{BufWriter, Write};
 
+    /// The lines file, gone when the test ends however it ends. A mutation run
+    /// makes hundreds of these and every mutant that panics before a cleanup
+    /// at the end left one behind: 411 of them, measured.
+    struct Written(std::path::PathBuf);
+
+    impl Drop for Written {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
     #[test]
     fn the_fixtures_pass() {
         let root = std::env::var("HALTRULE_ROOT").unwrap_or_else(|_| "../..".to_string());
@@ -79,9 +90,10 @@ mod bridge {
                 .to_string(),
         );
 
-        let written = std::env::temp_dir().join(format!("haltrule-{}.lines", std::process::id()));
+        let written =
+            Written(std::env::temp_dir().join(format!("haltrule-{}.lines", std::process::id())));
         let mut out =
-            BufWriter::new(std::fs::File::create(&written).expect("a file for the lines"));
+            BufWriter::new(std::fs::File::create(&written.0).expect("a file for the lines"));
         for path in paths {
             crate::run::read_file(&path, &mut out).expect("reading a case file");
         }
@@ -91,11 +103,10 @@ mod bridge {
         let said = std::process::Command::new("python3")
             .arg(root.join("scripts").join("conform.py"))
             .arg("judge")
-            .arg(&written)
+            .arg(&written.0)
             .current_dir(&root)
             .output()
             .expect("the driver runs");
-        let _ = std::fs::remove_file(&written);
         assert!(
             said.status.success(),
             "the fixtures do not pass:\n{}{}",
