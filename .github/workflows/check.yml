@@ -89,7 +89,8 @@ jobs:
 
   mutate-python:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two runs, the port's modules and the shell program beside them.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -99,10 +100,16 @@ jobs:
         run: python -m pip install --quiet cosmic-ray==8.7.0
       - name: Every survivor is one the list explains
         run: python3 scripts/survivors.py py
+      # The shell program is a run of its own: it is not the port's modules, and
+      # its test is the bridge beside it. One job, because the tool is installed
+      # once and each run is a minute.
+      - name: And every survivor of the shell program
+        run: python3 scripts/survivors.py py-cli
 
   mutate-go:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Two runs, the port's modules and the shell program beside them.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -120,3 +127,5 @@ jobs:
           GOTOOLCHAIN: auto
       - name: Every survivor is one the list explains
         run: python3 scripts/survivors.py go
+      - name: And every survivor of the shell program
+        run: python3 scripts/survivors.py go-cli

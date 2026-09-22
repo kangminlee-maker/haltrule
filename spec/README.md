@@ -326,7 +326,7 @@ sitting in somebody's artifacts.
 A program may offer the parts to a caller that has no library — a shell, a Make recipe, a step written in a
 language with no port. What such a program takes and answers is fixed here, so that two of them agree the
 way two ports do. It is called with the name of an entry point and where its arguments are: a file, or `-`
-for the standard input.
+for the standard input, which is where they are read from when neither is named.
 
 ```
 <program> <entry point> [<arguments file> | -]
@@ -350,12 +350,12 @@ The exit code is the worst verdict anywhere in the answer — `0` for `ok`, `1` 
 `halt`, and `0` for an answer that holds no verdict at all, as `classify` and `backoff` do not. A call the
 part refuses, its arguments being outside the contract, answers nothing and exits `3`. A refused call
 inside a batch is not that: it is answered in its place, the batch is left as it was, and the verdicts
-around it decide the code. A program that made no call exits `4` — an entry point it does not have,
-arguments it could not read, an answer it could not write, or a caller asking what it takes. An argument
-its language cannot hold at all — an integer wider than its integers, a string its strings cannot spell —
-is an argument it could not read, and the languages that cannot hold one are the same here as for a port. Asked for
-nothing it says what it takes, read from `contract.json`; what that listing looks like is for a person and
-is not part of this.
+around it decide the code. A program that made no call exits `4` — an entry point it does not have, more
+arguments than a call takes, arguments it could not read, an answer it could not write, or a caller asking
+what it takes. An argument its language cannot hold at all — an integer wider than its integers, a string
+its strings cannot spell, a nesting deeper than its reader goes — is an argument it could not read, and the
+languages that cannot hold one are the same here as for a port. Asked for nothing it says what it takes,
+read from `contract.json`; what that listing looks like is for a person and is not part of this.
 
 ## Conformance
 
@@ -379,13 +379,16 @@ A port is conformant when:
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.
 
-A program that offers the parts from a shell is not a port, and one thing decides it: every fixture case a
-shell can make — every section whose entry point does not take a function, over every input JSON text can
-carry — answered as that case expects, `message` aside, with each verdict's message there, and exited with
-that case's worst verdict. `../scripts/conform.py cli <command>` runs them, one process per case. A case
-whose input not every language can hold, and whose answer is not a refusal, may instead be the call that
-was not made: nothing written and `4`. A program in a language that can hold every input says so with
-`--every-input`, and may not sit a case out at all.
+A program that offers the parts from a shell is not a port, and what decides it is the section above, which
+is mostly one thing: every fixture case a shell can make — every section whose entry point does not take a
+function, over every input JSON text can carry — answered as that case expects, `message` aside, with each
+verdict's message there, and exited with that case's worst verdict. `../scripts/conform.py cli <command>`
+runs them, one process per case. A case whose input not every language can hold, and whose answer is not a
+refusal, may instead be the call that was not made: nothing written and `4`. A program in a language that
+can hold every input says so with `--every-input`, and may not sit a case out at all. The same command
+asks for the rest of the section where a fixture cannot go: the arguments in a file and in the standard
+input, more arguments than a call takes, a call whose arguments it could not read or whose answer it could
+not write, and a call the contract has no case for.
 
 The checks are held to account in turn. A mainstream mutation tool plants defects in each port's modules
 and runs the fixtures and the generated calls against each; a defect nothing notices is either a missing

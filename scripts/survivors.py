@@ -1,7 +1,10 @@
 """The off-the-shelf mutation tools, held to one list.
 
 StrykerJS mutates the TypeScript modules, cosmic-ray the Python ones, gremlins the Go ones and
-cargo-mutants the Rust ones; each runs the shared driver as its only test. Two of them take any
+cargo-mutants the Rust ones; each runs the shared driver as its only test. The two shell programs
+(py/cli.py, go/cli) are mutated in runs of their own, whose test is the bridge beside each: it makes
+every call the fixtures ask for in the tool's own process, hands the judging to the driver, and then
+asks the program as a process what it promises beside answering a case. Two of them take any
 command (stryker.config.json, cosmic-ray.toml); the two compiled languages run a test instead, so
 each has a bridge test beside its adapter that does the adapter's work in the test's own process
 and hands the judging to the driver. Whatever survives must be, entry for entry, what
@@ -10,8 +13,9 @@ lack or code that changes nothing, and a listed one that no longer survives is a
 
 The tools run on a copy of the tree: cosmic-ray mutates files where they lie.
 
-  survivors.py ts | py | go | rust   run the tool on a copy, compare
-  survivors.py self-test     the comparison itself can fail
+  survivors.py ts | py | go | rust   run the tool on a port's modules, on a copy, and compare
+  survivors.py py-cli | go-cli       the same, on a shell program: its bridge makes the calls
+  survivors.py self-test             the comparison itself can fail
 
 Standard library only; the tools are found in node_modules/.bin and, for cosmic-ray, .venv/bin or the PATH.
 """
@@ -108,7 +112,7 @@ def cargo_mutants_survivors(report: dict) -> tuple[list[str], int]:
     return found, total
 
 
-def gremlins_survivors(report: dict, module: Path) -> tuple[list[str], int]:
+def gremlins_survivors(report: dict, module: Path, named: str) -> tuple[list[str], int]:
     """(survivors, mutants run) from a gremlins JSON report. A mutant on a line no run reaches is a
     survivor too: nothing would have noticed it. So is one that timed out, which says only that the
     run was slower than the tool waited, never that a case answered.
@@ -128,7 +132,7 @@ def gremlins_survivors(report: dict, module: Path) -> tuple[list[str], int]:
                 continue  # the run noticed
             source = lines[mutant["line"] - 1]
             found.append(
-                f"go/{described['file_name']} | {mutant['type']} | column {mutant['column']}"
+                f"{named}{described['file_name']} | {mutant['type']} | column {mutant['column']}"
                 f" | {_one_line(source)}"
             )
     return found, total
@@ -144,14 +148,32 @@ def compare(found: list[str], total: int, accepted: list[str]) -> list[str]:
     ] + [f"FAIL [stale entry] {entry}" for entry in sorted((want - have).elements())]
 
 
-def read_accepted(prefix: str) -> list[str]:
+# What each run mutates, as the survivors name their files: what an entry must start with to
+# belong to it, and what it must not, where one run's files sit inside another's directory.
+TARGETS = {
+    "ts": ("ts/", ()),
+    "py": ("py/haltrule/", ()),
+    "go": ("go/", ("go/cli/",)),
+    "rust": ("rust/", ()),
+    "py-cli": ("py/cli.py", ()),
+    "go-cli": ("go/cli/", ()),
+}
+
+
+def read_accepted(target: str) -> list[str]:
     entries = json.loads(ACCEPTED.read_text(encoding="utf-8"))
     for entry in entries:
         if sorted(entry) != ["survivor", "why"] or not entry["why"].strip():
             raise SystemExit(
                 f"survivors: every accepted entry is a survivor and why: {entry}"
             )
-    return [e["survivor"] for e in entries if e["survivor"].startswith(prefix)]
+    held, apart = TARGETS[target]
+    return [
+        e["survivor"]
+        for e in entries
+        if e["survivor"].startswith(held)
+        and not any(e["survivor"].startswith(other) for other in apart)
+    ]
 
 
 def _run(
@@ -205,7 +227,15 @@ def run_tool(language: str) -> tuple[list[str], int]:
             return cargo_mutants_survivors(
                 json.loads((written / "outcomes.json").read_text("utf-8"))
             )
-        if language == "go":
+        if language == "py-cli":
+            # The shell program's own session: its bridge is the test, and the program is one file.
+            _run(["cosmic-ray", "init", "cosmic-ray-cli.toml", "cli.sqlite"], tree, env)
+            _run(["cosmic-ray", "baseline", "cosmic-ray-cli.toml"], tree, env)
+            _run(["cosmic-ray", "exec", "cosmic-ray-cli.toml", "cli.sqlite"], tree, env)
+            return cosmic_ray_survivors(
+                _run(["cosmic-ray", "dump", "cli.sqlite"], tree, env)
+            )
+        if language in ("go", "go-cli"):
             written = tree / "gremlins.json"
             # The fixtures and the driver stay where they are; only the Go code is mutated.
             _run(
@@ -221,20 +251,23 @@ def run_tool(language: str) -> tuple[list[str], int]:
                     # reported as one no case notices. It cost a minute.
                     "--workers",
                     "1",
-                    # The shell program is not policy and no test in the module
-                    # reaches it: the fixtures ask it the same question through
-                    # scripts/conform.py cli, on every run of scripts/check.sh,
-                    # and the hand-planted mutants ask the rest. The TypeScript
-                    # and Python programs stand outside their tools the same way.
-                    "--exclude-files",
-                    "cli/.*",
+                    # The shell program has a run of its own, go-cli, whose test
+                    # is the bridge beside it; this one is the port's modules and
+                    # the adapter. What the listing looks like is for a person and
+                    # not the contract, as a message's wording is not, so neither
+                    # run mutates it.
+                    *(
+                        ["--exclude-files", "cli/.*"]
+                        if language == "go"
+                        else ["--exclude-files", "listing.go"]
+                    ),
                     # The timeout is the baseline test's own time times this. It is wide because a
                     # shared machine is slow, never because a mutant is allowed to be.
                     "--timeout-coefficient",
                     "120",
                     "-o",
                     str(written),
-                    ".",
+                    "./cli" if language == "go-cli" else ".",
                 ],
                 tree / "go",
                 # A mutation run may never be answered from the test cache. The
@@ -245,8 +278,10 @@ def run_tool(language: str) -> tuple[list[str], int]:
                 # Three runs in a row report the same list with -count=1.
                 dict(env, HALTRULE_ROOT=str(tree), GOFLAGS="-count=1"),
             )
+            where = tree / "go" / "cli" if language == "go-cli" else tree / "go"
+            named = "go/cli/" if language == "go-cli" else "go/"
             return gremlins_survivors(
-                json.loads(written.read_text("utf-8")), tree / "go"
+                json.loads(written.read_text("utf-8")), where, named
             )
         _run(["cosmic-ray", "init", "cosmic-ray.toml", "session.sqlite"], tree, env)
         _run(["cosmic-ray", "baseline", "cosmic-ray.toml"], tree, env)
@@ -361,7 +396,7 @@ def self_test() -> list[str]:
     ]
     expect(
         "a gremlins report is read",
-        gremlins_survivors(go_report, module),
+        gremlins_survivors(go_report, module, "go/"),
         (go_entries, 4),
     )
     expect("a cosmic-ray dump is read", cosmic_ray_survivors(dump), ([py_entry], 3))
@@ -392,9 +427,9 @@ def self_test() -> list[str]:
 def main(argv: list[str]) -> int:
     if argv == ["self-test"]:
         problems = self_test()
-    elif argv in (["ts"], ["py"], ["go"], ["rust"]):
+    elif len(argv) == 1 and argv[0] in TARGETS:
         found, total = run_tool(argv[0])
-        problems = compare(found, total, read_accepted(argv[0] + "/"))
+        problems = compare(found, total, read_accepted(argv[0]))
         print(
             f"{total} mutants, {len(found)} survived, {len(found) - sum(p.startswith('FAIL [new') for p in problems)} of them listed"
         )

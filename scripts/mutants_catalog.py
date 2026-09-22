@@ -776,6 +776,21 @@ CATALOG += [
         [PY_FAILS],
     ),
     mutant(
+        "go cli: a pipe is taken for a terminal",
+        "go/cli/main.go",
+        "stdin.Mode()&os.ModeCharDevice != 0",
+        "stdin.Mode()&os.ModeCharDevice == 0",
+        [GO_CLI_FAILS, "field=cli.from_the_standard_input"],
+        [CLI_FAILS],
+    ),
+    mutant(
+        "driver: a probe the shell programs are never asked",
+        "scripts/conform.py",
+        "    from_the_standard_input,\n",
+        "",
+        [DRIVER_FAILS, "a probe nobody calls: from_the_standard_input"],
+    ),
+    mutant(
         "cli: an entry point answers with another's function",
         "py/cli.py",
         '    "checkpoint.evaluate": evaluate,\n',

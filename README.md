@@ -129,10 +129,12 @@ where a language has none of its own.
 
 Whether the fixtures would notice a defect in a port is asked by that language's mainstream mutation tool -
 StrykerJS for TypeScript, cosmic-ray for Python, gremlins for Go, cargo-mutants for Rust - with the shared
-driver as its only test. The shell programs stand outside those tools, each for its language's own reason,
-and what asks the same question of them is the fixtures through `scripts/conform.py cli`, on every run of
-`scripts/check.sh`, and the hand-planted mutants. A mutation tool would ask it more thoroughly; nothing here
-does yet. What survives must be, entry for entry, `scripts/survivors_accepted.json`, where
+driver as its only test. The two shell programs are asked the same question in runs of their own
+(`survivors.py py-cli`, `survivors.py go-cli`), whose test is the bridge beside each: it makes every call
+the fixtures ask for in the tool's own process, hands the judging to the driver, and then asks the program,
+as a process, what it promises beside answering a case - that it reads its arguments from a file and from
+the standard input, says what it takes, makes no call it can neither read nor answer, and refuses a call the
+contract has no case for. What survives must be, entry for entry, `scripts/survivors_accepted.json`, where
 each entry says why no case can tell it apart. A message's wording is not part of conformance, so the code
 that only words a message lives in a `messages` module of its own, which the tools leave alone. A new port
 adds its tool to `scripts/survivors.py`.

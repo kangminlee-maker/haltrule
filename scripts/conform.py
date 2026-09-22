@@ -14,6 +14,9 @@ expectation would be noticed.
     conform.py identity <adapter command> -- <adapter command> ...   the same answer from every port
     conform.py judge <lines file>                           check, over lines already written
     conform.py cli [--every-input] <cli command...>          the fixtures through a shell program, one process per case
+    conform.py cli-calls <file>                             write the calls a shell program is asked to make
+    conform.py cli-judge [--every-input] <answers file>      judge the answers a bridge wrote, one line per call
+    conform.py cli-probes <cli command...>                   what a shell program promises beside answering a case
     conform.py generate                                     write the generated cases; print the path
     conform.py self-test                                    show that this driver can fail
 
@@ -43,6 +46,12 @@ answers the call that was not made - nothing, and 4 - and the driver accepts
 that for those inputs only, as it does a port's "unbuildable"; --every-input
 is for a program whose language can hold them all.
 
+A mutation tool runs a program's own test, so a shell program has a bridge
+beside it that makes the calls in the tool's own process, as an adapter's
+bridge does: `cli-calls` writes what to call and `cli-judge` reads what came
+back. The two paths judge alike - the same cases, the same judge - and the
+one through processes is what scripts/check.sh runs.
+
 It imports nothing from any port, the Python one included.
 """
 
@@ -54,7 +63,9 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
+from typing import NamedTuple
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -654,15 +665,26 @@ def judge_cli(section: str, case_id: str, expect, stdout: str, code: int) -> lis
     return failures
 
 
-def cli(command: list[str], every_input: bool = False) -> int:
-    """Every fixture case a shell can make, through the cli, one process each."""
-    # A section a shell can call: one the contract names, whose entry point takes no function.
+class Call(NamedTuple):
+    """One call a shell program is asked to make, and what its answer must be."""
+
+    section: str
+    case_id: str
+    entry: str
+    text: str
+    expect: object
+    may_sit_out: bool
+
+
+def cli_calls(every_input: bool = False) -> tuple[list[Call], int]:
+    """The calls, and how many fixture inputs no JSON text can carry. A call is a section the
+    contract names whose entry point takes no function, with an input JSON text can write."""
     entry_of = {
         entry["section"]: name
         for name, entry in contract.load()["entry_points"].items()
         if not entry.get("takes_a_function")
     }
-    runnable, uncarried = [], 0
+    calls, uncarried = [], 0
     for section, case_id, inputs, expect in read_calls():
         if section not in entry_of:
             continue
@@ -677,42 +699,427 @@ def cli(command: list[str], every_input: bool = False) -> int:
             and not every_language_holds(inputs)
             and not answers_refused(expect)
         )
-        runnable.append((section, case_id, text, expect, may_sit_out))
-    unheld = 0
-
-    def one(item) -> list[str]:
-        nonlocal unheld
-        section, case_id, text, expect, may_sit_out = item
-        done = subprocess.run(
-            [*command, entry_of[section], "-"],
-            input=text.encode("ascii"),
-            capture_output=True,
+        calls.append(
+            Call(section, case_id, entry_of[section], text, expect, may_sit_out)
         )
-        out = done.stdout.decode("utf-8", "replace")
-        if may_sit_out and out == "" and done.returncode == 4:
-            unheld += 1
-            return []
-        return judge_cli(section, case_id, expect, out, done.returncode)
+    return calls, uncarried
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        failures = [failure for found in pool.map(one, runnable) for failure in found]
-    failures += deep_echo(command)
+
+def judge_answers(calls: list[Call], answers: dict) -> tuple[list[str], int]:
+    """What is wrong with what a shell program answered - `answers` maps a case id to what it wrote
+    and what it exited with - and how many calls its language could not hold."""
+    failures, unheld = [], 0
+    for call in calls:
+        if call.case_id not in answers:
+            failures.append(
+                f"FAIL [{call.case_id}] field={call.section}.cli_missing — no answer for this call"
+            )
+            continue
+        out, code = answers[call.case_id]
+        if call.may_sit_out and out == "" and code == 4:
+            unheld += 1
+            continue
+        failures += judge_cli(call.section, call.case_id, call.expect, out, code)
+    made = {call.case_id for call in calls}
+    for case_id in answers:
+        if case_id not in made:
+            failures.append(
+                f"FAIL [{case_id}] field=cli.unexpected — no call asked for this answer"
+            )
+    return failures, unheld
+
+
+def report_cli(
+    failures: list[str], calls: list[Call], unheld: int, uncarried: int, deep: bool
+) -> int:
     for failure in failures:
         print(failure)
     if failures:
-        print(
-            f"{len(failures)} problem(s) across {len(runnable)} cases through the cli"
-        )
+        print(f"{len(failures)} problem(s) across {len(calls)} cases through the cli")
         return 1
+    echoed = (
+        f", a value nested {DEEP} levels was echoed, and it says what it takes"
+        if deep
+        else ""
+    )
     print(
-        f"OK: {len(runnable) - unheld} cases through the cli, each answered as the fixtures expect it and"
-        f" exited with its worst verdict, and a value nested {DEEP} levels was echoed; {unheld} inputs this"
-        f" program's language cannot hold, {uncarried} no JSON text can carry"
+        f"OK: {len(calls) - unheld} cases through the cli, each answered as the fixtures expect it"
+        f" and exited with its worst verdict{echoed}; {unheld} inputs this program's language cannot"
+        f" hold, {uncarried} no JSON text can carry"
     )
     return 0
 
 
+def cli(command: list[str], every_input: bool = False) -> int:
+    """Every fixture case a shell can make, through the program, one process each."""
+    calls, uncarried = cli_calls(every_input)
+
+    def one(call: Call) -> tuple[str, tuple[str, int]]:
+        done = subprocess.run(
+            [*command, call.entry, "-"],
+            input=call.text.encode("ascii"),
+            capture_output=True,
+        )
+        return call.case_id, (done.stdout.decode("utf-8", "replace"), done.returncode)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        answers = dict(pool.map(one, calls))
+    failures, unheld = judge_answers(calls, answers)
+    failures += cli_probes(command)
+    return report_cli(failures, calls, unheld, uncarried, deep=True)
+
+
+def write_calls(path: Path) -> int:
+    """The calls a bridge is to make, one JSON object a line: the entry point, and the arguments as
+    the text a caller would write. Which of them a program may sit out is the judge's to know."""
+    calls, _ = cli_calls()
+    path.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "id": call.case_id,
+                    "section": call.section,
+                    "entry": call.entry,
+                    "input": call.text,
+                }
+            )
+            + "\n"
+            for call in calls
+        ),
+        encoding="ascii",
+    )
+    print(path)
+    return 0
+
+
+def cli_judge(path: Path, every_input: bool = False) -> int:
+    """The answers a bridge wrote, one JSON object a line: the case id, what the program wrote, and
+    what it exited with."""
+    calls, uncarried = cli_calls(every_input)
+    answers = {}
+    # Split on the newline alone: Python's splitlines() also breaks on U+0085 and
+    # U+2028, which an answer carries as itself where the language writing it does.
+    for line in path.read_text(encoding="utf-8").split("\n"):
+        if not line.strip():
+            continue
+        try:
+            written = json.loads(line)
+            answers[written["id"]] = (written["out"], written["exit"])
+        except (ValueError, KeyError, TypeError):
+            print(f"FAIL [output] field=cli.unreadable\n  line:     {line[:300]}")
+            return 1
+    failures, unheld = judge_answers(calls, answers)
+    return report_cli(failures, calls, unheld, uncarried, deep=False)
+
+
 DEEP = 900
+
+
+def cli_probes(command: list[str]) -> list[str]:
+    """What a shell program promises beside answering the cases: it waits for nothing of its own,
+    echoes a caller's own value however deep, says what it takes, reads its arguments from a file
+    as well as from the standard input, makes no call where it can neither read the arguments nor
+    write the answer, and refuses a call the contract has no case for.
+
+    PROBES is below them, where every one of them is written; a probe that is not in it asks
+    nothing, and the self-test says so."""
+    return [failure for probe in PROBES for failure in probe(command)]
+
+
+def answered_nothing(
+    command: list[str], args: list[str], text: bytes, code: int, field: str, said: str
+) -> list[str]:
+    """A call that ends without an answer, which the spec gives a code of its own: 3 where the part
+    refused the arguments, 4 where no call was made at all. Nothing is written either way, because
+    the standard output carries the answer and nothing else."""
+    done = subprocess.run([*command, *args], input=text, capture_output=True)
+    if done.returncode != code or done.stdout:
+        return [
+            f"FAIL [no answer] field=cli.{field} — {said}: exit {done.returncode}, wanted {code}:"
+            f" {done.stdout[:120]!r}"
+        ]
+    return []
+
+
+def from_a_file(command: list[str]) -> list[str]:
+    """The spec: the arguments are in a file, or in the standard input where the name is `-`. The
+    cases go through the standard input, so the file is asked for here."""
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as written:
+        written.write('{"message": "429 rate limited"}')
+        held = written.name
+    try:
+        done = subprocess.run([*command, "breaker.classify", held], capture_output=True)
+    finally:
+        Path(held).unlink()
+    if (
+        done.returncode != 0
+        or done.stdout.decode("utf-8", "replace") != '"rate_limit"\n'
+    ):
+        return [
+            f"FAIL [file] field=cli.from_a_file — the arguments in a file are the arguments:"
+            f" exit {done.returncode}: {done.stdout[:120]!r}"
+        ]
+    return []
+
+
+def from_the_standard_input(command: list[str]) -> list[str]:
+    """The spec: the arguments are in the standard input where the name is `-`. A caller that names
+    nothing at all is reading from there too, which is what a pipeline writes."""
+    done = subprocess.run(
+        [*command, "breaker.classify"],
+        input=b'{"message": "429 rate limited"}',
+        capture_output=True,
+    )
+    if (
+        done.returncode != 0
+        or done.stdout.decode("utf-8", "replace") != '"rate_limit"\n'
+    ):
+        return [
+            f"FAIL [stdin] field=cli.from_the_standard_input — a caller that names no file is read"
+            f" from the standard input: exit {done.returncode}: {done.stdout[:120]!r}"
+        ]
+    return []
+
+
+def more_than_it_takes(command: list[str]) -> list[str]:
+    """The spec: a call is an entry point and where its arguments are. Given more than that there is
+    no call to make; what the program writes in its place is for a person, as the listing is."""
+    done = subprocess.run(
+        [*command, "breaker.classify", "-", "-"],
+        input=b'{"message": "429 rate limited"}',
+        capture_output=True,
+    )
+    if done.returncode != 4:
+        return [
+            f"FAIL [no call] field=cli.more_than_it_takes — more arguments than a call takes is no"
+            f" call: exit {done.returncode}: {done.stdout[:120]!r}"
+        ]
+    return []
+
+
+def could_not_be_read(command: list[str]) -> list[str]:
+    """The spec: arguments a program could not read are a call it never made. Three of them: a file
+    that is not there, a text that is not JSON, and a JSON value that is not one object."""
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as taken:
+        absent = taken.name
+    Path(absent).unlink()
+    return (
+        answered_nothing(
+            command,
+            ["breaker.classify", absent],
+            b"",
+            4,
+            "no_such_file",
+            "a file that is not there is arguments it could not read",
+        )
+        + answered_nothing(
+            command,
+            ["breaker.classify", "-"],
+            b"not json",
+            4,
+            "not_json",
+            "a text that is not JSON is arguments it could not read",
+        )
+        + answered_nothing(
+            command,
+            ["breaker.classify", "-"],
+            b"[]",
+            4,
+            "not_an_object",
+            "the arguments are one JSON object, and a list is not one",
+        )
+    )
+
+
+def no_answer_to_write(command: list[str]) -> list[str]:
+    """The spec: an answer a program could not write is a call it never made, as arguments it could
+    not read are. A caller's own value can be a number no JSON text spells - one reader takes `NaN`
+    where the text says so and another refuses it outright, and no writer puts one back."""
+    text = (
+        '{"args":{"stage_id":"nan","artifact":{"status":"complete"},'
+        '"validation_issues":[{"verdict":"ok","detail":NaN}]}}'
+    )
+    return answered_nothing(
+        command,
+        ["checkpoint.evaluate", "-"],
+        text.encode("ascii"),
+        4,
+        "no_answer",
+        "a number no JSON text spells is no answer to write",
+    )
+
+
+DEEPER = 20000
+
+
+def deeper_than_it_holds(command: list[str]) -> list[str]:
+    """A caller's value nested deeper than a language reads or writes at all. Which depth that is
+    belongs to the language, as the width of an integer does, so either answer is the spec's: the
+    value echoed, or no call made of it. Falling over is neither."""
+    deep = "[" * DEEPER + "0" + "]" * DEEPER
+    text = (
+        '{"args":{"stage_id":"deeper","artifact":{"status":"complete"},'
+        '"validation_issues":[{"verdict":"ok","detail":' + deep + "}]}}"
+    )
+    done = subprocess.run(
+        [*command, "checkpoint.evaluate", "-"],
+        input=text.encode("ascii"),
+        capture_output=True,
+    )
+    # This driver's own reader stops long before that depth, so the answer is counted, not read.
+    echoed = (
+        done.returncode in VERDICT_LEVELS.values() and done.stdout.count(b"[") > DEEPER
+    )
+    if echoed or (done.returncode == 4 and not done.stdout):
+        return []
+    return [
+        f"FAIL [deeper] field=cli.deeper_than_it_holds — a value nested {DEEPER} levels is echoed"
+        f" or is no call: exit {done.returncode}: {done.stdout[:120]!r}"
+    ]
+
+
+def outside_the_contract(command: list[str]) -> list[str]:
+    """Calls the contract has no case for: a report whose kind names none of the three, a report
+    with a member no entry has, and an argument the contract requires left out. The fixtures hold
+    none of them - the kind is a case file's own key, and a call with one member too many is asked
+    of a port by the generated calls, which a shell program does not take - but a caller writes
+    them as easily as any other. One kind before the three in a string comparison and one after: a
+    program that tells them apart by an order rather than by a name answers one of these wrongly."""
+    policy = (
+        '{"enabled": true, "systemic_threshold": 2, "per_call_max_attempts": 1,'
+        ' "backoff_initial_ms": 1, "backoff_cap_ms": 1}'
+    )
+    entry = (
+        '"item_id": "a", "failure_class": "rate_limit",'
+        ' "failure_message": "429 rate limited", "attempt_count": 1'
+    )
+    failures = []
+    for field, event in (
+        ("kind_before_the_three", '"kind": "aaa", ' + entry),
+        ("kind_after_the_three", '"kind": "zzz", ' + entry),
+        ("a_member_too_many", '"kind": "failure", "reason": "x", ' + entry),
+    ):
+        text = '{"policy": ' + policy + ', "events": [{' + event + "}]}"
+        done = subprocess.run(
+            [*command, "breaker.state", "-"],
+            input=text.encode("ascii"),
+            capture_output=True,
+        )
+        try:
+            answered = json.loads(done.stdout)["returns"] == [{"refused": True}]
+        except (ValueError, KeyError, TypeError):
+            answered = False
+        if done.returncode != 0 or not answered:
+            failures.append(
+                f"FAIL [outside] field=cli.{field} — a report the contract has no case for is"
+                f" refused in its place: exit {done.returncode}: {done.stdout[:160]!r}"
+            )
+    return failures + answered_nothing(
+        command,
+        ["breaker.state", "-"],
+        b"{}",
+        3,
+        "a_missing_argument",
+        "an argument the contract requires, left out, is refused",
+    )
+
+
+def asked_for_nothing(command: list[str]) -> list[str]:
+    """The spec: asked for nothing a program says what it takes - the entry points and their
+    arguments - and makes no call; an entry point it does not have is no call either. What the
+    listing looks like is for a person, so only the names are looked for."""
+    failures = []
+    done = subprocess.run(command, input=b"", capture_output=True)
+    said = done.stdout.decode("utf-8", "replace")
+    missing = [name for name in contract.load()["entry_points"] if name not in said]
+    if done.returncode != 4 or missing:
+        failures.append(
+            f"FAIL [listing] field=cli.listing — asked for nothing it exits 4 and names every entry"
+            f" point: exit {done.returncode}, missing {missing}"
+        )
+    unknown = subprocess.run(
+        [*command, "no.such.entry", "-"], input=b"{}", capture_output=True
+    )
+    if unknown.returncode != 4:
+        failures.append(
+            f"FAIL [listing] field=cli.no_such_entry — an entry point it does not have is no call:"
+            f" exit {unknown.returncode}"
+        )
+    return failures
+
+
+def an_integer_however_it_is_written(command: list[str]) -> list[str]:
+    """The spec: a number is an integer when its value is integral, however the language holds it,
+    and a caller who writes a number wider than the language holds has written a number, which the
+    part refuses. A program with a reader of its own for whole numbers - the Go one has - answers
+    all three spellings alike or it has one. The fixtures write a wide integer as `$bigint`, which
+    is not a value plain JSON text carries, so no case a shell can make asks this."""
+    asked = [
+        ("1", "as itself"),
+        ("1.0", "with a fraction of zero"),
+        ("1e0", "with an exponent"),
+    ]
+    answers = []
+    for written, said in asked:
+        done = subprocess.run(
+            [*command, "breaker.backoff", "-"],
+            input=(
+                '{"attempt": ' + written + ', "initial_ms": 100, "cap_ms": 1000}'
+            ).encode("ascii"),
+            capture_output=True,
+        )
+        answers.append((said, done.returncode, done.stdout))
+    failures = [
+        f"FAIL [integer] field=cli.an_integer_however_it_is_written — an attempt written {said} is"
+        f" the same attempt: exit {code}: {written[:120]!r}, not {answers[0][2][:120]!r}"
+        for said, code, written in answers[1:]
+        if (code, written) != (answers[0][1], answers[0][2])
+    ]
+    failures += answered_nothing(
+        command,
+        ["breaker.backoff", "-"],
+        b'{"attempt": 18446744073709551616, "initial_ms": 100, "cap_ms": 1000}',
+        3,
+        "an_integer_too_wide",
+        "an integer wider than the language holds is a number the part refuses",
+    )
+    # The same number as a digest input, where the spec's answer is a halt and not a refusal. A
+    # program that reads it back as some other number answers this one with a digest.
+    done = subprocess.run(
+        [*command, "checkpoint.canonicalize", "-"],
+        input=b'{"input": 18446744073709551616}',
+        capture_output=True,
+    )
+    try:
+        halted = json.loads(done.stdout)
+        reached = (halted["verdict"], halted["reason"]) == (
+            "halt",
+            "digest_input_int_range",
+        )
+    except (ValueError, KeyError, TypeError):
+        reached = False
+    if done.returncode != 2 or not reached:
+        failures.append(
+            f"FAIL [integer] field=cli.an_integer_too_wide_to_digest — an integer past the range"
+            f" halts as one: exit {done.returncode}: {done.stdout[:160]!r}"
+        )
+    return failures
+
+
+def probes_self_test() -> list[str]:
+    """A probe nobody calls asks nothing. One was written and left out of the list for a day, and
+    the mutation run that found it costs minutes: every function of this file that takes a command
+    and answers failures is a probe, and must be in PROBES."""
+    return [
+        f"a probe nobody calls: {name}"
+        for name, value in sorted(globals().items())
+        if callable(value)
+        and getattr(value, "__module__", None) == __name__
+        and list(getattr(value, "__annotations__", {}).items())
+        == [("command", "list[str]"), ("return", "list[str]")]
+        and value is not cli_probes
+        and value not in PROBES
+    ]
 
 
 def deep_echo(command: list[str]) -> list[str]:
@@ -740,6 +1147,21 @@ def deep_echo(command: list[str]) -> list[str]:
             f" echoed with a verdict: exit {done.returncode}: {out[:120]!r}"
         ]
     return []
+
+
+# Every probe, in the order cli_probes asks them. The self-test above holds this list to the file.
+PROBES = (
+    deep_echo,
+    asked_for_nothing,
+    from_a_file,
+    from_the_standard_input,
+    more_than_it_takes,
+    could_not_be_read,
+    no_answer_to_write,
+    deeper_than_it_holds,
+    an_integer_however_it_is_written,
+    outside_the_contract,
+)
 
 
 def cli_judge_self_test() -> list[str]:
@@ -1122,6 +1544,7 @@ def self_test() -> int:
             )
     problems += generator_self_test()
     problems += cli_judge_self_test()
+    problems += probes_self_test()
     for problem in problems:
         print(f"FAIL [self-test] {problem}")
     if problems:
@@ -1246,6 +1669,23 @@ def main(argv: list[str]) -> int:
             return cli(argv[2:], every_input=True)
         if argv[:1] == ["cli"] and len(argv) > 1:
             return cli(argv[1:])
+        if argv[:1] == ["cli-calls"] and len(argv) == 2:
+            return write_calls(Path(argv[1]))
+        if argv[:1] == ["cli-probes"] and len(argv) > 1:
+            found = cli_probes(argv[1:])
+            for failure in found:
+                print(failure)
+            print(
+                "OK: it waits, echoes, says what it takes, reads a file and a pipe, makes no call"
+                " it can neither read nor answer, and refuses a call outside the contract"
+                if not found
+                else f"{len(found)} problem(s)"
+            )
+            return 1 if found else 0
+        if argv[:2] == ["cli-judge", "--every-input"] and len(argv) == 3:
+            return cli_judge(Path(argv[2]), every_input=True)
+        if argv[:1] == ["cli-judge"] and len(argv) == 2:
+            return cli_judge(Path(argv[1]))
         if argv == ["generate"]:
             path, cells = generated()
             print(path)

@@ -190,5 +190,85 @@
   {
     "survivor": "rust/adapter/src/sections.rs:350:9: replace Script::unasked -> bool with false",
     "why": "the script's own guard against a case file the loop runs past or leaves unused; such a file is reported under its case's id and never passes, so no passing case reaches the guard; scripts/mutants_catalog.py plants both mistakes by hand and requires every adapter to report them"
+  },
+  {
+    "survivor": "py/cli.py | AddNot | if source is None and sys.stdin.isatty(): -> if not source is None and sys.stdin.isatty():",
+    "why": "only a caller at a terminal parts these two, and nothing the suite runs has one: with the arguments in a file or in a pipe the whole test is false either way"
+  },
+  {
+    "survivor": "py/cli.py | ExceptionReplacer | except RecursionError: -> except CosmicRayTestingException:",
+    "why": "how deep this reader goes before it gives up is the machine's stack and not the program's, so no case can name a depth: the driver hands it one past every reader and takes either answer the spec allows there - the value echoed, or no call made of it"
+  },
+  {
+    "survivor": "py/cli.py | NumberReplacer | LEVELS = {\"ok\": 0, \"warning\": 1, \"halt\": 2} -> LEVELS = {\"ok\": -1, \"warning\": 1, \"halt\": 2}",
+    "why": "the worst verdict starts at nothing and ok is that nothing: a smaller number for it is never the largest"
+  },
+  {
+    "survivor": "py/cli.py | NumberReplacer | if not argv or argv[0] in (\"-h\", \"--help\") or len(argv) > 2: -> if not argv or argv[ -1] in (\"-h\", \"--help\") or len(argv) > 2:",
+    "why": "with one argument the last is the first, and with two the last is where the arguments are: only a file actually named -h parts them, and neither of them makes a call of it"
+  },
+  {
+    "survivor": "py/cli.py | NumberReplacer | sys.path.append(sys.path.pop(0)) -> sys.path.append(sys.path.pop( -1))",
+    "why": "what this line guards against is a file beside it named like a standard-library module, and the suite plants none: with the path in any other order the same modules are found"
+  },
+  {
+    "survivor": "py/cli.py | NumberReplacer | sys.path.append(sys.path.pop(0)) -> sys.path.append(sys.path.pop( 1))",
+    "why": "what this line guards against is a file beside it named like a standard-library module, and the suite plants none: with the path in any other order the same modules are found"
+  },
+  {
+    "survivor": "py/cli.py | NumberReplacer | worst = max(worst, LEVELS.get(node.get(\"verdict\"), 0)) -> worst = max(worst, LEVELS.get(node.get(\"verdict\"), -1))",
+    "why": "most of an answer's maps hold no verdict at all, and neither 0 nor a smaller number for them is ever the largest"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceComparisonOperator_Eq_Is | if __name__ == \"__main__\": -> if __name__ is \"__main__\":",
+    "why": "the name is either \"__main__\", which is the one interned string the runtime compares against, or the name the bridge imports this file under: is and == answer alike for both"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceComparisonOperator_Eq_LtE | if __name__ == \"__main__\": -> if __name__ <= \"__main__\":",
+    "why": "the two names this file ever has are \"__main__\" and the \"cli\" the bridge imports it under, which sorts after it: == and <= never part"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceComparisonOperator_Gt_NotEq | name, source = argv[0], argv[1] if len(argv) > 1 else None -> name, source = argv[0], argv[1] if len(argv) != 1 else None",
+    "why": "the line is reached with one argument or with two, and only none at all would part > 1 from != 1 - which the line above has answered already"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceComparisonOperator_Is_IsNot | if source is None and sys.stdin.isatty(): -> if source is not None and sys.stdin.isatty():",
+    "why": "only a caller at a terminal parts these two, and nothing the suite runs has one: with the arguments in a file or in a pipe the whole test is false either way"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceTrueWithFalse | ensure_ascii=True, -> ensure_ascii=False,",
+    "why": "the spec has the answer read as JSON and not compared byte for byte, and the two spellings of a character read the same"
+  },
+  {
+    "survivor": "py/cli.py | ReplaceTrueWithFalse | sort_keys=True, -> sort_keys=False,",
+    "why": "the spec leaves the order of an answer's keys to the program, and the driver reads the answer as JSON"
+  },
+  {
+    "survivor": "go/cli/decode.go | ARITHMETIC_BASE | column 8 | if at+12 <= len(text) && text[at+6] == '\\\\' && text[at+7] == 'u' {",
+    "why": "the arguments end with a brace, so a second escape is never the last of the text: the bound is read, and it is never the thing that decides"
+  },
+  {
+    "survivor": "go/cli/decode.go | CONDITIONALS_BOUNDARY | column 12 | if at+12 <= len(text) && text[at+6] == '\\\\' && text[at+7] == 'u' {",
+    "why": "the arguments end with a brace, so a second escape is never the last of the text: the bound is read, and it is never the thing that decides"
+  },
+  {
+    "survivor": "go/cli/decode.go | CONDITIONALS_BOUNDARY | column 20 | for at := 0; at+6 <= len(text); at++ {",
+    "why": "the arguments end with a brace, so an escape never begins in the last six characters"
+  },
+  {
+    "survivor": "go/cli/decode.go | CONDITIONALS_NEGATION | column 43 | if integer, err := literal.Int64(); err == nil {",
+    "why": "Go's reader answers the largest integer it holds along with the error, and that one is outside +/-(2^53 - 1) as the number it could not hold is: both halt for the range. Within the range, the double this falls back to is the same integer to every part"
+  },
+  {
+    "survivor": "go/cli/main.go | CONDITIONALS_BOUNDARY | column 54 | if found, known := levels[level]; known && found > worst {",
+    "why": "leaving the worst verdict where it is and setting it to the number it already holds are the same thing"
+  },
+  {
+    "survivor": "go/cli/main.go | CONDITIONALS_NEGATION | column 20 | terminal := stdin != nil && stdin.Mode()&os.ModeCharDevice != 0",
+    "why": "the standard input has facts to read whenever a caller has one, so this half is always true, and what the other half decides only a terminal parts - which nothing the suite runs has. gremlins runs no mutant in main either: no test process enters it"
+  },
+  {
+    "survivor": "go/cli/main.go | CONDITIONALS_NEGATION | column 61 | terminal := stdin != nil && stdin.Mode()&os.ModeCharDevice != 0",
+    "why": "gremlins runs no mutant in main, which no test process enters, so this one was never tried: scripts/mutants.py plants the same flip by hand instead, and the gates catch it at cli.from_the_standard_input"
   }
 ]

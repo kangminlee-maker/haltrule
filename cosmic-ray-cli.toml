@@ -1,0 +1,15 @@
+# The Python shell program, run through scripts/survivors.py as cosmic-ray.toml's
+# session is: on a copy of the tree, with the survivors held to
+# scripts/survivors_accepted.json. The test is the bridge beside the program,
+# which makes every call the fixtures ask for in one process and hands the
+# judging to scripts/conform.py. py/cli_listing.py is a file of its own and not
+# this session's: what the listing looks like is for a person, as a message's
+# wording is, and the driver checks the part that is not - that it names every
+# entry point.
+[cosmic-ray]
+module-path = "py/cli.py"
+timeout = 30.0
+test-command = "python3 py/cli_bridge.py"
+
+[cosmic-ray.distributor]
+name = "local"
