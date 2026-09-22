@@ -251,5 +251,9 @@ def main(argv: list[str]) -> int:
     return worst_verdict(answer)
 
 
-if __name__ == "__main__":
+# The mutation tool's answer for this line is the interpreter's own: `is` for `==` is the same
+# comparison on one version and not on the next, where the program then does nothing at all. What
+# the line decides is asked of this file as a process by the driver's probes, which is where it
+# decides anything.
+if __name__ == "__main__":  # pragma: no mutate
     sys.exit(main(sys.argv[1:]))

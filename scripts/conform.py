@@ -949,7 +949,10 @@ def no_answer_to_write(command: list[str]) -> list[str]:
     )
 
 
-DEEPER = 20000
+# Past the stack of any reader that recurses, so that what a program answers here is the same on
+# every machine and every version: measured, CPython gives up somewhere between 100,000 and 400,000
+# on this one and at 1,500 on the one CI runs, and Go's reader stops at 10,000 of its own accord.
+DEEPER = 1_000_000
 
 
 def deeper_than_it_holds(command: list[str]) -> list[str]:

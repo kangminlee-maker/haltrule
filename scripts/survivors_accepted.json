@@ -120,10 +120,6 @@
     "why": "a string that is not valid UTF-8 is one this port cannot be handed: those are the cases it sits out"
   },
   {
-    "survivor": "go/checkpoint.go | CONDITIONALS_NEGATION | column 15 | return held == 0",
-    "why": "an artifact records a $number, which this port holds as a double, so the branch for a recorded integer is never reached; the double beside it is"
-  },
-  {
     "survivor": "go/slot.go | INVERT_NEGATIVES | column 24 | const boundMax = 1<<53 - 1",
     "why": "a constant has no line of its own in a coverage profile, so the tool never runs this one; scripts/mutants_catalog.py plants it by hand instead"
   },
@@ -196,10 +192,6 @@
     "why": "only a caller at a terminal parts these two, and nothing the suite runs has one: with the arguments in a file or in a pipe the whole test is false either way"
   },
   {
-    "survivor": "py/cli.py | ExceptionReplacer | except RecursionError: -> except CosmicRayTestingException:",
-    "why": "how deep this reader goes before it gives up is the machine's stack and not the program's, so no case can name a depth: the driver hands it one past every reader and takes either answer the spec allows there - the value echoed, or no call made of it"
-  },
-  {
     "survivor": "py/cli.py | NumberReplacer | LEVELS = {\"ok\": 0, \"warning\": 1, \"halt\": 2} -> LEVELS = {\"ok\": -1, \"warning\": 1, \"halt\": 2}",
     "why": "the worst verdict starts at nothing and ok is that nothing: a smaller number for it is never the largest"
   },
@@ -218,14 +210,6 @@
   {
     "survivor": "py/cli.py | NumberReplacer | worst = max(worst, LEVELS.get(node.get(\"verdict\"), 0)) -> worst = max(worst, LEVELS.get(node.get(\"verdict\"), -1))",
     "why": "most of an answer's maps hold no verdict at all, and neither 0 nor a smaller number for them is ever the largest"
-  },
-  {
-    "survivor": "py/cli.py | ReplaceComparisonOperator_Eq_Is | if __name__ == \"__main__\": -> if __name__ is \"__main__\":",
-    "why": "the name is either \"__main__\", which is the one interned string the runtime compares against, or the name the bridge imports this file under: is and == answer alike for both"
-  },
-  {
-    "survivor": "py/cli.py | ReplaceComparisonOperator_Eq_LtE | if __name__ == \"__main__\": -> if __name__ <= \"__main__\":",
-    "why": "the two names this file ever has are \"__main__\" and the \"cli\" the bridge imports it under, which sorts after it: == and <= never part"
   },
   {
     "survivor": "py/cli.py | ReplaceComparisonOperator_Gt_NotEq | name, source = argv[0], argv[1] if len(argv) > 1 else None -> name, source = argv[0], argv[1] if len(argv) != 1 else None",

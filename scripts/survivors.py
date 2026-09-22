@@ -71,6 +71,8 @@ def cosmic_ray_survivors(dump: str) -> tuple[list[str], int]:
         item, result = json.loads(line)
         if result is None:
             raise SystemExit("survivors: cosmic-ray left a mutant unrun")
+        if result.get("worker_outcome") == "skipped":
+            continue  # a line the pragma filter took out: not a mutant that ran
         total += 1
         if result["test_outcome"] != "survived":
             continue  # killed, or incompetent: the mutant did not even load
@@ -230,6 +232,9 @@ def run_tool(language: str) -> tuple[list[str], int]:
         if language == "py-cli":
             # The shell program's own session: its bridge is the test, and the program is one file.
             _run(["cosmic-ray", "init", "cosmic-ray-cli.toml", "cli.sqlite"], tree, env)
+            # `# pragma: no mutate` takes a line out of the run. One line has it: the file's own
+            # front door, whose mutants the interpreter answers for rather than the cases.
+            _run(["cr-filter-pragma", "cli.sqlite"], tree, env)
             _run(["cosmic-ray", "baseline", "cosmic-ray-cli.toml"], tree, env)
             _run(["cosmic-ray", "exec", "cosmic-ray-cli.toml", "cli.sqlite"], tree, env)
             return cosmic_ray_survivors(
@@ -376,8 +381,12 @@ def self_test() -> list[str]:
     }
     diff = "--- mutation diff ---\n--- a/py/a.py\n+++ b/py/a.py\n@@ -1 +1 @@\n-    x = 1\n+    x = 2\n"
     dump = "\n".join(
-        json.dumps([item, {"test_outcome": outcome, "diff": diff}])
-        for outcome in ("killed", "survived", "incompetent")
+        [
+            json.dumps([item, {"test_outcome": outcome, "diff": diff}])
+            for outcome in ("killed", "survived", "incompetent")
+        ]
+        # A line the pragma filter took out is not a mutant the run made.
+        + [json.dumps([item, {"test_outcome": None, "worker_outcome": "skipped"}])]
     )
     py_entry = "py/a.py | NumberReplacer | x = 1 -> x = 2"
     problems = []
