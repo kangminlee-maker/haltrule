@@ -9,36 +9,16 @@
  * to decide trip / dead-letter / completed.
  */
 
-import { requireFields } from "./contract.ts";
+import { flag, integer, requireFields, text } from "./contract.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
 /** 2^53 - 1: the largest integer every language holds, and so the breaker's. */
-const WHOLE_MAX = 9007199254740991;
+const WHOLE_MAX = 9007199254740991n;
 
-/** An argument that must be an integer in range. Outside the contract it
- * throws: the call fails and changes nothing. Every integer the breaker takes
- * is one a number holds, so a bigint is no argument of its - unlike a
- * budget's, whose ledger reaches 2^63 - 1. */
+/** An argument that must be an integer within +/-(2^53 - 1), however the
+ * caller holds it: a number or a bigint. Outside the contract it throws. */
 function whole(value: unknown, what: string): number {
-  // isInteger is false for whatever is not a number, so it is the type test too.
-  if (!Number.isInteger(value)) throw new TypeError(`${what} must be an integer, got ${String(value)}`);
-  const n = value as number;
-  if (n < -WHOLE_MAX || n > WHOLE_MAX) {
-    throw new RangeError(`${what} must be within +/-(2^53 - 1), got ${n}`);
-  }
-  return n;
-}
-
-/** An argument that must be a string. */
-function text(value: unknown, what: string): string {
-  if (typeof value !== "string") throw new TypeError(`${what} must be a string, got ${String(value)}`);
-  return value;
-}
-
-/** An argument that must be a boolean. */
-function flag(value: unknown, what: string): boolean {
-  if (typeof value !== "boolean") throw new TypeError(`${what} must be a boolean, got ${String(value)}`);
-  return value;
+  return Number(integer(value, what, -WHOLE_MAX, WHOLE_MAX));
 }
 
 /** A flag that may be absent - null or not given - and is then off. */

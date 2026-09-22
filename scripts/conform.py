@@ -2,14 +2,27 @@
 """The one conformance driver.
 
 A port conforms when the lines its adapter prints are, byte for byte, the lines
-the fixtures expect. The adapter is the only piece written per language: it
-reads the fixture files, feeds each case to the port, and prints one result
-line per case (fixtures/README.md, "Result lines"). Everything that judges is
-here, once, for every language: which line each case expects, whether a fixture
-file is well formed, and whether a wrong expectation would be noticed.
+the fixtures expect, and when it keeps the argument contract over inputs nobody
+wrote. The adapter is the only piece written per language: it reads the case
+files it is given, feeds each case to the port, and prints one result line per
+case (fixtures/README.md, "Result lines"). Everything that judges is here, once,
+for every language: which line each case expects, whether a fixture file is
+well formed, what the contract makes of a generated call, and whether a wrong
+expectation would be noticed.
 
-    conform.py check [--every-input] <adapter command...>   compare an adapter's lines with the fixtures
+    conform.py check [--every-input] <adapter command...>   the fixtures and the contract, one port
+    conform.py identity <adapter command> -- <adapter command> ...   the same answer from every port
+    conform.py judge <lines file>                           check, over lines already written
+    conform.py generate                                     write the generated cases; print the path
     conform.py self-test                                    show that this driver can fail
+
+The fixtures are examples, each with an answer written by hand. The contract
+(spec/contract.json) is a rule over every call, and is checked as one: from a
+fixed seed, scripts/contract.py makes calls inside it and calls with one defect,
+and three properties are asked of the answers - a defect is refused, a call
+inside the contract is not, and every port gives it the same line. `check` runs
+an adapter over the fixture files and the generated file together; `identity`
+runs several over the generated file and compares.
 
 A few cases hand a part what not every language can hold - a string with an
 unpaired surrogate, an $unsupported value. A port whose types cannot build such
@@ -31,7 +44,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import contract  # noqa: E402  (the driver's own, beside this file)
+
 ROOT = Path(__file__).resolve().parent.parent
+GENERATED = ROOT / ".generated" / "contract.json"
 SAFE_INTEGER = 2**53 - 1
 NUMBER_LITERAL = re.compile(
     r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?|NaN|Infinity|-Infinity"
@@ -338,31 +355,150 @@ def compare(
     return failures, unbuilt
 
 
-def check(command: list[str], every_input: bool) -> int:
-    cases = read_fixtures()
-    run = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, timeout=300)
-    try:
-        output = run.stdout.decode("utf-8")
-    except UnicodeDecodeError:
-        print("FAIL [output] field=output.encoding — the output is not UTF-8")
-        return 1
-    failures, unbuilt = compare(cases, output, every_input)
-    if run.returncode != 0:
-        failures.append(
-            f"FAIL [output] field=adapter.exit — the adapter exited {run.returncode}"
-        )
+def fixture_paths() -> list[Path]:
+    return sorted(
+        (ROOT / "fixtures").glob("*/*.json"),
+        key=lambda p: p.relative_to(ROOT).as_posix(),
+    )
+
+
+def generated() -> tuple[Path, dict]:
+    """Writes the generated cases where every run in this tree finds them, and returns the path and
+    the cells. The document is held to the fixture grammar like any file an adapter reads, and every
+    input in it must be one every language builds: a generator that made one it cannot is broken."""
+    doc, cells = contract.generate()
+    raw = (json.dumps(doc, indent=1, ensure_ascii=True) + "\n").encode("ascii")
+    name = doc["fixture_version"]
+    cases = read_fixture(name, raw)
+    if not all(every_language for _, _, _, every_language in cases):
+        raise Malformed(f"{name}: the generator made an input not every language holds")
+    if {case_id for _, case_id, _, _ in cases} != set(cells):
+        raise Malformed(f"{name}: the generator's cells and cases disagree")
+    contract.write(GENERATED, doc)
+    return GENERATED, cells
+
+
+def split_output(output: str, cells: dict) -> tuple[str, dict, list[str]]:
+    """The fixture lines back as text for `compare`, the generated lines parsed by id, and what is
+    wrong with the generated ones as lines: unreadable, repeated, or for no case."""
+    fixture_lines: list[str] = []
+    by_id: dict = {}
+    failures: list[str] = []
+    terminated = output.endswith("\n")
+    for raw in output.split("\n")[:-1] if terminated else output.split("\n"):
+        try:
+            parsed = json.loads(raw)
+            case_id = parsed["id"]
+        except (ValueError, KeyError, TypeError):
+            fixture_lines.append(raw)  # compare reports an unreadable line
+            continue
+        if case_id not in cells:
+            fixture_lines.append(raw)
+        elif case_id in by_id:
+            failures.append(f"FAIL [{case_id}] field=generated.repeated")
+        else:
+            by_id[case_id] = parsed
+    for case_id in cells:
+        if case_id not in by_id:
+            failures.append(
+                f"FAIL [{case_id}] field=generated.missing — the adapter printed no line for this case"
+            )
+    text = "\n".join(fixture_lines)
+    if fixture_lines and (terminated or by_id):
+        text += "\n"
+    return text, by_id, failures
+
+
+def judge_output(
+    cases: list[Case], cells: dict, output: str, every_input: bool
+) -> tuple[list[str], int]:
+    fixture_text, by_id, failures = split_output(output, cells)
+    compared, unbuilt = compare(cases, fixture_text, every_input)
+    failures = compared + failures + contract.judge(cells, by_id)
+    return failures, unbuilt
+
+
+def report(failures: list[str], cases: list[Case], cells: dict, unbuilt: int) -> int:
     for failure in failures:
         print(failure)
     if failures:
-        print(f"{len(failures)} problem(s) across {len(cases)} cases")
+        print(
+            f"{len(failures)} problem(s) across {len(cases)} cases and {len(cells)} generated calls"
+        )
         return 1
+    held = "and the port keeps the contract on {} generated calls".format(len(cells))
     if unbuilt:
         print(
             f"OK: {len(cases)} cases: {len(cases) - unbuilt} lines as the fixtures expect them, "
-            f"and {unbuilt} inputs this port's types cannot hold"
+            f"and {unbuilt} inputs this port's types cannot hold; {held}"
         )
     else:
-        print(f"OK: {len(cases)} cases, each line as the fixtures expect it")
+        print(f"OK: {len(cases)} cases, each line as the fixtures expect it, {held}")
+    return 0
+
+
+def run_adapter(command: list[str], paths: list[Path]) -> tuple[str, int]:
+    run = subprocess.run(
+        command + [str(path) for path in paths],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        timeout=300,
+    )
+    try:
+        return run.stdout.decode("utf-8"), run.returncode
+    except UnicodeDecodeError:
+        return "", -1
+
+
+def check(command: list[str], every_input: bool) -> int:
+    cases = read_fixtures()
+    path, cells = generated()
+    output, code = run_adapter(command, fixture_paths() + [path])
+    if code == -1:
+        print("FAIL [output] field=output.encoding — the output is not UTF-8")
+        return 1
+    failures, unbuilt = judge_output(cases, cells, output, every_input)
+    if code != 0:
+        failures.append(f"FAIL [output] field=adapter.exit — the adapter exited {code}")
+    return report(failures, cases, cells, unbuilt)
+
+
+def judge(lines: Path) -> int:
+    """`check` over lines an adapter already wrote for the fixture files and the generated file, for
+    a port that runs in-process under a mutation tool."""
+    cases = read_fixtures()
+    _, cells = generated()
+    failures, unbuilt = judge_output(
+        cases, cells, lines.read_text("utf-8"), every_input=False
+    )
+    return report(failures, cases, cells, unbuilt)
+
+
+def identity(commands: list[list[str]]) -> int:
+    """Every port's line for every generated call inside the contract, compared."""
+    path, cells = generated()
+    outputs: dict[str, dict] = {}
+    failures: list[str] = []
+    for command in commands:
+        name = " ".join(command)
+        output, code = run_adapter(command, [path])
+        if code != 0:
+            failures.append(f"FAIL [output] field=adapter.exit — {name} exited {code}")
+        _, by_id, missing = split_output(output, cells)
+        failures += [f"{line} ({name})" for line in missing]
+        outputs[name] = by_id
+    failures += contract.disagreements(cells, outputs)
+    for failure in failures:
+        print(failure)
+    accepted = sum(1 for cell in cells.values() if cell[0] == "accepted")
+    if failures:
+        print(
+            f"{len(failures)} problem(s) across {accepted} generated calls and {len(commands)} ports"
+        )
+        return 1
+    print(
+        f"OK: {len(commands)} ports give the same line on every one of {accepted} generated calls"
+    )
     return 0
 
 
@@ -629,14 +765,112 @@ def self_test() -> int:
             problems.append(
                 f"the driver writes {vector['id']} differently from the vector"
             )
+    problems += generator_self_test()
     for problem in problems:
         print(f"FAIL [self-test] {problem}")
     if problems:
         return 1
     print(
-        f"OK: every one of {len(cases)} corrupted expectations fails under its own id; malformed fixtures and malformed output are refused"
+        f"OK: every one of {len(cases)} corrupted expectations fails under its own id; malformed fixtures and malformed output are refused; the generated contract checks can fail"
     )
     return 0
+
+
+def generator_self_test() -> list[str]:
+    """The contract judge held to the same standard as the fixture judge: it must fail. A port that
+    answers a defect with anything but the refusal, or a call inside the contract with a refusal, or
+    whose line differs from another port's, fails under that case's id; a generator that makes the same
+    cases twice is the only kind a port can be held to."""
+    problems: list[str] = []
+    first, cells = contract.generate()
+    if json.dumps(first) != json.dumps(contract.generate()[0]):
+        problems.append("the generator does not make the same cases twice")
+    kinds = {cell[0] for cell in cells.values()}
+    if kinds != {"accepted", "refused"} or len(cells) < 500:
+        problems.append(
+            f"the generator made {len(cells)} cells of kinds {sorted(kinds)}"
+        )
+    by_entry = {section for section in first if section != "fixture_version"}
+    if len(by_entry) < 7:
+        problems.append(
+            f"the generator reached {len(by_entry)} sections, not every entry point"
+        )
+
+    def perfect_line(case_id: str) -> dict:
+        cell = cells[case_id]
+        if cell == ("accepted",):
+            return {"actual": {"ok": 1}, "id": case_id, "section": "s"}
+        field_at = cell[1]
+        if field_at is None:
+            return {"actual": {"refused": True}, "id": case_id, "section": "s"}
+        field, index = field_at
+        answers = [None] * (index + 1)
+        answers[index] = {"refused": True}
+        return {"actual": {field: answers}, "id": case_id, "section": "s"}
+
+    perfect = {case_id: perfect_line(case_id) for case_id in cells}
+    if contract.judge(cells, perfect):
+        problems.append(
+            "the answers the contract asks for do not pass the contract judge"
+        )
+    # Every cell, not a sample: the wrong answer must fail under the cell's own id.
+    unnoticed = []
+    for case_id, cell in cells.items():
+        wrong = dict(perfect[case_id])
+        wrong["actual"] = {"ok": 1} if cell[0] == "refused" else {"refused": True}
+        if cell[0] == "refused" and cell[1] is not None:
+            field, index = cell[1]
+            wrong["actual"] = {field: [None] * (index + 1)}
+        found = contract.judge(cells, {**perfect, case_id: wrong})
+        if len(found) != 1 or not found[0].startswith(
+            f"FAIL [{case_id}] field=generated."
+        ):
+            unnoticed.append(case_id)
+    if unnoticed:
+        problems.append(
+            f"{len(unnoticed)} wrong generated answer(s) passed, the first being {unnoticed[0]}"
+        )
+    accepted = next(case_id for case_id, cell in cells.items() if cell == ("accepted",))
+    raised = {
+        **perfect,
+        accepted: {"id": accepted, "section": "s", "raised": "TypeError: x"},
+    }
+    if f"FAIL [{accepted}] field=generated.raised" not in " ".join(
+        contract.judge(cells, raised)
+    ):
+        problems.append("a port that raised on a call inside the contract passed")
+    unbuilt = {
+        **perfect,
+        accepted: {"id": accepted, "section": "s", "unbuildable": True},
+    }
+    if f"FAIL [{accepted}] field=generated.unbuildable" not in " ".join(
+        contract.judge(cells, unbuilt)
+    ):
+        problems.append("a port that could not build a generated input passed")
+    # Identity: one port's one line differs.
+    other = {**perfect, accepted: {**perfect[accepted], "actual": {"ok": 2}}}
+    found = contract.disagreements(cells, {"a": perfect, "b": perfect, "c": other})
+    if len(found) != 1 or not found[0].startswith(
+        f"FAIL [{accepted}] field=generated.identity"
+    ):
+        problems.append("ports that disagree on a call inside the contract passed")
+    if contract.disagreements(cells, {"a": perfect, "b": perfect}):
+        problems.append("ports that agree were said to disagree")
+    # A generated line missing, or repeated, is noticed where the output is split.
+    text = "".join(line_of(perfect[case_id]) + "\n" for case_id in cells)
+    _, _, failures = split_output(text, cells)
+    if failures:
+        problems.append("a complete generated output was found wanting")
+    short = "".join(line_of(perfect[case_id]) + "\n" for case_id in list(cells)[1:])
+    if f"FAIL [{next(iter(cells))}] field=generated.missing" not in " ".join(
+        split_output(short, cells)[2]
+    ):
+        problems.append("a missing generated line passed")
+    if f"FAIL [{accepted}] field=generated.repeated" not in " ".join(
+        split_output(text + line_of(perfect[accepted]) + "\n", cells)[2]
+    ):
+        problems.append("a repeated generated line passed")
+    return problems
 
 
 def main(argv: list[str]) -> int:
@@ -645,6 +879,17 @@ def main(argv: list[str]) -> int:
             return check(argv[2:], every_input=True)
         if argv[:1] == ["check"] and len(argv) > 1:
             return check(argv[1:], every_input=False)
+        if argv[:1] == ["identity"] and len(argv) > 1:
+            commands: list[list[str]] = [[]]
+            for word in argv[1:]:
+                commands.append([]) if word == "--" else commands[-1].append(word)
+            return identity([command for command in commands if command])
+        if argv[:1] == ["judge"] and len(argv) == 2:
+            return judge(Path(argv[1]))
+        if argv == ["generate"]:
+            path, cells = generated()
+            print(path)
+            return 0
         if argv == ["self-test"]:
             return self_test()
     except Malformed as error:

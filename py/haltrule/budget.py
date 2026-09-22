@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from haltrule.contract import integer
 from haltrule.messages import show
 from haltrule.verdict import verdict
 
@@ -35,16 +36,7 @@ _LEDGER_MAX = 2**63 - 1
 def _ledger(value: Any, what: str) -> int:
     if value is None:  # absent: nothing used
         return 0
-    # bool before int: bool is an int subclass, and True is not a count.
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{what} must be an integer, got {value!r}")
-    if isinstance(value, float):
-        if not value.is_integer():
-            raise TypeError(f"{what} must be an integer, got {value!r}")
-        value = int(value)
-    if not 0 <= value <= _LEDGER_MAX:
-        raise ValueError(f"{what} must be within [0, 2^63 - 1], got {value}")
-    return value
+    return integer(value, what, 0, _LEDGER_MAX)
 
 
 def _cap(value: Any, what: str) -> Optional[int]:

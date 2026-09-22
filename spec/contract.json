@@ -1,0 +1,190 @@
+{
+  "spec": "haltrule/0",
+  "about": [
+    "The argument contract of every entry point: which arguments a call takes, what each must be, and which",
+    "combinations are refused. spec/README.md says what a part does with a call inside this contract; this",
+    "file says which calls are inside it, and it is the one place that does. scripts/conform.py reads it and",
+    "holds every port to it three ways, over inputs it generates rather than inputs anyone wrote: a call with",
+    "one defect is refused by every port; a call inside the contract is refused by none; and every call inside",
+    "it gets the same answer from all four. The fixtures under fixtures/ are examples of the sentences in the",
+    "README; this file is the rule those examples are drawn from.",
+    "",
+    "Types: string, boolean, value (anything of the value model), enum {of}, integer {min, max} - an integer",
+    "however the language holds it, a double or a wide integer alike - number (a finite double, an integral one",
+    "within +/-(2^53 - 1)), list {of}, map {fields, rules} - closed: a field the map does not name is refused -",
+    "and open_map {of} - any string keys, each value of that type. A map with `closed: false` names the",
+    "fields the part reads and nothing about other keys: the part's argument is those fields alone (a",
+    "success report is an item id), so a key beyond them is the case's shape and no defect. A field is",
+    "optional unless `required`;",
+    "an optional field that is null or not given is absent. A required field must be given and may be null",
+    "only when `null_is_a_value`. `forbidden` names keys refused outright; keys an open map does not name are",
+    "the caller's own and not judged. Rules: at_most [a, b] refuses a above b when both are given;",
+    "requires {when: {field: value}, field} refuses that combination without the field.",
+    "",
+    "An entry point takes `arguments` by name - each is written in a case, null when absent - or, where the",
+    "case's own map is the one argument (`call`), the fields of that map. A list marked `each_is_a_call` is",
+    "not an argument but one call per element - a charge, a report - and names the result field that holds",
+    "one answer per element, where a refused element leaves the batch as it was."
+  ],
+  "entry_points": {
+    "slot.validate": {
+      "section": "validate",
+      "arguments": {
+        "spec": {
+          "required": true,
+          "type": "map",
+          "fields": {
+            "name": {"required": true, "type": "string"},
+            "kind": {"required": true, "type": "enum", "of": ["choice", "text", "score"]},
+            "candidates": {"type": "list", "of": {"type": "string"}},
+            "min_length": {"type": "integer", "min": 0, "max": 9007199254740991},
+            "max_length": {"type": "integer", "min": 0, "max": 9007199254740991},
+            "min": {"type": "number"},
+            "max": {"type": "number"}
+          },
+          "rules": [
+            {"at_most": ["min_length", "max_length"]},
+            {"at_most": ["min", "max"]},
+            {"requires": {"when": {"kind": "choice"}, "field": "candidates"}}
+          ]
+        },
+        "value": {"type": "value"}
+      }
+    },
+    "budget.charge": {
+      "section": "charge",
+      "arguments": {
+        "budget": {
+          "required": true,
+          "type": "map",
+          "fields": {
+            "max_turns": {"type": "integer", "min": 0, "max": 9223372036854775807},
+            "time_budget_ms": {"type": "integer", "min": 0, "max": 9223372036854775807},
+            "token_budget": {"type": "integer", "min": 0, "max": 9223372036854775807}
+          }
+        },
+        "charges": {
+          "required": true,
+          "type": "list",
+          "each_is_a_call": "verdicts",
+          "of": {
+            "type": "map",
+            "fields": {
+              "turns": {"type": "integer", "min": 0, "max": 9223372036854775807},
+              "ms": {"type": "integer", "min": 0, "max": 9223372036854775807},
+              "tokens": {"type": "integer", "min": 0, "max": 9223372036854775807}
+            }
+          }
+        }
+      }
+    },
+    "breaker.classify": {
+      "section": "classify",
+      "arguments": {
+        "message": {"type": "string"}
+      }
+    },
+    "breaker.backoff": {
+      "section": "backoff",
+      "call": {
+        "type": "map",
+        "fields": {
+          "attempt": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+          "initial_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+          "cap_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991}
+        }
+      }
+    },
+    "breaker.state": {
+      "section": "state",
+      "arguments": {
+        "policy": {
+          "required": true,
+          "type": "map",
+          "fields": {
+            "enabled": {"required": true, "type": "boolean"},
+            "systemic_threshold": {"required": true, "type": "integer", "min": 1, "max": 9007199254740991},
+            "concurrent": {"type": "boolean"},
+            "per_call_max_attempts": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+            "backoff_initial_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+            "backoff_cap_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991}
+          }
+        },
+        "events": {
+          "required": true,
+          "type": "list",
+          "each_is_a_call": "returns",
+          "of": {
+            "type": "one_of",
+            "by": "kind",
+            "cases": {
+              "success": {
+                "type": "map",
+                "closed": false,
+                "fields": {"item_id": {"required": true, "type": "string"}}
+              },
+              "skipped": {
+                "type": "map",
+                "closed": false,
+                "fields": {"item_id": {"required": true, "type": "string"}}
+              },
+              "failure": {
+                "type": "map",
+                "fields": {
+                  "item_id": {"required": true, "type": "string"},
+                  "failure_class": {"required": true, "null_is_a_value": true, "type": "string"},
+                  "failure_message": {"required": true, "type": "string"},
+                  "attempt_count": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "checkpoint.canonicalize": {
+      "section": "canonicalize",
+      "arguments": {
+        "input": {"type": "value"}
+      }
+    },
+    "checkpoint.evaluate": {
+      "section": "checkpoint",
+      "arguments": {
+        "args": {
+          "required": true,
+          "type": "map",
+          "fields": {
+            "stage_id": {"required": true, "type": "string"},
+            "artifact": {"type": "open_map", "of": {"type": "value"}},
+            "subject_ref": {"type": "string"},
+            "expected_contract_revision": {"type": "string"},
+            "expected_stage_config_digest": {"type": "string"},
+            "expected_dependency_digests": {"type": "open_map", "of": {"type": "string"}},
+            "required_resume_from_stage": {"type": "string"},
+            "validation_issues": {
+              "type": "list",
+              "of": {
+                "type": "open_map",
+                "of": {"type": "value"},
+                "fields": {
+                  "verdict": {"type": "enum", "of": ["ok", "warning", "halt"]},
+                  "reason": {"type": "string"},
+                  "message": {"type": "string"},
+                  "resume": {"type": "string"},
+                  "stage_id": {"type": "string"},
+                  "subject_ref": {"type": "string"}
+                },
+                "forbidden": ["spec"]
+              }
+            },
+            "status_map": {
+              "type": "open_map",
+              "of": {"type": "enum", "of": ["complete", "partial", "failed", "blocked"]}
+            }
+          }
+        }
+      }
+    }
+  }
+}

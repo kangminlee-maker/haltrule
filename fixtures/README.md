@@ -1,7 +1,12 @@
 # Conformance fixtures
 
 Each fixture is a pair: an input that every implementation is given, and the verdict every implementation
-must produce. The fixtures are the contract; the implementations are what get tested against it.
+must produce. A fixture is an example of a sentence in `../spec/README.md`, with its answer written by hand.
+What holds over every call — which arguments are inside a part's contract — is not a list of examples but a
+rule, `../spec/contract.json`, and the driver checks it as one: from that file and a fixed seed it generates
+calls, and holds every port to three properties over them with no expectation written by anyone (a call with
+one defect is refused; a call inside the contract is not; every port gives it the same line). So a fixture is
+added when a sentence needs an example or a real defect was found, and not to make a rule's coverage wider.
 
 Two rules hold for every fixture added here:
 
@@ -18,9 +23,10 @@ One JSON file per part, `<part>/v<N>.json`, each naming itself in `fixture_versi
 (`breaker/v0`, `checkpoint/v0`, `budget/v0`, `slot/v0`, and `protocol/v0` for the line format below). Every
 other key is a section: a list of cases, each with an `id`, its inputs, and an `expect`.
 
-Two things read these files and neither trusts the other. A port's **adapter** reads every `.json` file under
-`fixtures/`, by path, finds its function for a section by the section's name, and prints one result line per
-case. The **driver**, `scripts/conform.py`, reads the same files on its own, works out the line each case
+Two things read these files and neither trusts the other. A port's **adapter** reads the case files it is
+given as arguments — the driver hands it these files and the generated one, which has the same shape and an
+`expect` the adapter ignores like any other — or, given none, every `.json` file under `fixtures/`, by path;
+it finds its function for a section by the section's name, and prints one result line per case. The **driver**, `scripts/conform.py`, reads the same files on its own, works out the line each case
 expects, and compares. It wants exactly one line for every case it found, in order, so neither a file, a
 section nor a case can pass by being skipped, and a case id is unique across all files. A case whose
 computation raises is reported under its own id. The driver also refuses a fixture file that is malformed,

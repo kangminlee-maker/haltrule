@@ -3890,20 +3890,6 @@
       ]
     },
     {
-      "id": "refused_validation_issues_text",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": "invalid"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "validation_issue_defaults",
       "args": {
         "stage_id": "draft",
@@ -4018,22 +4004,6 @@
           }
         }
       ]
-    },
-    {
-      "id": "refused_validation_issues_not_a_list",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": {
-          "reason": "slot_empty"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
     },
     {
       "id": "required_resume_override",
@@ -4165,203 +4135,12 @@
       }
     },
     {
-      "id": "refused_artifact_empty_string",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": ""
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_artifact_list",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": [
-          {
-            "status": "complete"
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "refused_stage_id_not_given",
       "args": {
         "subject_ref": "runs/r1/draft.json",
         "artifact": {
           "status": "complete"
         }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_stage_id_null",
-      "args": {
-        "stage_id": null,
-        "artifact": {
-          "status": "complete"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_stage_id_number",
-      "args": {
-        "stage_id": {
-          "$number": "7"
-        },
-        "artifact": {
-          "status": "complete"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_subject_ref_number",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": {
-          "$number": "7"
-        },
-        "artifact": {
-          "status": "complete"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_required_resume_false",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "required_resume_from_stage": false
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_revision_zero",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_contract_revision": {
-          "$number": "0"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_stage_config_false",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_stage_config_digest": false
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_dependencies_list",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_dependency_digests": [
-          "sha256:a"
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_dependencies_text",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_dependency_digests": "sha256:a"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_dependency_digest_number",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_dependency_digests": {
-          "a": {
-            "$number": "1"
-          }
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_expected_dependency_digest_null",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "expected_dependency_digests": {
-          "a": null
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_status_map_list",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "status_map": [
-          "complete"
-        ]
       },
       "expect": {
         "refused": true
@@ -4378,57 +4157,6 @@
         "status_map": {
           "done": "finished"
         }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_status_map_value_inherited_name",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "done"
-        },
-        "status_map": {
-          "done": "constructor"
-        }
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_validation_issue_null",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          null
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_validation_issue_text",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "reason": "slot_empty"
-          },
-          "slot_empty"
-        ]
       },
       "expect": {
         "refused": true
@@ -5246,34 +4974,6 @@
       ]
     },
     {
-      "id": "refused_validation_issues_empty_map",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": {}
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "refused_validation_issues_empty_text",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": ""
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "status_true_is_present_not_reusable",
       "args": {
         "stage_id": "draft",
@@ -5432,24 +5132,6 @@
       }
     },
     {
-      "id": "issue_verdict_of_another_type_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "verdict": true
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "issue_that_signs_the_spec_is_refused",
       "args": {
         "stage_id": "draft",
@@ -5545,102 +5227,6 @@
           "why": "the hero slot reads thin"
         }
       ]
-    },
-    {
-      "id": "issue_reason_that_is_not_text_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "reason": false
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "issue_message_that_is_not_text_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "message": {
-              "$number": "1"
-            }
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "issue_resume_that_is_not_text_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "resume": {
-              "$number": "2"
-            }
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "issue_stage_id_that_is_not_text_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "stage_id": {
-              "$number": "3"
-            }
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "issue_subject_ref_that_is_not_text_is_refused",
-      "args": {
-        "stage_id": "draft",
-        "subject_ref": "runs/r1/draft.json",
-        "artifact": {
-          "status": "complete"
-        },
-        "validation_issues": [
-          {
-            "subject_ref": false
-          }
-        ]
-      },
-      "expect": {
-        "refused": true
-      }
     },
     {
       "id": "issue_ok_loses_its_resume_and_the_halt_beside_it_keeps_one",

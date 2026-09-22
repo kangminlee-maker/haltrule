@@ -289,6 +289,13 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
     optional(args.expected_dependency_digests, mapOf(isText), "expected_dependency_digests") ?? {};
   const statusMap = optional(args.status_map, mapOf(isArtifactStatus), "status_map") ?? IDENTITY_STATUS_MAP;
   const validationIssues = optional(args.validation_issues, isListOfMaps, "validation_issues") ?? [];
+  // A caller's issue is an argument like the rest: what is outside the contract is refused before
+  // anything is judged, an absent artifact included. A null field is an absent one.
+  for (const validationIssue of validationIssues) {
+    for (const [key, field] of Object.entries(validationIssue)) {
+      if (field != null) holdsWhatAVerdictPromises(key, field);
+    }
+  }
   const artifact = optional(args.artifact, isPlainObject, "artifact");
   const base = (
     level: VerdictLevel,
@@ -372,9 +379,7 @@ export function evaluateCheckpointArtifact(args: EvaluateCheckpointArtifactArgs)
   }
 
   for (const validationIssue of validationIssues) {
-    // A null field is an absent one: the default stands where there is one.
     const given = Object.entries(validationIssue).filter(([, field]) => field != null);
-    for (const [key, field] of given) holdsWhatAVerdictPromises(key, field);
     issues.push({
       ...base("halt", "validation_issue", "the caller's own validation found something"),
       ...Object.fromEntries(given),

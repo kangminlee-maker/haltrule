@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from haltrule.contract import integer
 from haltrule.verdict import verdict
 
 _ASCII_WHITESPACE = " \t\n\r\f\v"
@@ -51,19 +52,7 @@ _BOUND_MAX = 2**53 - 1
 
 
 def _bound(value: Any, what: str) -> Optional[int]:
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{what} must be a non-negative integer, got {value!r}")
-    if isinstance(value, float):
-        if not value.is_integer():
-            raise TypeError(f"{what} must be a non-negative integer, got {value!r}")
-        value = int(value)
-    if not 0 <= value <= _BOUND_MAX:
-        raise TypeError(
-            f"{what} must be a non-negative integer up to 2^53 - 1, got {value!r}"
-        )
-    return value
+    return None if value is None else integer(value, what, 0, _BOUND_MAX)
 
 
 def _is_number(value: Any) -> bool:

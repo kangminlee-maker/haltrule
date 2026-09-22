@@ -270,6 +270,19 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 		}
 	}
 
+	// A caller's issue is an argument like the rest: what is outside the contract is refused before
+	// anything is judged, an absent artifact included. A null field is an absent one.
+	for _, given := range args.ValidationIssues {
+		for key, field := range given {
+			if field == nil {
+				continue
+			}
+			if err := holdsWhatAVerdictPromises(key, field); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if args.Artifact == nil {
 		return []Issue{base(Halt, "artifact_missing", "nothing was recorded")}, nil
 	}
@@ -331,13 +344,9 @@ func EvaluateCheckpointArtifact(args CheckpointArgs) ([]Issue, error) {
 
 	for _, given := range args.ValidationIssues {
 		issue := base(Halt, "validation_issue", "the caller's own validation found something")
-		// A null field is an absent one: the default stands where there is one.
 		for key, field := range given {
 			if field == nil {
 				continue
-			}
-			if err := holdsWhatAVerdictPromises(key, field); err != nil {
-				return nil, err
 			}
 			issue[key] = field
 		}

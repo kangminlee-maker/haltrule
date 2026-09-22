@@ -9,6 +9,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from haltrule.contract import flag as _flag
+from haltrule.contract import integer
+from haltrule.contract import text as _text
 from haltrule.verdict import VerdictLevel, verdict
 from typing import Any, Literal, Optional
 
@@ -19,30 +22,9 @@ _WHOLE_MAX = 2**53 - 1
 
 
 def _whole(value: Any, what: str) -> int:
-    """An argument that must be an integer in range. Outside the contract it
-    raises: the call fails and changes nothing."""
-    # bool before int: bool is an int subclass, and True is not a count.
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{what} must be an integer, got {value!r}")
-    if isinstance(value, float):
-        if not value.is_integer():
-            raise TypeError(f"{what} must be an integer, got {value!r}")
-        value = int(value)
-    if not -_WHOLE_MAX <= value <= _WHOLE_MAX:
-        raise ValueError(f"{what} must be within +/-(2^53 - 1), got {value}")
-    return value
-
-
-def _text(value: Any, what: str) -> str:
-    if not isinstance(value, str):
-        raise TypeError(f"{what} must be a string, got {value!r}")
-    return value
-
-
-def _flag(value: Any, what: str) -> bool:
-    if not isinstance(value, bool):
-        raise TypeError(f"{what} must be a boolean, got {value!r}")
-    return value
+    """An argument that must be an integer within +/-(2^53 - 1), however the
+    caller holds it. Outside the contract it raises."""
+    return integer(value, what, -_WHOLE_MAX, _WHOLE_MAX)
 
 
 def _optional_flag(value: Any, what: str) -> bool:

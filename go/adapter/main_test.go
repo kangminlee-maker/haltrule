@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,12 @@ func TestTheFixturesPass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The driver writes the generated cases and says where; they are read like a fixture file.
+	generated, err := exec.Command("python3", filepath.Join(root, "scripts", "conform.py"), "generate").Output()
+	if err != nil {
+		t.Fatalf("generating the contract cases: %v", err)
+	}
+	paths = append(paths, strings.TrimSpace(string(generated)))
 	written, err := os.CreateTemp(t.TempDir(), "lines")
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +60,7 @@ func TestTheFixturesPass(t *testing.T) {
 		t.Fatal(err)
 	}
 	driver := exec.Command("python3", filepath.Join(root, "scripts", "conform.py"),
-		"check", "cat", written.Name())
+		"judge", written.Name())
 	driver.Dir = root
 	said, err := driver.CombinedOutput()
 	if err != nil {

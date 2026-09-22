@@ -24,7 +24,7 @@
  * first, where it can be reviewed. A spec holds no field beyond the seven
  * below; one that does, or is not a map, is refused.
  */
-import { checkFields } from "./contract.ts";
+import { checkFields, integer } from "./contract.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
 export type SlotKind = "choice" | "text" | "score";
@@ -56,9 +56,7 @@ function isBlank(text: string): boolean {
 /** A bound in 0..2^53 - 1, or `absent` when none is given. */
 function bound(value: unknown, what: string, absent: number): number {
   if (value == null) return absent;
-  // isSafeInteger is false for whatever is not a number, so it is the type test too.
-  if (Number.isSafeInteger(value) && (value as number) >= 0) return value as number;
-  throw new TypeError(`${what} must be a non-negative integer up to 2^53 - 1, got ${String(value)}`);
+  return Number(integer(value, what, 0n, BigInt(Number.MAX_SAFE_INTEGER)));
 }
 
 /** A number as this spec has it, as a double, or null when it is not one: a

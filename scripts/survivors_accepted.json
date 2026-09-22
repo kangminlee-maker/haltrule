@@ -172,11 +172,11 @@
     "why": "at a sum of exactly 2^63 - 1 both answers are 2^63 - 1: the ledger saturates to the value it already holds"
   },
   {
-    "survivor": "rust/haltrule/src/checkpoint.rs:511:9: delete match arm Some(Value::Int(held)) in js_falsy",
+    "survivor": "rust/haltrule/src/checkpoint.rs:519:9: delete match arm Some(Value::Int(held)) in js_falsy",
     "why": "a recorded field never holds an integer in the fixtures: every number a case writes is a $number, which is a double, and $bigint may not appear in an artifact. The arm answers a caller, and no case can tell it apart"
   },
   {
-    "survivor": "rust/haltrule/src/checkpoint.rs:511:41: replace == with != in js_falsy",
+    "survivor": "rust/haltrule/src/checkpoint.rs:519:41: replace == with != in js_falsy",
     "why": "a recorded field never holds an integer in the fixtures: every number a case writes is a $number, which is a double, and $bigint may not appear in an artifact. The arm answers a caller, and no case can tell it apart"
   }
 ]

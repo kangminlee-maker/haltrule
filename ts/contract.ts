@@ -1,11 +1,35 @@
 /**
- * How a part reads a map argument — budget caps, a charge, a slot spec, the
- * checkpoint's arguments — and refuses one outside its contract. A refusal
- * is a TypeError: the call fails and changes nothing.
- *
- * Python needs no counterpart: its entry points take keyword arguments, and
- * the call itself refuses a non-map and a key the signature does not name.
+ * How a part reads an argument and refuses one outside its contract
+ * (spec/contract.json). A refusal is a TypeError or a RangeError: the call
+ * fails and changes nothing. Each kind of argument is read here once, for
+ * every part: a rule written in one place has one place to be wrong.
  */
+
+/** An integer however the language holds it - a finite integral number or a
+ * bigint - within min..max. Read as a bigint so that one reader serves a
+ * count within 2^53 - 1 and a ledger within 2^63 - 1 alike; a caller whose
+ * range a number holds converts back with Number(). */
+export function integer(value: unknown, what: string, min: bigint, max: bigint): bigint {
+  let n: bigint;
+  if (typeof value === "bigint") n = value;
+  // isInteger is false for whatever is not a number, so it is the type test too.
+  else if (Number.isInteger(value)) n = BigInt(value as number);
+  else throw new TypeError(`${what} must be an integer, got ${String(value)}`);
+  if (n < min || n > max) throw new RangeError(`${what} must be within [${min}, ${max}], got ${n}`);
+  return n;
+}
+
+/** An argument that must be a string. */
+export function text(value: unknown, what: string): string {
+  if (typeof value !== "string") throw new TypeError(`${what} must be a string, got ${String(value)}`);
+  return value;
+}
+
+/** An argument that must be a boolean. */
+export function flag(value: unknown, what: string): boolean {
+  if (typeof value !== "boolean") throw new TypeError(`${what} must be a boolean, got ${String(value)}`);
+  return value;
+}
 
 /** Refuses `value` unless it is a map (not null, not a list) whose every key
  * is one of `fields`. */

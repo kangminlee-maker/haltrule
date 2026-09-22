@@ -17,7 +17,7 @@
  * like a string handed to the breaker: these are the caller's own literals,
  * not data a verdict must speak to, so they throw.
  */
-import { checkFields } from "./contract.ts";
+import { checkFields, integer } from "./contract.ts";
 import { show } from "./messages.ts";
 import { verdict, type Verdict } from "./verdict.ts";
 
@@ -44,14 +44,8 @@ const CAP_FIELDS = ["max_turns", "time_budget_ms", "token_budget"];
 const CHARGE_FIELDS = ["turns", "ms", "tokens"];
 
 function ledger(value: number | bigint | null | undefined, what: string): bigint {
-  let n: bigint;
-  if (typeof value === "bigint") n = value;
-  // isInteger is false for whatever is not a number, so it is the type test too.
-  else if (Number.isInteger(value)) n = BigInt(value as number);
-  else if (value == null) n = 0n; // absent, null or not given: nothing used
-  else throw new TypeError(`${what} must be an integer, got ${String(value)}`);
-  if (n < 0n || n > LEDGER_MAX) throw new RangeError(`${what} must be within [0, 2^63 - 1], got ${n}`);
-  return n;
+  if (value == null) return 0n; // absent, null or not given: nothing used
+  return integer(value, what, 0n, LEDGER_MAX);
 }
 
 function cap(value: number | bigint | null | undefined, what: string): bigint | null {

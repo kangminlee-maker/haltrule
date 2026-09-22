@@ -315,6 +315,16 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Result<Vec<Issue>,
         issue
     };
 
+    // A caller's issue is an argument like the rest: what is outside the contract is refused before
+    // anything is judged, an absent artifact included. A null field is an absent one.
+    for given in args.validation_issues.iter().flatten() {
+        for (key, field) in given {
+            if *field != Value::Null {
+                holds_what_a_verdict_promises(key, field)?;
+            }
+        }
+    }
+
     let artifact = match args.artifact.as_ref() {
         None => {
             return Ok(vec![base(
@@ -426,12 +436,10 @@ pub fn evaluate_checkpoint_artifact(args: &CheckpointArgs) -> Result<Vec<Issue>,
             "validation_issue",
             "the caller's own validation found something".to_owned(),
         );
-        // A null field is an absent one: the default stands where there is one.
         for (key, field) in given {
             if *field == Value::Null {
                 continue;
             }
-            holds_what_a_verdict_promises(key, field)?;
             issue.insert(key.clone(), field.clone());
         }
         issues.push(issue);

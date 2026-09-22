@@ -487,26 +487,41 @@ func checkpoint(from inputs) (haltrule.Value, error) {
 		return refused, nil
 	}
 	args.Artifact = artifact
-	if !isNull(given.ExpectedDependencyDigests) {
-		// Each digest is a string: Go reads a null into one without complaining.
-		expected := map[string]*string{}
-		if err := json.Unmarshal(given.ExpectedDependencyDigests, &expected); err != nil {
-			return refused, nil
+	// A map argument is a value of the model like any other, so a $ tag inside it is read as the
+	// value it names and not as a key: {"$number": "1"} where a map belongs is a number, refused.
+	expected, err := decodeMap(given.ExpectedDependencyDigests)
+	if err != nil {
+		if errors.Is(err, errUnbuildable) {
+			return nil, err
 		}
+		return refused, nil
+	}
+	if expected != nil {
 		args.ExpectedDependencyDigests = map[string]string{}
 		for id, digest := range expected {
-			if digest == nil {
+			held, isText := digest.(haltrule.String)
+			if !isText {
 				return refused, nil
 			}
-			args.ExpectedDependencyDigests[id] = *digest
+			args.ExpectedDependencyDigests[id] = string(held)
 		}
 	}
-	if !isNull(given.StatusMap) {
-		named := map[string]haltrule.ArtifactStatus{}
-		if err := json.Unmarshal(given.StatusMap, &named); err != nil {
-			return refused, nil
+	statuses, err := decodeMap(given.StatusMap)
+	if err != nil {
+		if errors.Is(err, errUnbuildable) {
+			return nil, err
 		}
-		args.StatusMap = named
+		return refused, nil
+	}
+	if statuses != nil {
+		args.StatusMap = map[string]haltrule.ArtifactStatus{}
+		for name, status := range statuses {
+			held, isText := status.(haltrule.String)
+			if !isText {
+				return refused, nil
+			}
+			args.StatusMap[name] = haltrule.ArtifactStatus(held)
+		}
 	}
 	if !isNull(given.ValidationIssues) {
 		var raws []json.RawMessage

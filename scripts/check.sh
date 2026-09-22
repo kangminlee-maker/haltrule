@@ -44,7 +44,7 @@ gate "every corrupted expectation fails under its own id; malformed fixtures and
 gate "a survivor of the mutation tools that is not on the list fails, and so does a listed one that is gone" \
   python3 scripts/survivors.py self-test
 
-echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect"
+echo "2. conformance — each adapter's lines are, byte for byte, the lines the fixtures expect, and each port keeps the contract on generated calls"
 # Go is compiled: the build is the adapter's own gate, and the binary is what runs.
 gate "the go adapter builds" go build -C go -o ../.bin/go-adapter ./adapter
 gate "the rust adapter builds" cargo build --quiet --manifest-path rust/Cargo.toml
@@ -60,6 +60,9 @@ gate "go conforms" python3 scripts/conform.py check .bin/go-adapter
 # Rust's strings are UTF-8, its integers are 64 bits wide, and it has no
 # undefined, so it answers "unbuildable" for the same inputs Go cannot be handed.
 gate "rust conforms" python3 scripts/conform.py check rust/target/debug/rust-adapter
+# The third property of the contract needs every port at once: one line, whoever answers.
+gate "the four ports give the same line on every generated call inside the contract" \
+  python3 scripts/conform.py identity node ts/adapter/adapter.ts -- python3 py/adapter.py -- .bin/go-adapter -- rust/target/debug/rust-adapter
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
 gate "typescript modules compile with no host types: ts/tsconfig.json, and ts/host.d.ts is all the host there is" \

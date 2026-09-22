@@ -28,10 +28,17 @@ An argument outside a part's contract — a string where it expects a number, a 
 holding a field the contract does not name (`max_turn` for `max_turns` would otherwise be no cap at all) —
 is **refused**: the call fails in the language's own way (an exception, an error value) and changes nothing, so
 a refused charge leaves the ledger exactly as it was. A refusal is not a verdict and carries no reason. A
-fixture writes it as `{"refused": true}` where the result would be, so every port is held to the same list of
-refused arguments. A port whose types cannot hold such an argument at all has refused it before it ran: its
-adapter answers `refused` for that case when it cannot build the argument. All four parts
-refuse as their bullets below say, before anything else is looked at.
+fixture writes it as `{"refused": true}` where the result would be. A port whose types cannot hold such an
+argument at all has refused it before it ran: its adapter answers `refused` for that case when it cannot
+build the argument. Every part refuses before anything else is looked at.
+
+What is inside each part's contract — which arguments a call takes, what each must be, which combinations
+are refused — is written once, in `contract.json`, and the bullets below say what a part does with a call
+inside it. A rule over every call is not held by a list of examples, so the driver checks the contract as a
+rule: from `contract.json` and a fixed seed it makes calls inside the contract and calls with one defect
+each, and every port must refuse each defect, refuse no call inside the contract, and give every such call
+the same line as the other three. The fixtures are examples of the sentences here, with answers written by
+hand; they are not the proof of the contract, and they are not added to for its sake.
 
 **Draft. Nothing below is frozen.** Sections marked TODO are decided but not yet written out.
 
@@ -126,17 +133,14 @@ not name is not reusable.
   the retries and what is persisted are the caller's. Its numbers are integers within ±(2^53 − 1). The three
   fixture sections are its three entry points.
 
-  Every argument of the breaker's is refused when it is outside the contract, as the other three parts'
-  arguments are. A map argument — a policy, a failure entry — holds the fields its bullet names and no
-  others; a number is an integer within ±(2^53 − 1), however the language holds it; an id, a message and a
-  class are strings. Absent — null or not given — stands in two places only: a message, which is then no
-  text to read, and a policy's `concurrent`, which is then off. Every other field must be there and hold
-  its type, a failure entry's class included, where null is a value and means the item's own failure. A
-  value of any other type is refused: a boolean where a count belongs, a number where a message belongs. A
-  refused report leaves the batch exactly as it was, as a refused charge leaves the ledger.
+  Its arguments are in `contract.json`. Two of its fields mean something by being absent — `classify`'s
+  message, which is then no text to read, and a policy's `concurrent`, which is then off — and one by being
+  null: a failure entry's class, where null means the item's own failure. A failure entry's message is a
+  string, the empty one when there is nothing to say. A refused report leaves the batch exactly as it was,
+  as a refused charge leaves the ledger.
   - **`classify`** takes a failure message and answers `rate_limit`, `auth`, `transport`, or null — null
     meaning the failure is the item's own and says nothing about the provider. An absent or empty message
-    is null; a message that is not a string is refused, `false` and `0` included.
+    is null.
 
     It is the fallback, not the recommendation. Where a provider answers with fields — an error type, a
     status — classify on those and hand the class to `state` as `failure_class`, which it accepts and does
@@ -160,10 +164,9 @@ not name is not reusable.
     the caller adds that. The doubling is exact. A port computes it in integers and stops at the cap, so a
     product past its integer type is the cap and never an overflow; the references compute it in doubles,
     where a power of two times an integer in range is exact until it is infinite, which is the same thing.
-  - **`state`** is one batch. It is made from a policy — `enabled`, `systemic_threshold` (an integer of at
-    least 1), `concurrent` (optional, off by default), and `per_call_max_attempts`, `backoff_initial_ms` and
-    `backoff_cap_ms`, which are carried for the caller's loop and read by nothing here — and holds four
-    things: the completed item ids, the dead-letter entries, the pending entries, and the trip, null until it
+  - **`state`** is one batch. It is made from a policy — `enabled`, `systemic_threshold`, `concurrent`, and
+    `per_call_max_attempts`, `backoff_initial_ms` and `backoff_cap_ms`, which are carried for the caller's
+    loop and read by nothing here — and holds four things: the completed item ids, the dead-letter entries, the pending entries, and the trip, null until it
     is set. The caller reports each item's final outcome, after its own retries:
     - `success`: the id is completed. Then, unless the batch has tripped or `concurrent` is on, every pending
       entry moves to the dead letter in the order it became pending — the provider answered, so those
@@ -190,19 +193,18 @@ not name is not reusable.
     order entries arrived there: an item's own failure when it is reported, a pending entry when a success
     moves it. What is neither at the end is incomplete; the caller works that out from its own list of items.
 - `checkpoint` — `canonicalize` and the digest above, and a reuse verdict over one recorded artifact. Its
-  arguments, under the names every port and every fixture uses:
-  - `stage_id`, a string, the only one required;
-  - `artifact`, a map: what was recorded, absent when nothing was;
-  - `subject_ref`, a string: how issues refer to the artifact;
-  - `expected_contract_revision` and `expected_stage_config_digest`, strings, and
-    `expected_dependency_digests`, a map of dependency id to string: what the caller expects now. An absent
-    expectation is not checked; any string is compared, the empty one included;
-  - `required_resume_from_stage`, a string: where a rerun must start, `stage_id` when absent;
-  - `validation_issues`, a list of maps: what the caller's own validation found;
-  - `status_map`, a map of the caller's status to one of the four above.
+  arguments (`contract.json`), under the names every port and every fixture uses:
+  - `stage_id`, the only one required;
+  - `artifact`: what was recorded, absent when nothing was;
+  - `subject_ref`: how issues refer to the artifact;
+  - `expected_contract_revision`, `expected_stage_config_digest` and `expected_dependency_digests`, by
+    dependency id: what the caller expects now. An absent expectation is not checked; any string is
+    compared, the empty one included;
+  - `required_resume_from_stage`: where a rerun must start, `stage_id` when absent;
+  - `validation_issues`: what the caller's own validation found;
+  - `status_map`: the caller's statuses, each mapped to one of the four above.
 
-  An argument of another type is refused, and so is a `status_map` value outside the vocabulary. What the
-  artifact *records* is data, written by whoever wrote it, and is read leniently instead. A recorded
+  What the artifact *records* is data, written by whoever wrote it, and is read leniently. A recorded
   `status` or `contract_revision` is absent when it is falsy as JavaScript has it — null, `false`, `0`, NaN,
   `""`; an empty list or map is present. A recorded `dependency_digests` that is not a map records nothing.
   A recorded value equals an expectation only when it is the same string: a recorded `1` is not `"1"`. What
@@ -231,36 +233,32 @@ not name is not reusable.
   what it found and not the part's.
 
   An `actual_` member is what is recorded, null when nothing is. An absent artifact is one `artifact_missing`
-  and nothing else: the expectations and the caller's issues are not looked at. Otherwise every issue found,
+  and nothing else: the expectations and the caller's issues are not judged — refused first where they are
+  outside the contract, as every argument is, and not read otherwise. Otherwise every issue found,
   in this order: status, contract revision (missing when none is recorded, a mismatch otherwise),
   stage-config digest, dependency digests by UTF-16 code unit order of their ids, the caller's validation
   issues in the order given; with none, a single `checkpoint_valid`.
 
   A caller's validation issue becomes a `halt` verdict with reason `validation_issue` and the caller's own
   fields laid over those defaults. A field the verdict itself names is held to what the verdict promises
-  for it: `verdict` is one of the three, as a `status_map` value is one of the four, and `reason`,
-  `message`, `resume`, `stage_id` and `subject_ref` are strings. `spec` is refused outright: a caller may
-  disagree with a verdict, not sign one. Every other field is the caller's own and is not judged — a slot
-  name, a count, a list. A field that is null is absent: the default stands where there is one, and the
-  field is left out where there is none. Issue ids and file reads stay with the caller.
+  for it, and `spec` is refused outright: a caller may disagree with a verdict, not sign one. Every other
+  field is the caller's own and is not judged — a slot name, a count, a list. A field that is null is
+  absent: the default stands where there is one, and the field is left out where there is none. Issue ids
+  and file reads stay with the caller.
 - `budget` — a ledger of turns, milliseconds, and tokens against the caps `max_turns`, `time_budget_ms`, and
   `token_budget`, each optional. The caller charges what it measured; `charge` adds it and returns a verdict:
   `warning` naming the first exhausted resource in the order turns, time, tokens (`budget_turns`,
   `budget_time`, `budget_tokens`), or `ok` (`budget_ok`). A resource is exhausted when the amount used
   reaches its cap, so a cap of zero is exhausted before anything is charged, a charge of nothing reports the
   current state, and an exhausted budget stays exhausted. The ledger holds integers up to 2^63 − 1 and its
-  additions saturate there. Caps and amounts are non-negative integers (an integral float is its integer);
-  anything else — negative, fractional, NaN or an infinity, boolean, a string, past 2^63 − 1 — is refused. An
-  absent cap is no cap and an absent amount is nothing used. The caps are a map of those three fields and a
-  charge a map of `turns`, `ms` and `tokens`; one that is not a map, or holds any other field, is refused. A
-  charge is refused whole: every amount is read before any is added. What to do when exhausted is the
-  caller's.
+  additions saturate there. The caps and a charge (`turns`, `ms`, `tokens`) are in `contract.json`; an
+  absent cap is no cap and an absent amount is nothing used. A charge is refused whole: every amount is
+  read before any is added. What to do when exhausted is the caller's.
 - `slot` — whether a value a person or a model filled in satisfies its contract, a `SlotSpec` with `name`
-  and `kind`. `choice` accepts a value equal to one of its `candidates`; `text` accepts a value whose length
-  in Unicode scalar values lies within `min_length`..`max_length`, each optional and, when given, an integer in
-  0..2^53 − 1 (the limit every language shares, as for digest inputs); `score` accepts a number within
-  `min`..`max`, both included, each optional and, when given, a number. A number here is a finite double,
-  and an integral one is an integer within ±(2^53 − 1), as every other number in this spec is; every double
+  and `kind` (`contract.json`). `choice` accepts a value equal to one of its `candidates`; `text` accepts a
+  value whose length in Unicode scalar values lies within `min_length`..`max_length`, each optional; `score`
+  accepts a number within `min`..`max`, both included, each optional. A number here is a finite double, and
+  an integral one is an integer within ±(2^53 − 1), as every other number in this spec is; every double
   past 2^53 − 1 is integral, so the two tests are one, a double within ±(2^53 − 1). A value that is not one
   — a string that is not blank, a boolean, NaN, an infinity, an integer past that range — fails its
   contract. The part does nothing to a score but compare it. Parsing and comparing a double come out the
@@ -272,13 +270,9 @@ not name is not reusable.
   exact — no trimming, no case folding, no Unicode normalization; a string that is not made of Unicode scalar
   values (it holds a lone surrogate) is `slot_invalid`; a shape beyond length is the caller's to check first,
   as a float's rendering is in a digest. A reference to something that exists is a `choice` whose candidates
-  are the known identifiers. A spec outside the contract — one that is not a map, a field beyond those seven,
-  an unknown `kind`, a `choice` without `candidates`, `candidates` that are not a list of strings,
-  `min_length` above `max_length`, a length bound that is not an integer in 0..2^53 − 1 (a boolean, a
-  string, NaN, or an infinity is not one), a `min` or `max` that is not a number as above, `min` above
-  `max`, a spec without a string `name` — is refused. A field that is given is held to its type whatever
-  the `kind`: a `text` with `candidates` that are not strings is refused though it never reads them, as a
-  `choice` with a bad bound is.
+  are the known identifiers. A field that is given is held to its type whatever the `kind`: a `text` with
+  `candidates` that are not strings is refused though it never reads them, as a `choice` with a bad bound
+  is.
 
 ## Reason registry
 
@@ -313,9 +307,12 @@ sitting in somebody's artifacts.
 A port is conformant when:
 
 1. the lines its adapter prints are, byte for byte, the lines the fixtures expect — one line per case, as
-   `../fixtures/README.md` defines them, the format's own vectors (`protocol/v0`) included. One driver,
-   `../scripts/conform.py`, decides that for every language, and the driver is checked, not trusted: every
-   expectation in every fixture is corrupted in turn and must fail under its own id;
+   `../fixtures/README.md` defines them, the format's own vectors (`protocol/v0`) included — and it keeps
+   `contract.json` on the calls the driver generates from it: every call with one defect refused, no call
+   inside the contract refused, and every call inside it answered with the same line as the other ports.
+   One driver, `../scripts/conform.py`, decides that for every language, and the driver is checked, not
+   trusted: every expectation in every fixture is corrupted in turn and must fail under its own id, and so
+   must a wrong answer to a generated call and a line one port prints differently;
 2. its dependency list is empty, except SHA-256 where the standard library does not provide it;
 3. its modules cannot reach the host and name nothing that is not a function of its arguments — shown by how
    they are built where the language allows it (the TypeScript modules compile with no host types at all; a
@@ -327,6 +324,8 @@ A port is conformant when:
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.
 
-The fixtures are held to account in turn. A mainstream mutation tool plants defects in each port's modules,
-and one that no case notices is either a missing case or code that changes nothing; what is left is listed,
-each with its reason, in `../scripts/survivors_accepted.json`.
+The checks are held to account in turn. A mainstream mutation tool plants defects in each port's modules
+and runs the fixtures and the generated calls against each; a defect nothing notices is either a missing
+check or code that changes nothing; what is left is listed, each with its reason, in
+`../scripts/survivors_accepted.json`. What no check owns is a port that is wrong the same way as the other
+three on a call inside the contract: the examples and a reader of this text are all that stand there.

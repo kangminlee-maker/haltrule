@@ -268,31 +268,6 @@
       "expect": {
         "refused": true
       }
-    },
-    {
-      "id": "message_is_false",
-      "message": false,
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "message_is_a_list",
-      "message": [
-        "429"
-      ],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "message_is_a_map",
-      "message": {
-        "text": "429"
-      },
-      "expect": {
-        "refused": true
-      }
     }
   ],
   "backoff": [
@@ -647,19 +622,6 @@
       }
     },
     {
-      "id": "initial_ms_is_null",
-      "attempt": {
-        "$number": "0"
-      },
-      "initial_ms": null,
-      "cap_ms": {
-        "$number": "30000"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "a_field_the_contract_does_not_name",
       "attempt": {
         "$number": "0"
@@ -678,34 +640,6 @@
       }
     },
     {
-      "id": "attempt_is_a_fraction",
-      "attempt": {
-        "$number": "1.5"
-      },
-      "initial_ms": {
-        "$number": "1000"
-      },
-      "cap_ms": {
-        "$number": "30000"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "attempt_is_a_string",
-      "attempt": "1",
-      "initial_ms": {
-        "$number": "1000"
-      },
-      "cap_ms": {
-        "$number": "30000"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "attempt_is_true",
       "attempt": true,
       "initial_ms": {
@@ -713,21 +647,6 @@
       },
       "cap_ms": {
         "$number": "30000"
-      },
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "cap_ms_one_past_the_shared_range",
-      "attempt": {
-        "$number": "0"
-      },
-      "initial_ms": {
-        "$number": "1000"
-      },
-      "cap_ms": {
-        "$number": "9007199254740992"
       },
       "expect": {
         "refused": true
@@ -762,19 +681,17 @@
       }
     },
     {
-      "id": "initial_ms_one_before_the_shared_range",
+      "id": "attempt_held_as_a_wide_integer",
       "attempt": {
-        "$number": "0"
+        "$bigint": "1"
       },
       "initial_ms": {
-        "$number": "-9007199254740992"
+        "$number": "1000"
       },
       "cap_ms": {
         "$number": "30000"
       },
-      "expect": {
-        "refused": true
-      }
+      "expect": 2000
     }
   ],
   "state": [
@@ -3285,73 +3202,6 @@
       }
     },
     {
-      "id": "policy_has_no_enabled",
-      "policy": {
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "policy_enabled_is_null",
-      "policy": {
-        "enabled": null,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "policy_enabled_is_a_number",
-      "policy": {
-        "enabled": {
-          "$number": "1"
-        },
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
       "id": "policy_threshold_is_zero",
       "policy": {
         "enabled": true,
@@ -3360,70 +3210,6 @@
         },
         "per_call_max_attempts": {
           "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "policy_threshold_is_a_fraction",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "1.5"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "policy_carried_number_is_a_string",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": "30000"
-      },
-      "events": [],
-      "expect": {
-        "refused": true
-      }
-    },
-    {
-      "id": "policy_carried_number_one_past_the_shared_range",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "9007199254740992"
         },
         "backoff_initial_ms": {
           "$number": "1000"
@@ -3658,211 +3444,6 @@
         "completed": [],
         "dead_letter": [],
         "tripped": null
-      }
-    },
-    {
-      "id": "report_attempt_count_one_past_the_shared_range",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [
-        {
-          "kind": "failure",
-          "item_id": "item-a",
-          "failure_class": "rate_limit",
-          "failure_message": "429 too many requests",
-          "attempt_count": {
-            "$number": "9007199254740992"
-          }
-        },
-        {
-          "kind": "failure",
-          "item_id": "item-b",
-          "failure_class": "rate_limit",
-          "failure_message": "429 too many requests",
-          "attempt_count": {
-            "$number": "1"
-          }
-        }
-      ],
-      "expect": {
-        "returns": [
-          {
-            "refused": true
-          },
-          null
-        ],
-        "completed": [],
-        "dead_letter": [],
-        "tripped": null
-      }
-    },
-    {
-      "id": "report_failure_message_is_a_number",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [
-        {
-          "kind": "failure",
-          "item_id": "item-a",
-          "failure_class": "rate_limit",
-          "failure_message": {
-            "$number": "429"
-          },
-          "attempt_count": {
-            "$number": "1"
-          }
-        },
-        {
-          "kind": "failure",
-          "item_id": "item-b",
-          "failure_class": "rate_limit",
-          "failure_message": "429 too many requests",
-          "attempt_count": {
-            "$number": "1"
-          }
-        }
-      ],
-      "expect": {
-        "returns": [
-          {
-            "refused": true
-          },
-          null
-        ],
-        "completed": [],
-        "dead_letter": [],
-        "tripped": null
-      }
-    },
-    {
-      "id": "report_item_id_is_a_number",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [
-        {
-          "kind": "success",
-          "item_id": {
-            "$number": "1"
-          }
-        },
-        {
-          "kind": "success",
-          "item_id": "item-b"
-        }
-      ],
-      "expect": {
-        "returns": [
-          {
-            "refused": true
-          },
-          null
-        ],
-        "completed": [
-          "item-b"
-        ],
-        "dead_letter": [],
-        "tripped": null
-      }
-    },
-    {
-      "id": "report_item_id_is_not_given",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [
-        {
-          "kind": "skipped"
-        },
-        {
-          "kind": "skipped",
-          "item_id": "item-b"
-        }
-      ],
-      "expect": {
-        "returns": [
-          {
-            "refused": true
-          },
-          null
-        ],
-        "completed": [
-          "item-b"
-        ],
-        "dead_letter": [],
-        "tripped": null
-      }
-    },
-    {
-      "id": "policy_carried_number_is_a_fraction",
-      "policy": {
-        "enabled": true,
-        "systemic_threshold": {
-          "$number": "2"
-        },
-        "per_call_max_attempts": {
-          "$number": "3"
-        },
-        "backoff_initial_ms": {
-          "$number": "1000.5"
-        },
-        "backoff_cap_ms": {
-          "$number": "30000"
-        }
-      },
-      "events": [],
-      "expect": {
-        "refused": true
       }
     }
   ]

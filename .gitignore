@@ -18,3 +18,4 @@ mutants.out*/
 
 # macOS folder droppings
 .DS_Store
+.generated/

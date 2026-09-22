@@ -284,6 +284,13 @@ def evaluate_checkpoint_artifact(
             **details,
         }
 
+    # A caller's issue is an argument like the rest: what is outside the contract is refused before
+    # anything is judged, an absent artifact included. A null field is an absent one.
+    for validation_issue in validation_issues:
+        for key, field in validation_issue.items():
+            if field is not None:
+                _holds_what_a_verdict_promises(key, field)
+
     if artifact is None:
         return [base("halt", "artifact_missing", "nothing was recorded")]
 
@@ -363,12 +370,9 @@ def evaluate_checkpoint_artifact(
             )
 
     for validation_issue in validation_issues:
-        # A null field is an absent one: the default stands where there is one.
         given = {
             key: field for key, field in validation_issue.items() if field is not None
         }
-        for key, field in given.items():
-            _holds_what_a_verdict_promises(key, field)
         issues.append(
             {
                 **base(

@@ -61,19 +61,36 @@ mod bridge {
         let root = std::fs::canonicalize(&root).expect("the repository root");
         std::env::set_current_dir(&root).expect("working in the repository root");
 
+        // The driver writes the generated cases and says where; they are read like a fixture file.
+        let generated = std::process::Command::new("python3")
+            .arg(root.join("scripts").join("conform.py"))
+            .arg("generate")
+            .current_dir(&root)
+            .output()
+            .expect("the driver generates");
+        assert!(
+            generated.status.success(),
+            "generating the contract cases failed"
+        );
+        let mut paths = crate::run::fixture_paths().expect("the fixture files");
+        paths.push(
+            String::from_utf8_lossy(&generated.stdout)
+                .trim()
+                .to_string(),
+        );
+
         let written = std::env::temp_dir().join(format!("haltrule-{}.lines", std::process::id()));
         let mut out =
             BufWriter::new(std::fs::File::create(&written).expect("a file for the lines"));
-        for path in crate::run::fixture_paths().expect("the fixture files") {
-            crate::run::read_file(&path, &mut out).expect("reading a fixture file");
+        for path in paths {
+            crate::run::read_file(&path, &mut out).expect("reading a case file");
         }
         out.flush().expect("the lines");
         drop(out);
 
         let said = std::process::Command::new("python3")
             .arg(root.join("scripts").join("conform.py"))
-            .arg("check")
-            .arg("cat")
+            .arg("judge")
             .arg(&written)
             .current_dir(&root)
             .output()

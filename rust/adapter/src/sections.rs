@@ -372,23 +372,37 @@ fn checkpoint(from: &Inputs) -> Answer {
             validation_issues: None,
             status_map: None,
         };
+        // A map argument is a value of the model like any other, so a $ tag inside it is read as
+        // the value it names and not as a key: {"$number": "1"} where a map belongs is a number.
         if let Some(raw) = present(given.get("expected_dependency_digests")) {
-            let held = raw.as_object().ok_or(Refusal::Refused)?;
+            let held = match decode_value(Some(raw))? {
+                Value::Map(held) => held,
+                _ => return Err(Refusal::Refused),
+            };
             let mut digests = BTreeMap::new();
             for (id, digest) in held {
-                digests.insert(id.clone(), text(Some(digest))?);
+                match digest {
+                    Value::Text(digest) => digests.insert(id, digest),
+                    _ => return Err(Refusal::Refused),
+                };
             }
             args.expected_dependency_digests = Some(digests);
         }
         if let Some(raw) = present(given.get("status_map")) {
-            let held = raw.as_object().ok_or(Refusal::Refused)?;
+            let held = match decode_value(Some(raw))? {
+                Value::Map(held) => held,
+                _ => return Err(Refusal::Refused),
+            };
             let mut named = BTreeMap::new();
             for (name, status) in held {
-                let spelt = status.as_str().ok_or(Refusal::Refused)?;
+                let spelt = match &status {
+                    Value::Text(spelt) => spelt.as_str(),
+                    _ => return Err(Refusal::Refused),
+                };
                 // A status outside the vocabulary has no spelling here, which
                 // is the refusal the other ports write out.
                 let known = ArtifactStatus::from_name(spelt).ok_or(Refusal::Refused)?;
-                named.insert(name.clone(), known);
+                named.insert(name, known);
             }
             args.status_map = Some(named);
         }
