@@ -702,6 +702,20 @@ CATALOG += [
 # --- the cli: the answer is the port's, the exit code is the verdict
 CATALOG += [
     mutant(
+        "driver: the cli is asked for a call that takes a function",
+        "scripts/conform.py",
+        '        if not entry.get("takes_a_function")\n',
+        "        if True\n",
+        [CLI_FAILS, "field=run.cli_output"],
+    ),
+    mutant(
+        "driver: the cli judge lets a verdict reach a person without its message",
+        "scripts/conform.py",
+        "    if not messages_kept(answer):\n",
+        "    if False:\n",
+        [DRIVER_FAILS, "FAIL [self-test] a verdict without its message passed"],
+    ),
+    mutant(
         "driver: the cli judge accepts an exit code above the verdict",
         "scripts/conform.py",
         "    if code != worst_verdict(expect):\n",

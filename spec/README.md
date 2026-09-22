@@ -321,6 +321,40 @@ sitting in somebody's artifacts.
 | `slot_missing` | slot | no value, or a blank one |
 | `slot_invalid` | slot | a present value that fails the slot's contract |
 
+## From a shell
+
+A program may offer the parts to a caller that has no library — a shell, a Make recipe, a step written in a
+language with no port. What such a program takes and answers is fixed here, so that two of them agree the
+way two ports do. It is called with the name of an entry point and where its arguments are: a file, or `-`
+for the standard input.
+
+```
+<program> <entry point> [<arguments file> | -]
+```
+
+The entry points are the ones `contract.json` names — `checkpoint.evaluate`, `breaker.classify`, and the
+rest — except those it marks `takes_a_function`, which no caller without a function can make at all:
+`breaker.run` is the one. The arguments are one JSON object whose members are that entry point's arguments
+under the contract's own names, a member left out being absent as null is; where the contract names a
+`call` rather than arguments, as `backoff` does, the object itself is that call. There is no second
+vocabulary: no flag renames an argument and no name is shortened, so what a caller reads in `contract.json`
+is what it writes.
+
+The answer is one line of JSON on the standard output, and it is what the fixtures write for that entry
+point (`../fixtures/README.md`, "Expectations") with each verdict's `message` kept, because a person is
+reading. It is read as JSON and not compared byte for byte, so the order of its keys is the program's own
+business. Nothing else is written there: a refusal's reason, and anything else meant for a person, goes to
+the standard error.
+
+The exit code is the worst verdict anywhere in the answer — `0` for `ok`, `1` for `warning`, `2` for
+`halt`, and `0` for an answer that holds no verdict at all, as `classify` and `backoff` do not. A call the
+part refuses, its arguments being outside the contract, answers nothing and exits `3`. A refused call
+inside a batch is not that: it is answered in its place, the batch is left as it was, and the verdicts
+around it decide the code. A program that made no call exits `4` — an entry point it does not have,
+arguments it could not read, an answer it could not write, or a caller asking what it takes. Asked for
+nothing it says what it takes, read from `contract.json`; what that listing looks like is for a person and
+is not part of this.
+
 ## Conformance
 
 A port is conformant when:
@@ -342,6 +376,11 @@ A port is conformant when:
 
 An adapter is the only code a port writes for conformance: it reads the fixtures, calls the port, prints the
 lines. It holds no comparison and no expectation.
+
+A program that offers the parts from a shell is not a port, and one thing decides it: every fixture case a
+shell can make — every section whose entry point does not take a function, over every input JSON text can
+carry — answered as that case expects, `message` aside, with each verdict's message there, and exited with
+that case's worst verdict. `../scripts/conform.py cli <command>` runs them, one process per case.
 
 The checks are held to account in turn. A mainstream mutation tool plants defects in each port's modules
 and runs the fixtures and the generated calls against each; a defect nothing notices is either a missing

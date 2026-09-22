@@ -32,13 +32,13 @@ the rest; the driver accepts that for those cases only - it reads which they
 are off the input itself - and says how many there were. --every-input is for a
 port in a language that can build them all: it may not say unbuildable at all.
 
-A CLI is a program of one port that takes an entry point's arguments as a JSON
-object and prints the answer, with the worst verdict in it as the exit code
-(py/cli.py says the rest). `cli` runs one process per fixture case a shell can
-make - every section but run, which takes a function, and the line format's own
-vectors, over every input some JSON text can carry and this driver's own reader
-reads - and holds the answer, `message` aside, and the exit code to the case's
-expectation.
+A shell program offers the parts to a caller with no library: spec/README.md,
+"From a shell", says what it takes and answers, and it is not a port. `cli`
+runs one process per fixture case a shell can make - every section whose entry
+point the contract does not mark `takes_a_function`, over every input some JSON
+text can carry and this driver's own reader reads - and holds the answer,
+`message` aside and each verdict's message present, and the exit code, to the
+case's expectation.
 
 It imports nothing from any port, the Python one included.
 """
@@ -526,7 +526,6 @@ _VALID = {
 # ------------------------------------------------------------------ the cli
 
 VERDICT_LEVELS = {"ok": 0, "warning": 1, "halt": 2}
-CLI_SECTIONS_OUT = ("run", "result_line")
 
 
 def read_calls() -> list[tuple[str, str, dict, object]]:
@@ -590,6 +589,20 @@ def worst_verdict(node) -> int:
     return 0
 
 
+def messages_kept(node) -> bool:
+    """Whether every verdict in an answer carries its message, which the spec says a shell program
+    keeps because a person is reading. The comparison strips them, so nothing else would notice."""
+    if isinstance(node, dict):
+        if node.get("verdict") in VERDICT_LEVELS and not isinstance(
+            node.get("message"), str
+        ):
+            return False
+        return all(messages_kept(value) for value in node.values())
+    if isinstance(node, list):
+        return all(messages_kept(item) for item in node)
+    return True
+
+
 def without_messages(node):
     """An answer as the fixtures write it: a verdict's `message` is for people, not conformance."""
     if isinstance(node, dict):
@@ -617,10 +630,15 @@ def judge_cli(section: str, case_id: str, expect, stdout: str, code: int) -> lis
             f"FAIL [{case_id}] field={section}.cli_output — not one line: {stdout[:300]!r}"
         ]
     try:
-        actual = line_of(without_messages(json.loads(stdout)))
+        answer = json.loads(stdout)
+        actual = line_of(without_messages(answer))
     except (ValueError, Malformed) as error:
         return [f"FAIL [{case_id}] field={section}.cli_output — unreadable: {error}"]
     failures = []
+    if not messages_kept(answer):
+        failures.append(
+            f"FAIL [{case_id}] field={section}.cli_message — a verdict reached a person without its message"
+        )
     if actual != line_of(expect):
         failures.append(
             f"FAIL [{case_id}] field={section}.cli_answer\n  expected: {line_of(expect)}\n  actual:   {actual}"
@@ -634,13 +652,15 @@ def judge_cli(section: str, case_id: str, expect, stdout: str, code: int) -> lis
 
 def cli(command: list[str]) -> int:
     """Every fixture case a shell can make, through the cli, one process each."""
+    # A section a shell can call: one the contract names, whose entry point takes no function.
     entry_of = {
         entry["section"]: name
         for name, entry in contract.load()["entry_points"].items()
+        if not entry.get("takes_a_function")
     }
     runnable, uncarried = [], 0
     for section, case_id, inputs, expect in read_calls():
-        if section in CLI_SECTIONS_OUT:
+        if section not in entry_of:
             continue
         text = plain_json(inputs)
         if text is None or not readable(text):
@@ -749,6 +769,10 @@ def cli_judge_self_test() -> list[str]:
         problems.append("no cli line passed")
     if judge_cli("s", "a", {"refused": True}, "", 3):
         problems.append("a refusal answered as a refusal failed")
+    if not judge_cli("s", "a", expect, json.dumps(expect) + "\n", 2):
+        problems.append("a verdict without its message passed")
+    if messages_kept({"verdict": "ok", "message": 1}) or not messages_kept([{"ok": 1}]):
+        problems.append("messages_kept does not say which answers keep their messages")
     if not judge_cli("s", "a", {"refused": True}, right, 2):
         problems.append("an answer where a refusal was expected passed")
     both = [{**expect, "message": "m"}, {**expect, "verdict": "ok", "message": "m"}]

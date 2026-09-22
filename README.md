@@ -50,7 +50,8 @@ and those sit beside the five in the same map.
 The Python port answers from a shell, one entry point of the contract per call: the arguments as a JSON
 object under the names `spec/contract.json` gives them, the answer as one line, and the worst verdict in
 it as the exit code — 0 ok, 1 warning, 2 halt; 3 when the arguments are outside the contract, 4 when no
-call was made.
+call was made. What such a program takes and answers is the spec's, not this program's
+(`spec/README.md`, "From a shell"), so a second one in another language is held to the same contract.
 
 ```
 $ echo '{"message": "429 Too Many Requests"}' | python3 py/cli.py breaker.classify -
@@ -62,8 +63,8 @@ exit 2
 ```
 
 `python3 py/cli.py` alone lists the entry points and their arguments, read from the contract file;
-`breaker.run` takes a function and is not among them. The fixtures that hold the four ports hold this
-program too (`scripts/conform.py cli`), answer and exit code both.
+`breaker.run` takes a function — the contract marks it — and is not among them. The fixtures that hold the
+four ports hold this program too (`scripts/conform.py cli`), answer and exit code both.
 
 ## What this is not
 
@@ -102,7 +103,7 @@ fixtures themselves, with no implementation involved.
 spec/        the contract, in words, and contract.json: the argument contract as a rule the driver checks
 fixtures/    examples of the spec's sentences: one JSON file per part, and the line format's own vectors
 ts/ py/ go/ rust/  a port each: the modules, and an adapter that reads case files and prints one line per case;
-             py/cli.py is the entry points from a shell
+             py/cli.py is the spec's shell program, in Python
 scripts/     conform.py, the one driver that judges every port, and contract.py, which makes the generated
              calls it judges the contract by; check.sh, the gates; mutants.py, which
              plants the defects no tool makes and requires the gates to catch them; survivors.py, which

@@ -3,22 +3,21 @@
 
     python3 py/cli.py <entry point> [<arguments file> | -]
 
-The entry points are those of spec/contract.json - checkpoint.evaluate,
-breaker.classify, ... - and the arguments are one JSON object under the names
-that file gives them, read from the file named or from stdin (`-`); an
-argument left out is absent, as null is. The answer is printed as one line of
-JSON, `message` and all; a budget's ledger is in decimal strings, so that
-2^63 - 1 survives every JSON reader. The exit code is the worst verdict in the
-answer - 0 ok, 1 warning, 2 halt - or 3 when the arguments are refused, being
-outside the contract, or 4 when no call was made: an entry point that is not
-one, JSON that could not be read or written back, or breaker.run, which takes
-a function and cannot be called from a shell. With no entry point, or with no arguments where
-stdin is a terminal, the entry points and their arguments are listed instead,
-read from the contract file, and the exit code is 4.
+What a shell program takes and answers is spec/README.md, "From a shell": an
+entry point of spec/contract.json by its own name, the arguments as one JSON
+object under the contract's names, the answer as one line of JSON with each
+verdict's message kept, and the worst verdict in that answer as the exit code -
+0 ok, 1 warning, 2 halt; 3 for arguments the part refuses; 4 for a call that
+was never made. This program is the Python port's, and holds no rule of its own
+beyond reading the contract file and calling the port: the fixtures hold it to
+the same answers the adapter gives (scripts/conform.py cli).
 
-A program of the Python port, not a fifth port: it holds no rule of its own
-beyond the mapping above, and the fixtures hold it to the same answers as the
-adapter (scripts/conform.py cli). Standard library only.
+Two things it decides for itself, both left to it there: it reads the arguments
+from stdin when none is named and stdin is not a terminal, and it prints a
+budget's ledger in decimal strings, so that 2^63 - 1 survives every JSON reader
+- which is what the fixtures expect of every port.
+
+Standard library only.
 """
 
 from __future__ import annotations
@@ -251,8 +250,11 @@ def listing(only: str | None = None) -> str:
     for name, entry in doc["entry_points"].items():
         if only is not None and name != only:
             continue
-        if name not in ENTRY_POINTS:
+        if entry.get("takes_a_function"):
             lines.append(f"{name}  (takes a function: not from a shell)")
+            continue
+        if name not in ENTRY_POINTS:
+            lines.append(f"{name}  (the contract has it and this program does not)")
             continue
         lines.append(name)
         if "call" in entry:

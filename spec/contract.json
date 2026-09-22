@@ -24,6 +24,10 @@
     "refuses a above b when both are given;",
     "requires {when: {field: value}, field} refuses that combination without the field.",
     "",
+    "An entry point marked `takes_a_function` takes, beside the arguments named here, one the caller can",
+    "only hand over as a function: `run` takes the call it makes. The arguments here are the rest of it, and",
+    "a caller that can pass no function - a shell - cannot make that call at all.",
+    "",
     "An entry point takes `arguments` by name - each is written in a case, null when absent - or, where the",
     "case's own map is the one argument (`call`), the fields of that map. A list marked `each_is_a_call` is",
     "not an argument but one call per element - a charge, a report - and names the result field that holds",
@@ -152,6 +156,7 @@
     },
     "breaker.run": {
       "section": "run",
+      "takes_a_function": true,
       "arguments": {
         "policy": {
           "required": true,
