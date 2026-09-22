@@ -372,7 +372,8 @@ def broken(rng: random.Random, t: dict, name: str = "", as_element: bool = False
                 f"{name}.{key} given",
                 {
                     **valid_open_map(rng, t, name),
-                    key: rng.choice(["haltrule/0", "x", num("1"), None]),
+                    # null is absent, a forbidden key included; a value is what is refused
+                    key: rng.choice(["haltrule/0", "x", num("1"), True]),
                 },
             )
     elif kind == "map":
@@ -505,6 +506,27 @@ def write(path: Path, doc: dict) -> None:
     temporary = path.with_suffix(f".{random.randrange(1 << 30)}.tmp")
     temporary.write_text(text, "ascii")
     temporary.replace(path)
+
+
+# ---------------------------------------------------------------- protocol
+
+
+def protocol_problem(section: str, inputs: dict) -> str | None:
+    """Why a case is not a call anyone can make: a one_of element that is not a map, or whose `by` key
+    names no case. That key says which of the part's calls the element is; it is the case file's and
+    not an argument, so no port is asked about it - the file is refused before any port reads it."""
+    for entry in load()["entry_points"].values():
+        if entry["section"] != section:
+            continue
+        for argument, t in entry.get("arguments", {}).items():
+            if t.get("type") == "list" and t["of"].get("type") == "one_of":
+                by, cases = t["of"]["by"], t["of"]["cases"]
+                for index, element in enumerate(inputs.get(argument) or []):
+                    if not isinstance(element, dict):
+                        return f"{argument}[{index}] is not a map, so it names no call"
+                    if element.get(by) not in cases:
+                        return f"{argument}[{index}].{by} names no call: one of {sorted(cases)}"
+    return None
 
 
 # ------------------------------------------------------------------ judging

@@ -245,6 +245,9 @@ def read_fixture(name: str, raw: bytes) -> list[Case]:
                 if key not in ("id", "expect")
             }
             _check_input(inputs, where)
+            problem = contract.protocol_problem(section, inputs)
+            if problem:
+                raise Malformed(f"{where}: {problem}")
             expect = entry["expect"]
             try:
                 line_of(expect)
@@ -576,6 +579,23 @@ def _malformed_table():
         doc(lambda d: case(d).update(input={"$number": "1", "x": "y"})),
         "must be the only key",
     )
+    for what, events in [
+        ("an event whose kind names no call", [{"kind": "unknown", "item_id": "x"}]),
+        ("an event without a kind", [{"item_id": "x"}]),
+        ("an event that is not a map", ["not-a-report"]),
+    ]:
+        yield (
+            what,
+            json.dumps(
+                {
+                    "fixture_version": "part/v0",
+                    "state": [
+                        {"id": "a", "policy": {}, "events": events, "expect": None}
+                    ],
+                }
+            ).encode("ascii"),
+            "names no call",
+        )
     yield (
         "a fixture_version that is not the file's path",
         doc(lambda d: d.update(fixture_version="part/v999")),
