@@ -8,9 +8,9 @@ has not imported - there is no global object, no clock built into the language,
 no code built from a string - so its import list is the whole of what it can
 reach, and `go list` prints that list.
 
-Every package in the module is held to the allowlist except the adapter, which
-is the one package named main: it may read files and write lines, and it is not
-policy. A package the allowlist does not name, or one that appears with no
+Every package in the module is held to the allowlist except the programs, which
+are the packages named main - the adapter and the shell program: they may read
+files and write lines, and they are not policy. A package the allowlist does not name, or one that appears with no
 imports read at all, is a finding.
 
     go_purity.py [module directory]     default: go

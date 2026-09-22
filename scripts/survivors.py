@@ -221,6 +221,13 @@ def run_tool(language: str) -> tuple[list[str], int]:
                     # reported as one no case notices. It cost a minute.
                     "--workers",
                     "1",
+                    # The shell program is not policy and no test in the module
+                    # reaches it: the fixtures ask it the same question through
+                    # scripts/conform.py cli, on every run of scripts/check.sh,
+                    # and the hand-planted mutants ask the rest. The TypeScript
+                    # and Python programs stand outside their tools the same way.
+                    "--exclude-files",
+                    "cli/.*",
                     # The timeout is the baseline test's own time times this. It is wide because a
                     # shared machine is slow, never because a mutant is allowed to be.
                     "--timeout-coefficient",

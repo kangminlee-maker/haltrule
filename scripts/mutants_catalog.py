@@ -46,7 +46,11 @@ RS_NO_HOST = "  FAIL  the rust library is no_std"
 GO_NO_HOST = "  FAIL  go modules import only what the allowlist holds"
 TS_NAMES = "  FAIL  typescript modules name no clock"
 PY_NAMES = "  FAIL  python modules import and use only what the allowlists hold"
-CLI_FAILS = "  FAIL  the python cli answers every case a shell can make"
+CLI_FAILS = "  FAIL  the python shell program answers every case a shell can make"
+GO_CLI_FAILS = "  FAIL  the go shell program answers every case a shell can make"
+GO_CONTRACT_FAILS = (
+    "  FAIL  the contract compiled into the go shell program is spec/contract.json"
+)
 
 CATALOG: list[Mutant] = []
 
@@ -701,6 +705,29 @@ CATALOG += [
 
 # --- the cli: the answer is the port's, the exit code is the verdict
 CATALOG += [
+    mutant(
+        "go cli: the contract it carries is not the one in spec/",
+        "go/cli/contract.json",
+        '"of": ["choice", "text", "score"]',
+        '"of": ["choice", "text", "score", "guess"]',
+        [GO_CONTRACT_FAILS],
+    ),
+    mutant(
+        "go cli: a halt exits as ok",
+        "go/cli/main.go",
+        'levels := map[string]int{"ok": 0, "warning": 1, "halt": 2}',
+        'levels := map[string]int{"ok": 0, "warning": 1, "halt": 0}',
+        [GO_CLI_FAILS, "FAIL [artifact_missing] field=checkpoint.cli_exit"],
+        [CLI_FAILS],
+    ),
+    mutant(
+        "go cli: a refusal exits as an answer",
+        "go/cli/main.go",
+        '\t\tfmt.Fprintf(problems, "refused: %v\\n", err)\n\t\treturn exitRefused',
+        '\t\tfmt.Fprintf(problems, "refused: %v\\n", err)\n\t\treturn 0',
+        [GO_CLI_FAILS, "field=validate.cli_exit"],
+        [CLI_FAILS],
+    ),
     mutant(
         "driver: the cli is asked for a call that takes a function",
         "scripts/conform.py",

@@ -4,7 +4,7 @@
 # its adapter prints, and purity is a property of how the modules are built
 # (what the compiler is given, what a few allowlists hold), not a search through
 # their text. A new port adds its adapter to gate 2 and its own mainstream
-# tools to gate 3.
+# tools to gate 3; a shell program of its own goes beside the others in gate 2.
 #
 # Every gate that decides conformance or purity has been seen to fail:
 # scripts/mutants.py plants a defect for each and requires this script to fail
@@ -48,6 +48,10 @@ echo "2. conformance — each adapter's lines are, byte for byte, the lines the 
 # Go is compiled: the build is the adapter's own gate, and the binary is what runs.
 gate "the go adapter builds" go build -C go -o ../.bin/go-adapter ./adapter
 gate "the rust adapter builds" cargo build --quiet --manifest-path rust/Cargo.toml
+# The go shell program carries the contract it lists, so the copy it carries is held to the original.
+gate "the go shell program builds" go build -C go -o ../.bin/go-cli ./cli
+gate "the contract compiled into the go shell program is spec/contract.json, byte for byte" \
+  cmp spec/contract.json go/cli/contract.json
 # Both languages here can build every input, so neither may answer "unbuildable".
 gate "typescript conforms" python3 scripts/conform.py check --every-input node ts/adapter/adapter.ts
 # String hashing is seeded per process; a result that follows set order moves with the seed.
@@ -64,8 +68,11 @@ gate "rust conforms" python3 scripts/conform.py check rust/target/debug/rust-ada
 gate "the four ports give the same line on every generated call inside the contract" \
   python3 scripts/conform.py identity node ts/adapter/adapter.ts -- python3 py/adapter.py -- .bin/go-adapter -- rust/target/debug/rust-adapter
 # A program of the Python port: the same cases through a shell, the answer with its message, the verdict as the exit code.
-gate "the python cli answers every case a shell can make as the fixtures expect, and exits with the worst verdict" \
-  python3 scripts/conform.py cli python3 py/cli.py
+gate "the python shell program answers every case a shell can make as the fixtures expect, and exits with the worst verdict" \
+  python3 scripts/conform.py cli --every-input python3 py/cli.py
+# Go's strings cannot spell an unpaired surrogate, so it sits those cases out as its adapter does.
+gate "the go shell program answers every case a shell can make as the fixtures expect, and exits with the worst verdict" \
+  python3 scripts/conform.py cli .bin/go-cli
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
 gate "typescript modules compile with no host types: ts/tsconfig.json, and ts/host.d.ts is all the host there is" \

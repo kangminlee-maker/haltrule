@@ -13,7 +13,7 @@ expectation would be noticed.
     conform.py check [--every-input] <adapter command...>   the fixtures and the contract, one port
     conform.py identity <adapter command> -- <adapter command> ...   the same answer from every port
     conform.py judge <lines file>                           check, over lines already written
-    conform.py cli <cli command...>                         the fixtures through a shell program, one process per case
+    conform.py cli [--every-input] <cli command...>          the fixtures through a shell program, one process per case
     conform.py generate                                     write the generated cases; print the path
     conform.py self-test                                    show that this driver can fail
 
@@ -38,7 +38,10 @@ runs one process per fixture case a shell can make - every section whose entry
 point the contract does not mark `takes_a_function`, over every input some JSON
 text can carry and this driver's own reader reads - and holds the answer,
 `message` aside and each verdict's message present, and the exit code, to the
-case's expectation.
+case's expectation. A program in a language that cannot hold an input at all
+answers the call that was not made - nothing, and 4 - and the driver accepts
+that for those inputs only, as it does a port's "unbuildable"; --every-input
+is for a program whose language can hold them all.
 
 It imports nothing from any port, the Python one included.
 """
@@ -551,7 +554,8 @@ def plain_json(node) -> str | None:
         if len(node) == 1:
             ((tag, literal),) = node.items()
             if tag in ("$number", "$bigint"):
-                return literal
+                # NaN and the infinities are values, but no JSON text spells them.
+                return None if literal in SPELLED_OUT else literal
             if tag == "$unsupported":
                 return None
         members = []
@@ -650,7 +654,7 @@ def judge_cli(section: str, case_id: str, expect, stdout: str, code: int) -> lis
     return failures
 
 
-def cli(command: list[str]) -> int:
+def cli(command: list[str], every_input: bool = False) -> int:
     """Every fixture case a shell can make, through the cli, one process each."""
     # A section a shell can call: one the contract names, whose entry point takes no function.
     entry_of = {
@@ -666,22 +670,29 @@ def cli(command: list[str]) -> int:
         if text is None or not readable(text):
             uncarried += 1
             continue
-        runnable.append((section, case_id, text, expect))
+        # As for a port: only an input not every language can hold may be sat out, and never where
+        # the answer is a refusal - a program whose language cannot hold an argument has refused it.
+        may_sit_out = (
+            not every_input
+            and not every_language_holds(inputs)
+            and not answers_refused(expect)
+        )
+        runnable.append((section, case_id, text, expect, may_sit_out))
+    unheld = 0
 
     def one(item) -> list[str]:
-        section, case_id, text, expect = item
+        nonlocal unheld
+        section, case_id, text, expect, may_sit_out = item
         done = subprocess.run(
             [*command, entry_of[section], "-"],
             input=text.encode("ascii"),
             capture_output=True,
         )
-        return judge_cli(
-            section,
-            case_id,
-            expect,
-            done.stdout.decode("utf-8", "replace"),
-            done.returncode,
-        )
+        out = done.stdout.decode("utf-8", "replace")
+        if may_sit_out and out == "" and done.returncode == 4:
+            unheld += 1
+            return []
+        return judge_cli(section, case_id, expect, out, done.returncode)
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         failures = [failure for found in pool.map(one, runnable) for failure in found]
@@ -694,9 +705,9 @@ def cli(command: list[str]) -> int:
         )
         return 1
     print(
-        f"OK: {len(runnable)} cases through the cli, each answered as the fixtures expect it and exited"
-        f" with its worst verdict, and a value nested {DEEP} levels was echoed; {uncarried} inputs no"
-        " JSON text can carry"
+        f"OK: {len(runnable) - unheld} cases through the cli, each answered as the fixtures expect it and"
+        f" exited with its worst verdict, and a value nested {DEEP} levels was echoed; {unheld} inputs this"
+        f" program's language cannot hold, {uncarried} no JSON text can carry"
     )
     return 0
 
@@ -787,6 +798,10 @@ def cli_judge_self_test() -> list[str]:
         problems.append("plain_json does not write a literal as the number itself")
     if plain_json({"a": [{"$unsupported": "undefined"}]}) is not None:
         problems.append("plain_json wrote a value no JSON text can carry")
+    if any(plain_json({"$number": spelled}) is not None for spelled in SPELLED_OUT):
+        problems.append(
+            "plain_json wrote NaN or an infinity, which no JSON text spells"
+        )
     if readable("1" * 5001) or not readable("[1]"):
         problems.append("readable does not say what the driver's reader reads")
     return problems
@@ -1227,6 +1242,8 @@ def main(argv: list[str]) -> int:
             return identity([command for command in commands if command])
         if argv[:1] == ["judge"] and len(argv) == 2:
             return judge(Path(argv[1]))
+        if argv[:2] == ["cli", "--every-input"] and len(argv) > 2:
+            return cli(argv[2:], every_input=True)
         if argv[:1] == ["cli"] and len(argv) > 1:
             return cli(argv[1:])
         if argv == ["generate"]:

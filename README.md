@@ -66,6 +66,11 @@ exit 2
 `breaker.run` takes a function — the contract marks it — and is not among them. The fixtures that hold the
 four ports hold this program too (`scripts/conform.py cli`), answer and exit code both.
 
+There is a second one in Go, for a machine with no Python: `go build -C go -o ../.bin/go-cli ./cli` makes a
+single file of three and a half megabytes that needs no runtime and carries the contract it lists. It answers the
+same calls the same way — the same fixtures hold it — except where Go's strings cannot spell an input at
+all, which it says by making no call, as its adapter answers `unbuildable`.
+
 ## What this is not
 
 Not a workflow engine. There is no scheduler, no graph, no runner, no UI, no execution history. It is called
@@ -103,7 +108,7 @@ fixtures themselves, with no implementation involved.
 spec/        the contract, in words, and contract.json: the argument contract as a rule the driver checks
 fixtures/    examples of the spec's sentences: one JSON file per part, and the line format's own vectors
 ts/ py/ go/ rust/  a port each: the modules, and an adapter that reads case files and prints one line per case;
-             py/cli.py is the spec's shell program, in Python
+             py/cli.py and go/cli are the spec's shell program, in two languages
 scripts/     conform.py, the one driver that judges every port, and contract.py, which makes the generated
              calls it judges the contract by; check.sh, the gates; mutants.py, which
              plants the defects no tool makes and requires the gates to catch them; survivors.py, which
@@ -124,7 +129,10 @@ where a language has none of its own.
 
 Whether the fixtures would notice a defect in a port is asked by that language's mainstream mutation tool -
 StrykerJS for TypeScript, cosmic-ray for Python, gremlins for Go, cargo-mutants for Rust - with the shared
-driver as its only test. What survives must be, entry for entry, `scripts/survivors_accepted.json`, where
+driver as its only test. The shell programs stand outside those tools, each for its language's own reason,
+and what asks the same question of them is the fixtures through `scripts/conform.py cli`, on every run of
+`scripts/check.sh`, and the hand-planted mutants. A mutation tool would ask it more thoroughly; nothing here
+does yet. What survives must be, entry for entry, `scripts/survivors_accepted.json`, where
 each entry says why no case can tell it apart. A message's wording is not part of conformance, so the code
 that only words a message lives in a `messages` module of its own, which the tools leave alone. A new port
 adds its tool to `scripts/survivors.py`.
