@@ -665,6 +665,7 @@ def cli(command: list[str]) -> int:
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         failures = [failure for found in pool.map(one, runnable) for failure in found]
+    failures += deep_echo(command)
     for failure in failures:
         print(failure)
     if failures:
@@ -674,9 +675,40 @@ def cli(command: list[str]) -> int:
         return 1
     print(
         f"OK: {len(runnable)} cases through the cli, each answered as the fixtures expect it and exited"
-        f" with its worst verdict; {uncarried} inputs no JSON text can carry"
+        f" with its worst verdict, and a value nested {DEEP} levels was echoed; {uncarried} inputs no"
+        " JSON text can carry"
     )
     return 0
+
+
+DEEP = 900
+
+
+def deep_echo(command: list[str]) -> list[str]:
+    """One call no fixture holds: a caller's own value nested as deep as this driver's reader
+    reads, given as a validation issue's field. The answer must echo it whole and exit with a
+    verdict: a program with a walk of its own over the caller's values falls over first."""
+    deep = "[" * DEEP + "0" + "]" * DEEP
+    text = (
+        '{"args":{"stage_id":"deep","artifact":{"status":"complete"},'
+        '"validation_issues":[{"verdict":"ok","detail":' + deep + "}]}}"
+    )
+    done = subprocess.run(
+        [*command, "checkpoint.evaluate", "-"],
+        input=text.encode("ascii"),
+        capture_output=True,
+    )
+    out = done.stdout.decode("utf-8", "replace")
+    try:
+        echoed = json.loads(out)[0]["detail"] == json.loads(deep)
+    except (ValueError, KeyError, IndexError, TypeError):
+        echoed = False
+    if done.returncode not in VERDICT_LEVELS.values() or not echoed:
+        return [
+            f"FAIL [deep] field=checkpoint.cli_output — a value nested {DEEP} levels was not"
+            f" echoed with a verdict: exit {done.returncode}: {out[:120]!r}"
+        ]
+    return []
 
 
 def cli_judge_self_test() -> list[str]:
@@ -689,6 +721,20 @@ def cli_judge_self_test() -> list[str]:
         problems.append("a right cli answer with the right exit code failed")
     if not judge_cli("s", "a", expect, right, 0):
         problems.append("a wrong cli exit code passed")
+    if not judge_cli("s", "a", "rate_limit", '"rate_limit"\n', 2):
+        problems.append("a cli exit code above the expected level passed")
+    warning = {**expect, "verdict": "warning"}
+    if not judge_cli(
+        "s", "a", warning, json.dumps({**warning, "message": "m"}) + "\n", 2
+    ):
+        problems.append("a cli exit code above the expected level passed")
+    own = [{**expect, "detail": {"message": "caller data", "x": 1}}]
+    theirs = json.dumps([{**own[0], "message": "m"}]) + "\n"
+    if (
+        judge_cli("s", "a", own, theirs, 2)
+        or without_messages(json.loads(theirs))[0]["detail"] != own[0]["detail"]
+    ):
+        problems.append("a caller's own message was stripped")
     if not judge_cli(
         "s",
         "a",

@@ -11,8 +11,8 @@ JSON, `message` and all; a budget's ledger is in decimal strings, so that
 2^63 - 1 survives every JSON reader. The exit code is the worst verdict in the
 answer - 0 ok, 1 warning, 2 halt - or 3 when the arguments are refused, being
 outside the contract, or 4 when no call was made: an entry point that is not
-one, JSON that could not be read, or breaker.run, which takes a function and
-cannot be called from a shell. With no entry point, or with no arguments where
+one, JSON that could not be read or written back, or breaker.run, which takes
+a function and cannot be called from a shell. With no entry point, or with no arguments where
 stdin is a terminal, the entry points and their arguments are listed instead,
 read from the contract file, and the exit code is 4.
 
@@ -59,14 +59,10 @@ SAFE_INTEGER = 2**53 - 1
 # ------------------------------------------------------------ the entry points
 
 
-def _plain(value):
-    """An answer as JSON holds it: a dataclass is its fields, all the way down."""
+def _fields(value):
+    """A dataclass the port answers with - an entry, a trip - as its fields."""
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return dataclasses.asdict(value)
-    if isinstance(value, list):
-        return [_plain(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _plain(item) for key, item in value.items()}
     return value
 
 
@@ -141,10 +137,10 @@ def state(args: dict):
         for event in _calls(args.get("events"))
     ]
     return {
-        "returns": returns,
+        "returns": [_fields(answer) for answer in returns],
         "completed": list(batch.completed_item_ids()),
-        "dead_letter": list(batch.dead_letter_entries()),
-        "tripped": batch.tripped(),
+        "dead_letter": [_fields(entry) for entry in batch.dead_letter_entries()],
+        "tripped": _fields(batch.tripped()),
     }
 
 
@@ -177,13 +173,18 @@ ENTRY_POINTS = {
 
 
 def worst_verdict(answer) -> int:
-    """The worst verdict anywhere in the answer; 0 where it holds none."""
-    if isinstance(answer, dict):
-        own = LEVELS.get(answer.get("verdict"), 0)
-        return max([own] + [worst_verdict(value) for value in answer.values()])
-    if isinstance(answer, list):
-        return max([0] + [worst_verdict(item) for item in answer])
-    return 0
+    """The worst verdict anywhere in the answer; 0 where it holds none. A walk
+    with its own stack: an answer echoes the caller's own values, however deep
+    they are nested, and this program keeps no limit of its own on that."""
+    worst, pending = 0, [answer]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, dict):
+            worst = max(worst, LEVELS.get(node.get("verdict"), 0))
+            pending.extend(node.values())
+        elif isinstance(node, list):
+            pending.extend(node)
+    return worst
 
 
 def line(answer) -> str:
@@ -287,15 +288,25 @@ def main(argv: list[str]) -> int:
     except (OSError, ValueError) as error:
         sys.stderr.write(f"the arguments could not be read: {error}\n")
         return NO_CALL
+    except RecursionError:
+        sys.stderr.write("the arguments are nested deeper than this program reads\n")
+        return NO_CALL
     if not isinstance(args, dict):
         sys.stderr.write("the arguments are one JSON object\n")
         return NO_CALL
     try:
-        answer = _plain(entry(args))
+        answer = entry(args)
     except (TypeError, ValueError) as error:
         sys.stderr.write(f"refused: {error}\n")
         return REFUSED
-    sys.stdout.write(line(answer) + "\n")
+    # The answer echoes the caller's own values; what JSON cannot carry back -
+    # a NaN it read, a nesting past the writer - is no answer, not a traceback.
+    try:
+        text = line(answer)
+    except (ValueError, RecursionError) as error:
+        sys.stderr.write(f"the answer could not be written as JSON: {error}\n")
+        return NO_CALL
+    sys.stdout.write(text + "\n")
     return worst_verdict(answer)
 
 

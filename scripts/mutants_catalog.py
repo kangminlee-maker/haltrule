@@ -702,6 +702,23 @@ CATALOG += [
 # --- the cli: the answer is the port's, the exit code is the verdict
 CATALOG += [
     mutant(
+        "driver: the cli judge accepts an exit code above the verdict",
+        "scripts/conform.py",
+        "    if code != worst_verdict(expect):\n",
+        "    if code < worst_verdict(expect):\n",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] a cli exit code above the expected level passed",
+        ],
+    ),
+    mutant(
+        "driver: the cli judge strips a caller's own message",
+        "scripts/conform.py",
+        '            if not (key == "message" and node.get("verdict") in VERDICT_LEVELS)\n',
+        '            if key != "message"\n',
+        [DRIVER_FAILS, "FAIL [self-test] a caller's own message was stripped"],
+    ),
+    mutant(
         "cli: a halt exits as ok",
         "py/cli.py",
         'LEVELS = {"ok": 0, "warning": 1, "halt": 2}\n',
