@@ -526,6 +526,53 @@ def protocol_problem(section: str, inputs: dict) -> str | None:
                         return f"{argument}[{index}] is not a map, so it names no call"
                     if element.get(by) not in cases:
                         return f"{argument}[{index}].{by} names no call: one of {sorted(cases)}"
+    if section == "run":
+        return run_script_problem(inputs.get("answers"))
+    return None
+
+
+OUTCOME_KINDS = ("failure", "skipped", "success")
+
+
+def run_script_problem(answers) -> str | None:
+    """Why a run case's `answers` is not a script `call` can follow. It is the case file's and not an
+    argument: absent, every call answers success; given, one list per item of the outcomes that item's
+    calls answer, in order, each a map whose `kind` is one of the loop's three outcomes, a failure
+    carrying `failure_message`, a string, and `failure_class`, a string or null, and nothing else."""
+    if answers is None:
+        return None
+    if not isinstance(answers, list):
+        return (
+            "answers is not a list of scripts, one per item, so it scripts no outcome"
+        )
+    for index, script in enumerate(answers):
+        if not isinstance(script, list):
+            return f"answers[{index}] is not a list, so it scripts no outcome"
+        for at, outcome in enumerate(script):
+            where = f"answers[{index}][{at}] is no outcome"
+            if (
+                not isinstance(outcome, dict)
+                or outcome.get("kind") not in OUTCOME_KINDS
+            ):
+                return f"{where}: a map whose kind is one of {list(OUTCOME_KINDS)}"
+            if outcome["kind"] != "failure":
+                if set(outcome) != {"kind"}:
+                    return (
+                        f"{where}: a {outcome['kind']} carries nothing beside its kind"
+                    )
+                continue
+            if (
+                set(outcome) != {"kind", "failure_message", "failure_class"}
+                or not isinstance(outcome["failure_message"], str)
+                or not (
+                    outcome["failure_class"] is None
+                    or isinstance(outcome["failure_class"], str)
+                )
+            ):
+                return (
+                    f"{where}: a failure carries failure_message, a string, and"
+                    " failure_class, a string or null, and nothing else"
+                )
     return None
 
 

@@ -9,9 +9,10 @@ use crate::line::refused;
 use crate::run::Inputs;
 use haltrule::{
     canonicalize, checkpoint_digest, classify_systemic_dispatch_failure, dispatch_backoff_delay_ms,
-    evaluate_checkpoint_artifact, validate_slot, ArtifactStatus, Budget, BudgetCaps, Charge,
-    CheckpointArgs, DispatchBreakerPolicy, DispatchBreakerState, DispatchBreakerTripState,
-    DispatchDeadLetterEntry, FailureClass, Map, SlotKind, SlotSpec, Value, Verdict,
+    evaluate_checkpoint_artifact, run_batch, validate_slot, ArtifactStatus, Budget, BudgetCaps,
+    Charge, CheckpointArgs, DispatchBreakerPolicy, DispatchBreakerState, DispatchBreakerTripState,
+    DispatchDeadLetterEntry, DispatchOutcome, FailureClass, Map, SlotKind, SlotSpec, Value,
+    Verdict,
 };
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
@@ -31,6 +32,7 @@ pub fn section_for(name: &str) -> Option<Section> {
         "classify" => classify,
         "backoff" => backoff,
         "state" => state,
+        "run" => run,
         "canonicalize" => canonicalize_case,
         "checkpoint" => checkpoint,
         "charge" => charge,
@@ -169,7 +171,7 @@ fn flag(raw: Option<&Json>) -> Built<bool> {
     }
 }
 
-fn batch_of(raw: Option<&Json>) -> Built<DispatchBreakerState> {
+fn policy_of(raw: Option<&Json>) -> Built<DispatchBreakerPolicy> {
     let given = strictly(raw, &POLICY_FIELDS)?;
     let policy = DispatchBreakerPolicy {
         enabled: flag(given.get("enabled"))?,
@@ -183,7 +185,11 @@ fn batch_of(raw: Option<&Json>) -> Built<DispatchBreakerState> {
         backoff_initial_ms: decode_i64(given.get("backoff_initial_ms"))?,
         backoff_cap_ms: decode_i64(given.get("backoff_cap_ms"))?,
     };
-    DispatchBreakerState::new(policy).map_err(|_| Refusal::Refused)
+    Ok(policy)
+}
+
+fn batch_of(raw: Option<&Json>) -> Built<DispatchBreakerState> {
+    DispatchBreakerState::new(policy_of(raw)?).map_err(|_| Refusal::Refused)
 }
 
 fn trip_value(trip: Option<&DispatchBreakerTripState>) -> Value {
@@ -304,6 +310,139 @@ fn state(from: &Inputs) -> Answer {
         ("completed", Value::List(completed)),
         ("dead_letter", Value::List(dead_letter)),
         ("tripped", trip_value(machine.tripped())),
+    ]))
+}
+
+/// `call` as a case scripts it: answers[i] is what item i's calls answer, in
+/// order, and a case without answers is every call succeeding. A call the
+/// script has no answer for, or an answer no call asks for, is the case's own
+/// mistake and is reported under its id; `call` cannot answer an error, so
+/// the first mistake is kept and reported after the loop.
+struct Script {
+    items: Vec<String>,
+    answers: Option<Vec<Vec<DispatchOutcome>>>,
+    at: usize,
+    trouble: Option<String>,
+}
+
+impl Script {
+    fn call(&mut self, item_id: &str) -> DispatchOutcome {
+        let Some(answers) = self.answers.as_mut() else {
+            return DispatchOutcome::Success;
+        };
+        match answers.get(self.at) {
+            Some(script) if !script.is_empty() => {}
+            _ => self.at += 1,
+        }
+        let expected = self.items.get(self.at).map(String::as_str);
+        match answers.get_mut(self.at) {
+            Some(script) if expected == Some(item_id) && !script.is_empty() => script.remove(0),
+            _ => {
+                self.trouble.get_or_insert_with(|| {
+                    format!("the loop called {item_id:?} where the script has no answer")
+                });
+                DispatchOutcome::Success
+            }
+        }
+    }
+
+    fn unasked(&self) -> bool {
+        self.answers
+            .as_ref()
+            .is_some_and(|answers| answers.iter().any(|script| !script.is_empty()))
+    }
+}
+
+/// Reads a case's answers. The driver has held them to the fixture protocol
+/// already, so a script this adapter cannot read is its own failure.
+fn script_of(raw: Option<&Json>) -> Result<Option<Vec<Vec<DispatchOutcome>>>, Trouble> {
+    let scripts = match raw {
+        None | Some(Json::Null) => return Ok(None),
+        Some(Json::Array(scripts)) => scripts,
+        Some(_) => return Err(Trouble::Raised("answers that are not a list".to_string())),
+    };
+    let mut answers = Vec::with_capacity(scripts.len());
+    for script in scripts {
+        let outcomes = script
+            .as_array()
+            .ok_or_else(|| Trouble::Raised("a script that is not a list".to_string()))?;
+        answers.push(
+            outcomes
+                .iter()
+                .map(outcome_of)
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+    }
+    Ok(Some(answers))
+}
+
+fn outcome_of(raw: &Json) -> Result<DispatchOutcome, Trouble> {
+    let unreadable = || Trouble::Raised("an answer outside the fixture protocol".to_string());
+    let fields = raw.as_object().ok_or_else(unreadable)?;
+    match fields.get("kind").and_then(Json::as_str) {
+        Some("success") => Ok(DispatchOutcome::Success),
+        Some("skipped") => Ok(DispatchOutcome::Skipped),
+        Some("failure") => Ok(DispatchOutcome::Failure {
+            failure_message: text(fields.get("failure_message")).map_err(|_| unreadable())?,
+            failure_class: optional_text(fields.get("failure_class"))
+                .map_err(|_| unreadable())?
+                .map(FailureClass::new),
+        }),
+        _ => Err(unreadable()),
+    }
+}
+
+fn run(from: &Inputs) -> Answer {
+    let policy = match policy_of(from.get("policy")) {
+        Ok(policy) => policy,
+        Err(_) => return Ok(refused()),
+    };
+    // A list of ids, each a string: absent or anything else is refused.
+    let Some(Json::Array(given)) = from.get("items") else {
+        return Ok(refused());
+    };
+    let mut items = Vec::with_capacity(given.len());
+    for raw in given {
+        match text(Some(raw)) {
+            Ok(id) => items.push(id),
+            Err(_) => return Ok(refused()),
+        }
+    }
+    let mut script = Script {
+        items: items.clone(),
+        answers: script_of(from.get("answers"))?,
+        at: 0,
+        trouble: None,
+    };
+    let mut slept = Vec::new();
+    let result = match run_batch(
+        policy,
+        &items,
+        |id| script.call(id),
+        |ms| slept.push(Value::Int(ms)),
+    ) {
+        Ok(result) => result,
+        Err(_) => return Ok(refused()),
+    };
+    if let Some(trouble) = script.trouble.take() {
+        return Err(Trouble::Raised(trouble));
+    }
+    if script.unasked() {
+        return Err(Trouble::Raised(
+            "the script holds answers no call asked for".to_string(),
+        ));
+    }
+    let ids =
+        |held: &[String]| Value::List(held.iter().map(|id| Value::Text(id.clone())).collect());
+    Ok(map_of([
+        ("completed", ids(&result.completed)),
+        (
+            "dead_letter",
+            Value::List(result.dead_letter.iter().map(entry_value).collect()),
+        ),
+        ("tripped", trip_value(result.tripped.as_ref())),
+        ("incomplete", ids(&result.incomplete)),
+        ("slept", Value::List(slept)),
     ]))
 }
 

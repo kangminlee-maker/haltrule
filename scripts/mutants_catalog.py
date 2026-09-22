@@ -600,8 +600,8 @@ CATALOG += [
     mutant(
         "driver: an adapter that exits non-zero has not conformed",
         "ts/adapter/adapter.ts",
-        "main();\n",
-        "main();\nprocess.exitCode = 3;\n",
+        "  process.exit(1);\n});\n",
+        "  process.exit(1);\n});\nprocess.exitCode = 3;\n",
         [TS_FAILS, "field=adapter.exit"],
         [PY_FAILS],
     ),
@@ -644,6 +644,26 @@ CATALOG += [
             ),
         ),
         (TS_FAILS, PY_FAILS, "FAIL [never_read_case] field=never_read.missing"),
+    ),
+    mutant(
+        "fixtures: a run script holding an answer no call asks for is reported by every adapter",
+        "fixtures/breaker/v0.json",
+        '      "answers": [],\n',
+        '      "answers": [[{"kind": "success"}]],\n',
+        [TS_FAILS, PY_FAILS, GO_FAILS, RS_FAILS, "FAIL [empty_batch] field=run.raised"],
+    ),
+    mutant(
+        "fixtures: a run script with no answer for a call the loop makes is reported by every adapter",
+        "fixtures/breaker/v0.json",
+        '      "id": "no_answers_means_every_call_succeeds",\n',
+        '      "id": "no_answers_means_every_call_succeeds",\n      "answers": [[{"kind": "success"}]],\n',
+        [
+            TS_FAILS,
+            PY_FAILS,
+            GO_FAILS,
+            RS_FAILS,
+            "FAIL [no_answers_means_every_call_succeeds] field=run.raised",
+        ],
     ),
     mutant(
         "ts adapter: every section is run",

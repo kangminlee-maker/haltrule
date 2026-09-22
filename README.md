@@ -92,7 +92,7 @@ A port is its modules plus an adapter. The adapter holds no expectation and comp
 language adds one line to `scripts/check.sh` for its adapter and one for its own mainstream purity tools.
 A language whose types cannot hold some inputs at all — neither Go nor Rust has a string with an unpaired
 surrogate — answers `unbuildable` for those cases; the driver knows from the input which they may be, and
-counts them. Both of them sit out the same thirty of 537, and neither needed a case of its own.
+counts them. Both of them sit out the same thirty-one of 538, and neither needed a case of its own.
 
 Purity is whatever each language can be held to by construction rather than by a search through the text:
 TypeScript compiles with no host types, Python is held to an import allowlist, a Go package can reach only

@@ -28,7 +28,9 @@
     "one answer per element, where a refused element leaves the batch as it was. A one_of {by, cases} is a",
     "map told apart by its `by` key, which names one of the cases and says which of the part's calls the",
     "element is: that key is the case file's, not the part's, so an element that is not a map, or whose `by`",
-    "names no case, is not a call anyone can make, and the driver refuses the file that holds it."
+    "names no case, is not a call anyone can make, and the driver refuses the file that holds it. A run",
+    "case's `answers`, the script its `call` follows, is the case file's in the same way: fixtures/README.md",
+    "says its shape, and the driver refuses a file whose script is not the loop's outcomes."
   ],
   "entry_points": {
     "slot.validate": {
@@ -144,6 +146,24 @@
             }
           }
         }
+      }
+    },
+    "breaker.run": {
+      "section": "run",
+      "arguments": {
+        "policy": {
+          "required": true,
+          "type": "map",
+          "fields": {
+            "enabled": {"required": true, "type": "boolean"},
+            "systemic_threshold": {"required": true, "type": "integer", "min": 1, "max": 9007199254740991},
+            "concurrent": {"type": "boolean"},
+            "per_call_max_attempts": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+            "backoff_initial_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991},
+            "backoff_cap_ms": {"required": true, "type": "integer", "min": -9007199254740991, "max": 9007199254740991}
+          }
+        },
+        "items": {"required": true, "type": "list", "of": {"type": "string"}}
       }
     },
     "checkpoint.canonicalize": {

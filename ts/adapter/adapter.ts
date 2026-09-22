@@ -25,6 +25,9 @@ import {
   type DispatchBreakerPolicy,
   type DispatchBreakerTripState,
   type DispatchDeadLetterEntry,
+  runBatch,
+  type DispatchOutcome,
+  type DispatchRunResult,
 } from "../breaker.ts";
 import { Budget, type BudgetCaps, type Charge } from "../budget.ts";
 import {
@@ -199,6 +202,62 @@ function state(tc: Inputs): unknown {
   };
 }
 
+/** `call` as a case scripts it: answers[i] is what item i's calls answer, in
+ * order, and a case without answers is every call succeeding. A call the
+ * script has no answer for, or an answer no call asks for, is the case's own
+ * mistake and is reported under its id. */
+class Script {
+  private at = 0;
+  private readonly items: readonly string[];
+  private readonly answers: DispatchOutcome[][] | null;
+
+  constructor(items: readonly string[], answers: unknown) {
+    this.items = items;
+    this.answers = answers == null ? null : (answers as DispatchOutcome[][]).map((script) => [...script]);
+  }
+
+  private script(at: number): DispatchOutcome[] {
+    return this.answers?.[at] ?? [];
+  }
+
+  readonly call = (itemId: string): DispatchOutcome => {
+    if (this.answers === null) return { kind: "success" };
+    if (this.script(this.at).length === 0) this.at += 1;
+    if (this.items[this.at] !== itemId || this.script(this.at).length === 0) {
+      throw new Error(`the loop called ${itemId} where the script has no answer`);
+    }
+    return this.script(this.at).shift()!;
+  };
+
+  unasked(): boolean {
+    return this.answers !== null && this.answers.some((script) => script.length > 0);
+  }
+}
+
+async function run(tc: Inputs): Promise<unknown> {
+  const slept: number[] = [];
+  const script = new Script(Array.isArray(tc.items) ? (tc.items as string[]) : [], tc.answers);
+  let result: DispatchRunResult;
+  try {
+    result = await runBatch(tc.policy as DispatchBreakerPolicy, tc.items as string[], script.call, (ms) => {
+      slept.push(ms);
+    });
+  } catch (error) {
+    // The part's own refusal, as orRefused reads it; anything else is reported under the case's id.
+    if (error instanceof TypeError || error instanceof RangeError) return { refused: true };
+    throw error;
+  }
+  if (script.unasked()) throw new Error("the script holds answers no call asked for");
+  const tripped = result.tripped;
+  return {
+    completed: result.completed,
+    dead_letter: result.dead_letter,
+    tripped: tripped && normativeOpen(tripped),
+    incomplete: result.incomplete,
+    slept,
+  };
+}
+
 function canonicalizeCase(tc: Inputs): unknown {
   const canonical = canonicalize(tc.input);
   const digest = checkpointDigest(tc.input);
@@ -255,6 +314,7 @@ const SECTIONS: Record<string, (tc: Inputs) => unknown> = {
   classify,
   backoff,
   state,
+  run,
   canonicalize: canonicalizeCase,
   checkpoint,
   charge,
@@ -262,7 +322,7 @@ const SECTIONS: Record<string, (tc: Inputs) => unknown> = {
   result_line: resultLine,
 };
 
-function main(): void {
+async function main(): Promise<void> {
   const given = process.argv.slice(2);
   const paths =
     given.length > 0
@@ -284,7 +344,7 @@ function main(): void {
         void expect;
         let text: string;
         try {
-          text = canonicalStringify({ actual: compute(decode(encoded) as Inputs), id, section });
+          text = canonicalStringify({ actual: await compute(decode(encoded) as Inputs), id, section });
         } catch (error) {
           // Reported under the case's id, never hidden.
           text = canonicalStringify({ id, raised: String(error), section });
@@ -295,4 +355,7 @@ function main(): void {
   }
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

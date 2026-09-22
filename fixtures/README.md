@@ -117,7 +117,15 @@ spec outside the contract; a `checkpoint` case gives `args`, under the argument 
 expects the list of verdicts, or `{"refused": true}` for arguments outside the contract. A `classify` or
 `backoff` case expects the answer or `{"refused": true}`; a `state` case runs its events, in order, against
 one batch and expects one answer per event (`returns`) — `{"refused": true}` for a report the batch
-refuses, which changes nothing — or `{"refused": true}` alone when the policy is refused. An adapter
+refuses, which changes nothing — or `{"refused": true}` alone when the policy is refused. A `run` case gives
+a `policy` and `items`, and `answers`: the script its `call` follows, one list per item in the items' order
+of the outcomes that item's calls answer — `{"kind": "success"}`, `{"kind": "skipped"}`, or `{"kind":
+"failure", "failure_message": <a string>, "failure_class": <a string or null>}` — and a case without
+`answers` is every call succeeding, which is what the generated calls are. `answers` is the case file's and
+not an argument: the driver refuses a file whose script is not the loop's outcomes, and an adapter reports
+under the case's id a call the script has no answer for, or an answer no call asks for. The case expects
+`completed`, `dead_letter`, `tripped`, `incomplete` and `slept` — the delays handed to `sleep`, in order —
+or `{"refused": true}` alone when the policy or the items are refused. An adapter
 answers `refused` only for the part's own refusal: inputs are built
 before the part is called, and a verdict of the wrong shape is a failure of the case. An expected verdict
 omits `message`, which is not part of conformance; the adapters check that it is present and a string

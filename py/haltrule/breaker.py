@@ -13,7 +13,7 @@ from haltrule.contract import flag as _flag
 from haltrule.contract import integer
 from haltrule.contract import text as _text
 from haltrule.verdict import VerdictLevel, verdict
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 SystemicDispatchFailureClass = Literal["rate_limit", "auth", "transport"]
 
@@ -323,3 +323,112 @@ class DispatchBreakerState:
 
     def dead_letter_entries(self) -> list[DispatchDeadLetterEntry]:
         return self._dead_letter
+
+
+# ------------------------------------------------------------------ the loop
+
+
+class Success:
+    """A real dispatch success: the provider answered."""
+
+
+class Skipped:
+    """An item that owed no dispatch: completed, and proof of nothing."""
+
+
+@dataclass
+class Failure:
+    """A failed call: its message, and its class - the provider's when it
+    answers with fields, classify's when a string is all there is, None for
+    the item's own failure."""
+
+    failure_message: str
+    failure_class: Optional[str] = None
+
+
+DispatchOutcome = Union[Success, Skipped, Failure]
+
+
+@dataclass
+class DispatchRunResult:
+    """What run_batch leaves: the batch's lists and its trip, and the ids
+    that are neither completed nor dead-lettered - the trip's victims and what
+    was never dispatched - to be dispatched again."""
+
+    completed: list[str]
+    dead_letter: list[DispatchDeadLetterEntry]
+    tripped: Optional[DispatchBreakerTripState]
+    incomplete: list[str]
+
+
+def run_batch(
+    policy: DispatchBreakerPolicy, items: Any, call: Any, sleep: Any
+) -> DispatchRunResult:
+    """The loop around one batch, sequential: each item id in order through
+    `call(item_id)`, which answers a DispatchOutcome. A systemic failure is
+    tried again after `sleep(backoff)` while the calls made are fewer than the
+    policy's per_call_max_attempts; an item's own failure is final at once;
+    the trip stops the loop. It holds no clock: `sleep` is the caller's, and a
+    test hands in one that records. A policy or an item outside the contract
+    is refused before any call is made; a call that raises is the caller's
+    bug and propagates.
+    """
+    state = DispatchBreakerState(policy)
+    attempts = _whole(policy.per_call_max_attempts, "per_call_max_attempts")
+    initial_ms = _whole(policy.backoff_initial_ms, "backoff_initial_ms")
+    cap_ms = _whole(policy.backoff_cap_ms, "backoff_cap_ms")
+    if not isinstance(items, (list, tuple)):
+        raise TypeError("items must be a list of item ids")
+    ids = [_text(item_id, "item_id") for item_id in items]
+    for item_id in ids:
+        if state.tripped() is None:
+            _dispatch_one(state, attempts, initial_ms, cap_ms, item_id, call, sleep)
+    settled = set(state.completed_item_ids()) | {
+        entry.item_id for entry in state.dead_letter_entries()
+    }
+    return DispatchRunResult(
+        completed=list(state.completed_item_ids()),
+        dead_letter=list(state.dead_letter_entries()),
+        tripped=state.tripped(),
+        incomplete=[item_id for item_id in ids if item_id not in settled],
+    )
+
+
+def _dispatch_one(
+    state: DispatchBreakerState,
+    attempts: int,
+    initial_ms: int,
+    cap_ms: int,
+    item_id: str,
+    call: Any,
+    sleep: Any,
+) -> None:
+    """Calls one item until it has a final outcome, and reports that."""
+    attempt = 0
+    while True:
+        outcome = call(item_id)
+        if isinstance(outcome, Success):
+            state.record_item_success(item_id)
+            return
+        if isinstance(outcome, Skipped):
+            state.record_item_skipped(item_id)
+            return
+        # Anything else is a failure, and what is not even that fails where
+        # its fields are read: a call's answer is the caller's contract.
+        attempt += 1
+        if outcome.failure_class is not None and attempt < attempts:
+            sleep(
+                dispatch_backoff_delay_ms(
+                    attempt=attempt - 1, initial_ms=initial_ms, cap_ms=cap_ms
+                )
+            )
+            continue
+        state.record_item_failure(
+            DispatchDeadLetterEntry(
+                item_id=item_id,
+                failure_class=outcome.failure_class,
+                failure_message=outcome.failure_message,
+                attempt_count=attempt,
+            )
+        )
+        return

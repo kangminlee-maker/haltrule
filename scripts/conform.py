@@ -596,6 +596,47 @@ def _malformed_table():
             ).encode("ascii"),
             "names no call",
         )
+    for what, answers in [
+        ("answers that are not a list", "x"),
+        ("a script that is not a list", ["x"]),
+        ("an answer that is not a map", [["x"]]),
+        ("an answer whose kind names no outcome", [[{"kind": "unknown"}]]),
+        (
+            "a failure without its class",
+            [[{"kind": "failure", "failure_message": "m"}]],
+        ),
+        (
+            "a failure whose message is not a string",
+            [
+                [
+                    {
+                        "kind": "failure",
+                        "failure_message": {"$number": "1"},
+                        "failure_class": None,
+                    }
+                ]
+            ],
+        ),
+        ("a success carrying a field", [[{"kind": "success", "item_id": "x"}]]),
+    ]:
+        yield (
+            what,
+            json.dumps(
+                {
+                    "fixture_version": "part/v0",
+                    "run": [
+                        {
+                            "id": "a",
+                            "policy": {},
+                            "items": ["x"],
+                            "answers": answers,
+                            "expect": None,
+                        }
+                    ],
+                }
+            ).encode("ascii"),
+            "no outcome",
+        )
     yield (
         "a fixture_version that is not the file's path",
         doc(lambda d: d.update(fixture_version="part/v999")),
@@ -811,7 +852,7 @@ def generator_self_test() -> list[str]:
             f"the generator made {len(cells)} cells of kinds {sorted(kinds)}"
         )
     by_entry = {section for section in first if section != "fixture_version"}
-    if len(by_entry) < 7:
+    if len(by_entry) < 8:
         problems.append(
             f"the generator reached {len(by_entry)} sections, not every entry point"
         )

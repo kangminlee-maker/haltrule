@@ -21,9 +21,9 @@ mod value;
 mod verdict;
 
 pub use breaker::{
-    classify_systemic_dispatch_failure, dispatch_backoff_delay_ms, DispatchBreakerPolicy,
-    DispatchBreakerState, DispatchBreakerTripState, DispatchDeadLetterEntry, FailureClass,
-    TRANSIENT_TRANSPORT_MESSAGE_PATTERNS,
+    classify_systemic_dispatch_failure, dispatch_backoff_delay_ms, run_batch,
+    DispatchBreakerPolicy, DispatchBreakerState, DispatchBreakerTripState, DispatchDeadLetterEntry,
+    DispatchOutcome, DispatchRunResult, FailureClass, TRANSIENT_TRANSPORT_MESSAGE_PATTERNS,
 };
 pub use budget::{Budget, BudgetCaps, Charge};
 pub use checkpoint::{

@@ -367,3 +367,106 @@ impl DispatchBreakerState {
         &self.dead_letter
     }
 }
+
+// ------------------------------------------------------------------ the loop
+
+/// What one call answers the loop. A failure's class is the provider's when
+/// it answers with fields, [`classify_systemic_dispatch_failure`]'s when a
+/// string is all there is, and `None` for the item's own failure.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchOutcome {
+    /// A real dispatch success: the provider answered.
+    Success,
+    /// An item that owed no dispatch: completed, and proof of nothing.
+    Skipped,
+    /// A failed call, with its message and its class.
+    Failure {
+        failure_message: String,
+        failure_class: Option<FailureClass>,
+    },
+}
+
+/// What [`run_batch`] leaves: the batch's lists and its trip, and the ids
+/// that are neither completed nor dead-lettered - the trip's victims and what
+/// was never dispatched - to be dispatched again.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DispatchRunResult {
+    pub completed: Vec<String>,
+    pub dead_letter: Vec<DispatchDeadLetterEntry>,
+    pub tripped: Option<DispatchBreakerTripState>,
+    pub incomplete: Vec<String>,
+}
+
+/// The loop around one batch, sequential: each item id in order through
+/// `call`, which answers an outcome. A systemic failure is tried again after
+/// `sleep(backoff)` while the calls made are fewer than the policy's
+/// `per_call_max_attempts`; an item's own failure is final at once; the trip stops the loop. It holds
+/// no clock: `sleep` is the caller's, and a test hands in one that records. A
+/// policy outside the contract is refused before any call is made.
+pub fn run_batch(
+    policy: DispatchBreakerPolicy,
+    items: &[String],
+    mut call: impl FnMut(&str) -> DispatchOutcome,
+    mut sleep: impl FnMut(i64),
+) -> Result<DispatchRunResult, Refused> {
+    let attempts = policy.per_call_max_attempts;
+    let (initial_ms, cap_ms) = (policy.backoff_initial_ms, policy.backoff_cap_ms);
+    let mut state = DispatchBreakerState::new(policy)?;
+    for item_id in items {
+        if state.tripped().is_some() {
+            break;
+        }
+        let mut attempt: i64 = 0;
+        loop {
+            let (failure_message, failure_class) = match call(item_id) {
+                DispatchOutcome::Success => {
+                    state.record_item_success(item_id);
+                    break;
+                }
+                DispatchOutcome::Skipped => {
+                    state.record_item_skipped(item_id);
+                    break;
+                }
+                DispatchOutcome::Failure {
+                    failure_message,
+                    failure_class,
+                } => (failure_message, failure_class),
+            };
+            attempt += 1;
+            if failure_class.is_some() && attempt < attempts {
+                sleep(dispatch_backoff_delay_ms(attempt - 1, initial_ms, cap_ms)?);
+                continue;
+            }
+            state.record_item_failure(DispatchDeadLetterEntry {
+                item_id: item_id.clone(),
+                failure_class,
+                failure_message,
+                attempt_count: attempt,
+            })?;
+            break;
+        }
+    }
+    let incomplete = items
+        .iter()
+        .filter(|item_id| !settled(&state, item_id))
+        .cloned()
+        .collect();
+    Ok(DispatchRunResult {
+        completed: state.completed_item_ids().to_vec(),
+        dead_letter: state.dead_letter_entries().to_vec(),
+        tripped: state.tripped().cloned(),
+        incomplete,
+    })
+}
+
+/// Whether an id is completed or dead-lettered: everything else is incomplete.
+fn settled(state: &DispatchBreakerState, item_id: &str) -> bool {
+    state
+        .completed_item_ids()
+        .iter()
+        .any(|held| held == item_id)
+        || state
+            .dead_letter_entries()
+            .iter()
+            .any(|entry| entry.item_id == item_id)
+}

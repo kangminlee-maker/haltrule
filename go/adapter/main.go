@@ -256,24 +256,24 @@ type eventJSON struct {
 	AttemptCount   json.RawMessage `json:"attempt_count"`
 }
 
-// batchOf reads a policy and starts a batch, or refuses the policy.
-func batchOf(raw json.RawMessage) (*haltrule.DispatchBreakerState, error) {
+// policyOf reads a policy, or refuses it.
+func policyOf(raw json.RawMessage) (haltrule.DispatchBreakerPolicy, error) {
 	var given policyJSON
 	if !isObject(raw) {
-		return nil, errors.New("a policy must be a map")
+		return haltrule.DispatchBreakerPolicy{}, errors.New("a policy must be a map")
 	}
 	if err := strictly(raw, &given); err != nil {
-		return nil, err
+		return haltrule.DispatchBreakerPolicy{}, err
 	}
 	if given.Enabled == nil {
-		return nil, errors.New("a policy has no enabled")
+		return haltrule.DispatchBreakerPolicy{}, errors.New("a policy has no enabled")
 	}
 	threshold, thresholdErr := decodeInt64(given.SystemicThreshold)
 	attempts, attemptsErr := decodeInt64(given.PerCallMaxAttempts)
 	initialMs, initialErr := decodeInt64(given.BackoffInitialMs)
 	capMs, capErr := decodeInt64(given.BackoffCapMs)
 	if err := errors.Join(thresholdErr, attemptsErr, initialErr, capErr); err != nil {
-		return nil, err
+		return haltrule.DispatchBreakerPolicy{}, err
 	}
 	policy := haltrule.DispatchBreakerPolicy{
 		Enabled:            *given.Enabled,
@@ -285,6 +285,15 @@ func batchOf(raw json.RawMessage) (*haltrule.DispatchBreakerState, error) {
 	// Absent - not given here, null there - is off.
 	if given.Concurrent != nil {
 		policy.Concurrent = *given.Concurrent
+	}
+	return policy, nil
+}
+
+// batchOf reads a policy and starts a batch, or refuses the policy.
+func batchOf(raw json.RawMessage) (*haltrule.DispatchBreakerState, error) {
+	policy, err := policyOf(raw)
+	if err != nil {
+		return nil, err
 	}
 	return haltrule.NewDispatchBreakerState(policy)
 }
@@ -391,6 +400,151 @@ func state(from inputs) (haltrule.Value, error) {
 		"completed":   completed,
 		"dead_letter": deadLetter,
 		"tripped":     tripValue(machine.Tripped()),
+	}, nil
+}
+
+type outcomeJSON struct {
+	Kind           string          `json:"kind"`
+	FailureMessage *string         `json:"failure_message"`
+	FailureClass   json.RawMessage `json:"failure_class"`
+}
+
+// script is `call` as a case scripts it: answers[i] is what item i's calls
+// answer, in order, and a case without answers is every call succeeding. A
+// call the script has no answer for, or an answer no call asks for, is the
+// case's own mistake and is reported under its id; call cannot answer an
+// error, so the first mistake is kept and reported after the loop.
+type script struct {
+	items    []string
+	answers  [][]haltrule.DispatchOutcome
+	scripted bool
+	at       int
+	trouble  error
+}
+
+func (s *script) remaining(at int) []haltrule.DispatchOutcome {
+	if at < len(s.answers) {
+		return s.answers[at]
+	}
+	return nil
+}
+
+func (s *script) call(itemID string) haltrule.DispatchOutcome {
+	if !s.scripted {
+		return haltrule.DispatchOutcome{Kind: haltrule.OutcomeSuccess}
+	}
+	if len(s.remaining(s.at)) == 0 {
+		s.at++
+	}
+	if s.at >= len(s.items) || s.items[s.at] != itemID || len(s.remaining(s.at)) == 0 {
+		if s.trouble == nil {
+			s.trouble = fmt.Errorf("the loop called %q where the script has no answer", itemID)
+		}
+		return haltrule.DispatchOutcome{Kind: haltrule.OutcomeSuccess}
+	}
+	outcome := s.answers[s.at][0]
+	s.answers[s.at] = s.answers[s.at][1:]
+	return outcome
+}
+
+func (s *script) unasked() bool {
+	for _, rest := range s.answers {
+		if len(rest) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// scriptOf reads a case's answers. The driver has held them to the fixture
+// protocol already, so a script it cannot read is this adapter's own failure.
+func scriptOf(raw json.RawMessage) ([][]haltrule.DispatchOutcome, bool, error) {
+	if isNull(raw) {
+		return nil, false, nil
+	}
+	var scripts [][]outcomeJSON
+	if err := strictly(raw, &scripts); err != nil {
+		return nil, false, err
+	}
+	answers := make([][]haltrule.DispatchOutcome, len(scripts))
+	for index, given := range scripts {
+		for _, outcome := range given {
+			built := haltrule.DispatchOutcome{Kind: haltrule.DispatchOutcomeKind(outcome.Kind)}
+			if outcome.FailureMessage != nil {
+				built.FailureMessage = *outcome.FailureMessage
+			}
+			if !isNull(outcome.FailureClass) {
+				var text string
+				if err := json.Unmarshal(outcome.FailureClass, &text); err != nil {
+					return nil, false, err
+				}
+				held := haltrule.FailureClass(text)
+				built.FailureClass = &held
+			}
+			answers[index] = append(answers[index], built)
+		}
+	}
+	return answers, true, nil
+}
+
+func run(from inputs) (haltrule.Value, error) {
+	policy, err := policyOf(from["policy"])
+	if err != nil {
+		return refused, nil
+	}
+	// A list of ids, each a string; absent - null - or anything else is
+	// refused. Go reads null into a string without complaint, so each
+	// element is asked for by shape.
+	if isNull(from["items"]) {
+		return refused, nil
+	}
+	var raws []json.RawMessage
+	if err := json.Unmarshal(from["items"], &raws); err != nil {
+		return refused, nil
+	}
+	items := []string{}
+	for _, raw := range raws {
+		var id string
+		if isNull(raw) || json.Unmarshal(raw, &id) != nil {
+			return refused, nil
+		}
+		items = append(items, id)
+	}
+	answers, scripted, err := scriptOf(from["answers"])
+	if err != nil {
+		return nil, err
+	}
+	s := &script{items: items, answers: answers, scripted: scripted}
+	slept := haltrule.List{}
+	result, err := haltrule.RunBatch(policy, items, s.call, func(ms int64) {
+		slept = append(slept, haltrule.Int(ms))
+	})
+	if err != nil {
+		return refused, nil
+	}
+	if s.trouble != nil {
+		return nil, s.trouble
+	}
+	if s.unasked() {
+		return nil, errors.New("the script holds answers no call asked for")
+	}
+	ids := func(held []string) haltrule.List {
+		list := haltrule.List{}
+		for _, id := range held {
+			list = append(list, haltrule.String(id))
+		}
+		return list
+	}
+	deadLetter := haltrule.List{}
+	for _, entry := range result.DeadLetter {
+		deadLetter = append(deadLetter, entryValue(entry))
+	}
+	return haltrule.Map{
+		"completed":   ids(result.Completed),
+		"dead_letter": deadLetter,
+		"tripped":     tripValue(result.Tripped),
+		"incomplete":  ids(result.Incomplete),
+		"slept":       slept,
 	}, nil
 }
 
@@ -694,6 +848,7 @@ var sections = map[string]section{
 	"classify":     classify,
 	"backoff":      backoff,
 	"state":        state,
+	"run":          run,
 	"canonicalize": canonicalize,
 	"checkpoint":   checkpoint,
 	"charge":       charge,

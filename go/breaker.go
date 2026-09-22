@@ -279,3 +279,113 @@ func (state *DispatchBreakerState) CompletedItemIDs() []string {
 func (state *DispatchBreakerState) DeadLetterEntries() []DispatchDeadLetterEntry {
 	return state.deadLetter
 }
+
+// ------------------------------------------------------------------ the loop
+
+// DispatchOutcomeKind names what one call answered.
+type DispatchOutcomeKind string
+
+const (
+	// OutcomeSuccess is a real dispatch success: the provider answered.
+	OutcomeSuccess DispatchOutcomeKind = "success"
+	// OutcomeSkipped is an item that owed no dispatch: completed, and proof of nothing.
+	OutcomeSkipped DispatchOutcomeKind = "skipped"
+	// OutcomeFailure is a failed call, with its message and its class.
+	OutcomeFailure DispatchOutcomeKind = "failure"
+)
+
+// DispatchOutcome is what one call answers the loop. FailureMessage and
+// FailureClass are read for a failure only: the class is the provider's when
+// it answers with fields, ClassifySystemicDispatchFailure's when a string is
+// all there is, and nil for the item's own failure.
+type DispatchOutcome struct {
+	Kind           DispatchOutcomeKind
+	FailureMessage string
+	FailureClass   *FailureClass
+}
+
+// DispatchRunResult is what RunBatch leaves: the batch's lists and its trip,
+// and the ids that are neither completed nor dead-lettered - the trip's
+// victims and what was never dispatched - to be dispatched again.
+type DispatchRunResult struct {
+	Completed  []string
+	DeadLetter []DispatchDeadLetterEntry
+	Tripped    *DispatchBreakerTripState
+	Incomplete []string
+}
+
+// RunBatch is the loop around one batch, sequential: each item id in order
+// through call, which answers an outcome. A systemic failure is tried again
+// after sleep(backoff) while the calls made are fewer than the policy's
+// PerCallMaxAttempts; an item's own failure is final at once; the trip stops the loop. It holds
+// no clock: sleep is the caller's, and a test hands in one that records. A
+// policy outside the contract is refused before any call is made.
+func RunBatch(policy DispatchBreakerPolicy, items []string, call func(itemID string) DispatchOutcome, sleep func(ms int64)) (DispatchRunResult, error) {
+	state, err := NewDispatchBreakerState(policy)
+	if err != nil {
+		return DispatchRunResult{}, err
+	}
+	for _, itemID := range items {
+		if state.Tripped() != nil {
+			break
+		}
+		if err := dispatchOne(state, itemID, call, sleep); err != nil {
+			return DispatchRunResult{}, err
+		}
+	}
+	settled := map[string]bool{}
+	for _, id := range state.CompletedItemIDs() {
+		settled[id] = true
+	}
+	for _, entry := range state.DeadLetterEntries() {
+		settled[entry.ItemID] = true
+	}
+	var incomplete []string
+	for _, id := range items {
+		if !settled[id] {
+			incomplete = append(incomplete, id)
+		}
+	}
+	return DispatchRunResult{
+		Completed:  state.CompletedItemIDs(),
+		DeadLetter: state.DeadLetterEntries(),
+		Tripped:    state.Tripped(),
+		Incomplete: incomplete,
+	}, nil
+}
+
+// dispatchOne calls one item until it has a final outcome, and reports that.
+func dispatchOne(state *DispatchBreakerState, itemID string, call func(string) DispatchOutcome, sleep func(int64)) error {
+	var attempt int64
+	for {
+		outcome := call(itemID)
+		switch outcome.Kind {
+		case OutcomeSuccess:
+			state.RecordItemSuccess(itemID)
+			return nil
+		case OutcomeSkipped:
+			state.RecordItemSkipped(itemID)
+			return nil
+		case OutcomeFailure:
+		default:
+			// A kind the type does not name is the caller's bug, not a failure to report.
+			return fmt.Errorf("call answered kind %q, which is no outcome", outcome.Kind)
+		}
+		attempt++
+		if outcome.FailureClass != nil && attempt < state.policy.PerCallMaxAttempts {
+			delay, err := DispatchBackoffDelayMs(attempt-1, state.policy.BackoffInitialMs, state.policy.BackoffCapMs)
+			if err != nil {
+				return err
+			}
+			sleep(delay)
+			continue
+		}
+		_, err := state.RecordItemFailure(DispatchDeadLetterEntry{
+			ItemID:         itemID,
+			FailureClass:   outcome.FailureClass,
+			FailureMessage: outcome.FailureMessage,
+			AttemptCount:   attempt,
+		})
+		return err
+	}
+}

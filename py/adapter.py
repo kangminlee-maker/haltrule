@@ -29,6 +29,10 @@ import re  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from haltrule.breaker import (  # noqa: E402
+    Failure,
+    Skipped,
+    Success,
+    run_batch,
     DispatchBreakerPolicy,
     DispatchBreakerState,
     DispatchDeadLetterEntry,
@@ -259,6 +263,76 @@ def _state(tc: dict):
     }
 
 
+class _Script:
+    """`call` as a case scripts it: answers[i] is what item i's calls answer,
+    in order, and a case without answers is every call succeeding. A call the
+    script has no answer for, or an answer no call asks for, is the case's
+    own mistake and is reported under its id."""
+
+    def __init__(self, items, answers) -> None:
+        self._items = items
+        self._answers = (
+            None if answers is None else [list(script) for script in answers]
+        )
+        self._at = 0
+
+    def _script(self, at: int) -> list:
+        return self._answers[at] if at < len(self._answers) else []
+
+    def __call__(self, item_id: str):
+        if self._answers is None:
+            return Success()
+        if not self._script(self._at):
+            self._at += 1
+        if (
+            self._at >= len(self._items)
+            or self._items[self._at] != item_id
+            or not self._script(self._at)
+        ):
+            raise AssertionError(
+                f"the loop called {item_id!r} where the script has no answer"
+            )
+        outcome = self._script(self._at).pop(0)
+        if outcome["kind"] == "success":
+            return Success()
+        if outcome["kind"] == "skipped":
+            return Skipped()
+        return Failure(outcome["failure_message"], outcome["failure_class"])
+
+    def unasked(self) -> bool:
+        return self._answers is not None and any(self._answers)
+
+
+def _run(tc: dict):
+    slept: list = []
+    script = _Script(
+        tc["items"] if isinstance(tc["items"], list) else [], tc.get("answers")
+    )
+    result = _or_refused(
+        lambda: run_batch(
+            DispatchBreakerPolicy(**tc["policy"]),
+            tc["items"],
+            script,
+            slept.append,
+        )
+    )
+    if result is _REFUSED:
+        return {"refused": True}
+    if script.unasked():
+        raise AssertionError("the script holds answers no call asked for")
+    return {
+        "completed": list(result.completed),
+        "dead_letter": _to_plain(result.dead_letter),
+        "tripped": (
+            None
+            if result.tripped is None
+            else _normative_open(_to_plain(result.tripped))
+        ),
+        "incomplete": list(result.incomplete),
+        "slept": slept,
+    }
+
+
 def _canonicalize(tc: dict) -> dict:
     canonical = canonicalize(tc["input"])
     digest = checkpoint_digest(tc["input"])
@@ -321,6 +395,7 @@ SECTIONS = {
     "classify": _classify,
     "backoff": _backoff,
     "state": _state,
+    "run": _run,
     "canonicalize": _canonicalize,
     "checkpoint": _checkpoint,
     "charge": _charge,

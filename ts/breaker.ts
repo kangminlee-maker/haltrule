@@ -326,3 +326,85 @@ export class DispatchBreakerState {
     return this.deadLetter;
   }
 }
+
+// ------------------------------------------------------------------ the loop
+
+/** What one call answers the loop. A failure's class is the provider's when
+ * it answers with fields, {@link classifySystemicDispatchFailure}'s when a
+ * string is all there is, and null for the item's own failure. */
+export type DispatchOutcome =
+  | { kind: "success" }
+  | { kind: "skipped" }
+  | { kind: "failure"; failure_message: string; failure_class: SystemicDispatchFailureClass | null };
+
+/** What {@link runBatch} leaves: the batch's lists and its trip, and the ids
+ * that are neither completed nor dead-lettered - the trip's victims and what
+ * was never dispatched - to be dispatched again. */
+export interface DispatchRunResult {
+  completed: string[];
+  dead_letter: DispatchDeadLetterEntry[];
+  tripped: DispatchBreakerTripState | null;
+  incomplete: string[];
+}
+
+/**
+ * The loop around one batch, sequential: each item id in order through
+ * `call(itemId)`, which answers an outcome. A systemic failure is tried again
+ * after `sleep(backoff)` while the calls made are fewer than the policy's
+ * per_call_max_attempts; an item's own failure is final at once; the trip stops the loop. It
+ * holds no clock: `sleep` is the caller's, and a test hands in one that
+ * records. A policy or an item outside the contract is refused before any
+ * call is made; a call that throws is the caller's bug and propagates.
+ */
+export async function runBatch(
+  policy: DispatchBreakerPolicy,
+  items: readonly string[],
+  call: (itemId: string) => DispatchOutcome | Promise<DispatchOutcome>,
+  sleep: (ms: number) => void | Promise<void>,
+): Promise<DispatchRunResult> {
+  const state = new DispatchBreakerState(policy);
+  const attempts = whole(policy.per_call_max_attempts, "per_call_max_attempts");
+  const initialMs = whole(policy.backoff_initial_ms, "backoff_initial_ms");
+  const capMs = whole(policy.backoff_cap_ms, "backoff_cap_ms");
+  // Anything that is not a list has no map, and the TypeError is the refusal.
+  const ids = items.map((itemId) => text(itemId, "item_id"));
+  for (const itemId of ids) {
+    if (state.tripped() !== null) break;
+    let attempt = 0;
+    for (;;) {
+      const outcome: DispatchOutcome = await call(itemId);
+      if (outcome.kind === "success") {
+        state.recordItemSuccess(itemId);
+        break;
+      }
+      if (outcome.kind === "skipped") {
+        state.recordItemSkipped(itemId);
+        break;
+      }
+      // Anything else is a failure, and what is not even that is refused
+      // where the entry is read: a call's answer is the caller's contract.
+      attempt += 1;
+      if (outcome.failure_class != null && attempt < attempts) {
+        await sleep(dispatchBackoffDelayMs({ attempt: attempt - 1, initial_ms: initialMs, cap_ms: capMs }));
+        continue;
+      }
+      state.recordItemFailure({
+        item_id: itemId,
+        failure_class: outcome.failure_class,
+        failure_message: outcome.failure_message,
+        attempt_count: attempt,
+      });
+      break;
+    }
+  }
+  const settled = new Set([
+    ...state.completedItemIds(),
+    ...state.deadLetterEntries().map((entry) => entry.item_id),
+  ]);
+  return {
+    completed: [...state.completedItemIds()],
+    dead_letter: [...state.deadLetterEntries()],
+    tripped: state.tripped(),
+    incomplete: ids.filter((itemId) => !settled.has(itemId)),
+  };
+}

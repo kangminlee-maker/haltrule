@@ -129,9 +129,10 @@ not name is not reusable.
 ## Parts
 
 - `breaker` — the policy of a dispatch loop's circuit breaker: which failures say the provider is down, how
-  long to wait before a retry, and when a batch should stop. It holds no clock and does no waiting; the loop,
-  the retries and what is persisted are the caller's. Its numbers are integers within ±(2^53 − 1). The three
-  fixture sections are its three entry points.
+  long to wait before a retry, and when a batch should stop — and `run`, the sequential loop that asks those
+  three in that order. None of it holds a clock or waits: `run` is handed its `sleep`, and what is persisted
+  is the caller's. Its numbers are integers within ±(2^53 − 1). The four fixture sections are its four entry
+  points.
 
   Its arguments are in `contract.json`. Two of its fields mean something by being absent — `classify`'s
   message, which is then no text to read, and a policy's `concurrent`, which is then off — and one by being
@@ -165,8 +166,8 @@ not name is not reusable.
     product past its integer type is the cap and never an overflow; the references compute it in doubles,
     where a power of two times an integer in range is exact until it is infinite, which is the same thing.
   - **`state`** is one batch. It is made from a policy — `enabled`, `systemic_threshold`, `concurrent`, and
-    `per_call_max_attempts`, `backoff_initial_ms` and `backoff_cap_ms`, which are carried for the caller's
-    loop and read by nothing here — and holds four things: the completed item ids, the dead-letter entries, the pending entries, and the trip, null until it
+    `per_call_max_attempts`, `backoff_initial_ms` and `backoff_cap_ms`, which `state` does not read: they
+    are `run`'s — and holds four things: the completed item ids, the dead-letter entries, the pending entries, and the trip, null until it
     is set. The caller reports each item's final outcome, after its own retries:
     - `success`: the id is completed. Then, unless the batch has tripped or `concurrent` is on, every pending
       entry moves to the dead letter in the order it became pending — the provider answered, so those
@@ -191,7 +192,25 @@ not name is not reusable.
     The completed ids are listed in the order they were reported, success and skipped alike, once per
     report, so an id may be completed twice, and completed and dead-lettered both. The dead letter is in the
     order entries arrived there: an item's own failure when it is reported, a pending entry when a success
-    moves it. What is neither at the end is incomplete; the caller works that out from its own list of items.
+    moves it. What is neither at the end is incomplete: `run` lists it from the items it was given, and a
+    caller with a loop of its own works it out from its own list.
+  - **`run`** is the loop, sequential: one batch made from the policy, and the item ids in the order given,
+    each through the caller's `call`, which answers `success`, `skipped`, or `failure` with a message and a
+    class — the provider's when it answers with fields, `classify`'s when a string is all there is, null for
+    the item's own failure. A success or a skip is reported as such and the next item begins. A failure
+    counts one call; while the calls made are fewer than `per_call_max_attempts` and the class is not null,
+    the loop waits `sleep(backoff(calls − 1, backoff_initial_ms, backoff_cap_ms))` and calls again — so a
+    `per_call_max_attempts` of one or less is one call, and an item's own failure is final at once.
+    Otherwise the failure is reported with the calls made as its `attempt_count`. Before each item the loop
+    asks whether the batch has tripped, and stops there when it has: the trip is the answer, and nothing
+    after it is called. A policy or an item outside the contract — `items` is a list of strings — is refused
+    before any call is made. What `run` leaves is the batch's completed ids and dead letter, its trip or
+    null, and `incomplete`: the ids given, in their order, that are neither completed nor dead-lettered —
+    the outage's victims and what was never dispatched, to be dispatched again. A delay of zero or less is
+    still handed to `sleep`: what a delay that is no delay means is the caller's. A `call` that raises is the
+    caller's bug and propagates; it is not a failure the batch should hear about. A concurrent pool is not
+    this loop: it drives `state` with `concurrent` on and its own lock, an idiom of thirty lines the spec
+    does not own.
 - `checkpoint` — `canonicalize` and the digest above, and a reuse verdict over one recorded artifact. Its
   arguments (`contract.json`), under the names every port and every fixture uses:
   - `stage_id`, the only one required;

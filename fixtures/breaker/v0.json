@@ -3446,5 +3446,1050 @@
         "tripped": null
       }
     }
+  ],
+  "run": [
+    {
+      "id": "all_succeed",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b",
+        "c"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "success"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a",
+          "b",
+          "c"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "empty_batch",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [],
+      "answers": [],
+      "expect": {
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "no_answers_means_every_call_succeeds",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "expect": {
+        "completed": [
+          "a",
+          "b"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "skipped_completes_and_proves_nothing",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b",
+        "c"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "skipped"
+          }
+        ],
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "b"
+        ],
+        "dead_letter": [],
+        "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "breaker_tripped",
+          "resume": null,
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        },
+        "incomplete": [
+          "a",
+          "c"
+        ],
+        "slept": [
+          1000,
+          2000,
+          1000,
+          2000
+        ]
+      }
+    },
+    {
+      "id": "own_failure_is_final_at_once",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "malformed output",
+            "failure_class": null
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "b"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "a",
+            "failure_class": null,
+            "failure_message": "malformed output",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "systemic_failure_then_success",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          1000
+        ]
+      }
+    },
+    {
+      "id": "attempts_exhausted_then_a_later_success_makes_it_poison",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "b"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "a",
+            "failure_class": "rate_limit",
+            "failure_message": "429 rate limited",
+            "attempt_count": 3
+          }
+        ],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          1000,
+          2000
+        ]
+      }
+    },
+    {
+      "id": "trip_stops_the_loop_and_the_rest_is_incomplete",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "breaker_tripped",
+          "resume": null,
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        },
+        "incomplete": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "own_failure_before_a_trip_stays_dead_lettered",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b",
+        "c"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "malformed output",
+            "failure_class": null
+          }
+        ],
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [],
+        "dead_letter": [
+          {
+            "item_id": "a",
+            "failure_class": null,
+            "failure_message": "malformed output",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "breaker_tripped",
+          "resume": null,
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 2,
+          "threshold": 2
+        },
+        "incomplete": [
+          "b",
+          "c"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "backoff_stops_at_the_cap",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "4"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "2500"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          1000,
+          2000,
+          2500
+        ]
+      }
+    },
+    {
+      "id": "initial_zero_sleeps_the_cap",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "2"
+        },
+        "backoff_initial_ms": {
+          "$number": "0"
+        },
+        "backoff_cap_ms": {
+          "$number": "700"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          700
+        ]
+      }
+    },
+    {
+      "id": "zero_attempts_is_one_call",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "0"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [
+          "a"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "negative_attempts_is_one_call",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "-5"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "401 unauthorized",
+            "failure_class": "auth"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "b"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "a",
+            "failure_class": "auth",
+            "failure_message": "401 unauthorized",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "attempts_at_the_widest_integer",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "9007199254740991"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          1000,
+          2000
+        ]
+      }
+    },
+    {
+      "id": "disabled_breaker_never_trips",
+      "policy": {
+        "enabled": false,
+        "systemic_threshold": {
+          "$number": "1"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [
+          "a",
+          "b"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "concurrent_keeps_pending_through_a_success",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "3"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        },
+        "concurrent": true
+      },
+      "items": [
+        "a",
+        "b"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "b"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [
+          "a"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "an_id_dispatched_twice_is_completed_twice",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "success"
+          }
+        ],
+        [
+          {
+            "kind": "skipped"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a",
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "an_id_in_the_batch_twice_is_incomplete_twice",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "1"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [],
+        "dead_letter": [],
+        "tripped": {
+          "spec": "haltrule/0",
+          "verdict": "warning",
+          "reason": "breaker_tripped",
+          "resume": null,
+          "failure_class": "rate_limit",
+          "consecutive_item_count": 1,
+          "threshold": 1
+        },
+        "incomplete": [
+          "a",
+          "a"
+        ],
+        "slept": []
+      }
+    },
+    {
+      "id": "an_id_completed_and_dead_lettered_is_settled",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "1"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          }
+        ],
+        [
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [
+          {
+            "item_id": "a",
+            "failure_class": "rate_limit",
+            "failure_message": "429 rate limited",
+            "attempt_count": 1
+          }
+        ],
+        "tripped": null,
+        "incomplete": [],
+        "slept": []
+      }
+    },
+    {
+      "id": "items_that_are_not_a_list",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": "a-b-c",
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "an_item_that_is_not_a_string",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a",
+        {
+          "$number": "1"
+        }
+      ],
+      "expect": {
+        "refused": true
+      }
+    },
+    {
+      "id": "a_policy_missing_its_threshold",
+      "policy": {
+        "enabled": true,
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "expect": {
+        "refused": true
+      }
+    }
   ]
 }
