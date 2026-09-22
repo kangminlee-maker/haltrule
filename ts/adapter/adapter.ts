@@ -205,9 +205,14 @@ function state(tc: Inputs): unknown {
 /** `call` as a case scripts it: answers[i] is what item i's calls answer, in
  * order, and a case without answers is every call succeeding. A call the
  * script has no answer for, or an answer no call asks for, is the case's own
- * mistake and is reported under its id. */
+ * mistake and is reported under its id. Both `call` and `sleep` answer with
+ * a promise, as a real caller's would, and `sleep` stays pending until the
+ * next turn of the event loop: a call made while it is pending is a loop
+ * that did not wait, and is reported the same way. */
 class Script {
   private at = 0;
+  private sleeping = false;
+  readonly slept: number[] = [];
   private readonly items: readonly string[];
   private readonly answers: DispatchOutcome[][] | null;
 
@@ -220,7 +225,19 @@ class Script {
     return this.answers?.[at] ?? [];
   }
 
-  readonly call = (itemId: string): DispatchOutcome => {
+  readonly sleep = (ms: number): Promise<void> => {
+    this.slept.push(ms);
+    this.sleeping = true;
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        this.sleeping = false;
+        resolve();
+      }, 0);
+    });
+  };
+
+  readonly call = async (itemId: string): Promise<DispatchOutcome> => {
+    if (this.sleeping) throw new Error(`the loop called ${itemId} before its sleep had ended`);
     if (this.answers === null) return { kind: "success" };
     if (this.script(this.at).length === 0) this.at += 1;
     if (this.items[this.at] !== itemId || this.script(this.at).length === 0) {
@@ -235,13 +252,10 @@ class Script {
 }
 
 async function run(tc: Inputs): Promise<unknown> {
-  const slept: number[] = [];
   const script = new Script(Array.isArray(tc.items) ? (tc.items as string[]) : [], tc.answers);
   let result: DispatchRunResult;
   try {
-    result = await runBatch(tc.policy as DispatchBreakerPolicy, tc.items as string[], script.call, (ms) => {
-      slept.push(ms);
-    });
+    result = await runBatch(tc.policy as DispatchBreakerPolicy, tc.items as string[], script.call, script.sleep);
   } catch (error) {
     // The part's own refusal, as orRefused reads it; anything else is reported under the case's id.
     if (error instanceof TypeError || error instanceof RangeError) return { refused: true };
@@ -254,7 +268,7 @@ async function run(tc: Inputs): Promise<unknown> {
     dead_letter: result.dead_letter,
     tripped: tripped && normativeOpen(tripped),
     incomplete: result.incomplete,
-    slept,
+    slept: script.slept,
   };
 }
 

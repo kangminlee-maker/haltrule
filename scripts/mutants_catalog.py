@@ -646,6 +646,14 @@ CATALOG += [
         (TS_FAILS, PY_FAILS, "FAIL [never_read_case] field=never_read.missing"),
     ),
     mutant(
+        "ts breaker: the loop waits for its sleep before it calls again",
+        "ts/breaker.ts",
+        "        await sleep(dispatchBackoffDelayMs({ attempt: attempt - 1, initial_ms: initialMs, cap_ms: capMs }));\n",
+        "        sleep(dispatchBackoffDelayMs({ attempt: attempt - 1, initial_ms: initialMs, cap_ms: capMs }));\n",
+        [TS_FAILS, "FAIL [skipped_completes_and_proves_nothing] field=run.raised"],
+        [PY_FAILS],
+    ),
+    mutant(
         "fixtures: a run script holding an answer no call asks for is reported by every adapter",
         "fixtures/breaker/v0.json",
         '      "answers": [],\n',
