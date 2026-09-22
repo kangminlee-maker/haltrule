@@ -269,10 +269,10 @@ def read_fixture(name: str, raw: bytes) -> list[Case]:
                 if key not in ("id", "expect")
             }
             _check_input(inputs, where)
-            problem = contract.protocol_problem(section, inputs)
+            expect = entry["expect"]
+            problem = contract.protocol_problem(section, inputs, expect)
             if problem:
                 raise Malformed(f"{where}: {problem}")
-            expect = entry["expect"]
             try:
                 line_of(expect)
             except Malformed as error:
@@ -335,6 +335,13 @@ def compare(
         for section, case_id, expect, every_language in cases
         if not every_language and not every_input and not answers_refused(expect)
     }
+    # A case whose script raises has no answer to compare: what it asks is that the raise came out
+    # of the loop, and the words a language puts on it are its own.
+    must_raise = {
+        (section, case_id)
+        for section, case_id, expect, _ in cases
+        if expect == contract.RAISED
+    }
     unbuilt = 0
     failures: list[str] = []
     seen: list[tuple[str, str]] = []
@@ -364,6 +371,13 @@ def compare(
                 failures.append(
                     f"FAIL [{key[1]}] field={key[0]}.unbuildable — this port has to build this input"
                 )
+        elif key in must_raise:
+            if not _let_out(parsed):
+                failures.append(
+                    f"FAIL [{key[1]}] field={key[0]}.raised\n"
+                    f"  expected: the script's raise, let out of the loop\n"
+                    f"  actual:   {raw}"
+                )
         elif raw != want[key]:
             field = "raised" if "raised" in parsed else "expect"
             failures.append(
@@ -380,6 +394,26 @@ def compare(
             "FAIL [output] field=output.order — the lines are right and not in fixture order"
         )
     return failures, unbuilt
+
+
+# What the script's fourth kind raises, in every language, so that a raise the port reached for a
+# reason of its own is not this case's answer. It is the fixtures' word, not any part's.
+RAISED_BY_THE_SCRIPT = "the caller's own bug"
+
+
+def raised_line(section: str, case_id: str, said: str = RAISED_BY_THE_SCRIPT) -> str:
+    """The line an adapter prints for a case whose script raised: what came out of the loop, caught
+    where the case was run, and no answer at all."""
+    return line_of({"id": case_id, "raised": said, "section": section})
+
+
+def _let_out(parsed: dict) -> bool:
+    """Whether a line says the loop let the script's raise out whole."""
+    return (
+        set(parsed) == {"id", "raised", "section"}
+        and isinstance(parsed.get("raised"), str)
+        and RAISED_BY_THE_SCRIPT in parsed["raised"]
+    )
 
 
 def fixture_paths() -> list[Path]:
@@ -1356,6 +1390,50 @@ def _malformed_table():
             ).encode("ascii"),
             "no outcome",
         )
+    for what, answers, expect, refusal in [
+        (
+            "a script whose raise is not its last outcome",
+            [[{"kind": "raises"}, {"kind": "success"}]],
+            {"raised": True},
+            "nothing is called after a raise",
+        ),
+        (
+            "a script that raises where the case expects an answer",
+            [[{"kind": "raises"}]],
+            None,
+            'a script that raises expects {"raised": true}',
+        ),
+        (
+            "a case that expects a raised call and scripts none",
+            [[{"kind": "success"}]],
+            {"raised": True},
+            "expects a raised call and scripts none",
+        ),
+        (
+            "a case that expects a raised call and scripts nothing at all",
+            None,
+            {"raised": True},
+            "expects a raised call and scripts none",
+        ),
+    ]:
+        yield (
+            what,
+            json.dumps(
+                {
+                    "fixture_version": "part/v0",
+                    "run": [
+                        {
+                            "id": "a",
+                            "policy": {},
+                            "items": ["x"],
+                            "answers": answers,
+                            "expect": expect,
+                        }
+                    ],
+                }
+            ).encode("ascii"),
+            refusal,
+        )
     yield (
         "a fixture_version that is not the file's path",
         doc(lambda d: d.update(fixture_version="part/v999")),
@@ -1396,7 +1474,12 @@ def self_test() -> int:
     problems: list[str] = []
     cases = read_fixtures()
     perfect = "".join(
-        line_of({"actual": expect, "id": case_id, "section": section}) + "\n"
+        (
+            raised_line(section, case_id)
+            if expect == contract.RAISED
+            else line_of({"actual": expect, "id": case_id, "section": section})
+        )
+        + "\n"
         for section, case_id, expect, _ in cases
     )
     lines = perfect.split("\n")[:-1]
@@ -1413,10 +1496,13 @@ def self_test() -> int:
         for section, case_id, expect, every in cases
     ]
     noticed = failing(perfect, corrupted)
+    # A case whose script raises is answered by a raised line, so a corrupted expectation of one
+    # fails where a line that is no answer fails.
     unnoticed = [
         case_id
-        for section, case_id, _, _ in cases
-        if f"FAIL [{case_id}] field={section}.expect" not in noticed
+        for section, case_id, expect, _ in cases
+        if f"FAIL [{case_id}] field={section}.{'raised' if expect == contract.RAISED else 'expect'}"
+        not in noticed
     ]
     if unnoticed:
         problems.append(
@@ -1472,6 +1558,28 @@ def self_test() -> int:
     section, case_id, _, every = cases[0]
     if not every:
         problems.append("the first case is no longer one every language can build")
+    # The case whose script raises: answered instead of raised, or raised for a reason of the
+    # port's own, both fail.
+    raising = [(s, c) for s, c, e, _ in cases if e == contract.RAISED]
+    if not raising:
+        problems.append("no case asks the loop to let a raise out")
+    for raising_section, raising_id in raising[:1]:
+        was = raised_line(raising_section, raising_id)
+        for what, instead in [
+            (
+                "a case that was to raise and answered instead",
+                line_of({"actual": None, "id": raising_id, "section": raising_section}),
+            ),
+            (
+                "a case that raised for a reason of its own",
+                raised_line(raising_section, raising_id, "Boom"),
+            ),
+        ]:
+            if not any(
+                f"FAIL [{raising_id}] field={raising_section}.raised" in failure
+                for failure in failing(perfect.replace(was, instead, 1))
+            ):
+                problems.append(f"{what} passed")
     for what, output, evidence in [
         (
             "unbuildable, of an input every language holds",

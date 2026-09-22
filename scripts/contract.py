@@ -512,7 +512,15 @@ def write(path: Path, doc: dict) -> None:
 # ---------------------------------------------------------------- protocol
 
 
-def protocol_problem(section: str, inputs: dict) -> str | None:
+# The three the loop answers for, and the one the caller's own function does instead of answering:
+# `raises` is not an outcome, it is the caller's bug, and the loop is to let it out.
+OUTCOME_KINDS = ("failure", "raises", "skipped", "success")
+RAISES = "raises"
+RAISED = {"raised": True}
+UNGIVEN = object()  # an expectation nobody handed in, which null is not
+
+
+def protocol_problem(section: str, inputs: dict, expect=UNGIVEN) -> str | None:
     """Why a case is not a call anyone can make: a one_of element that is not a map, or whose `by` key
     names no case. That key says which of the part's calls the element is; it is the case file's and
     not an argument, so no port is asked about it - the file is refused before any port reads it."""
@@ -528,24 +536,26 @@ def protocol_problem(section: str, inputs: dict) -> str | None:
                     if element.get(by) not in cases:
                         return f"{argument}[{index}].{by} names no call: one of {sorted(cases)}"
     if section == "run":
-        return run_script_problem(inputs.get("answers"))
+        return run_script_problem(inputs.get("answers"), expect)
     return None
 
 
-OUTCOME_KINDS = ("failure", "skipped", "success")
-
-
-def run_script_problem(answers) -> str | None:
+def run_script_problem(answers, expect=UNGIVEN) -> str | None:
     """Why a run case's `answers` is not a script `call` can follow. It is the case file's and not an
     argument: absent, every call answers success; given, one list per item of the outcomes that item's
     calls answer, in order, each a map whose `kind` is one of the loop's three outcomes, a failure
-    carrying `failure_message`, a string, and `failure_class`, a string or null, and nothing else."""
+    carrying `failure_message`, a string, and `failure_class`, a string or null, and nothing else.
+
+    A fourth kind, `raises`, is the caller's own function failing rather than answering. Nothing is
+    called after it, so it is the last outcome of the last script, and the case expects `{"raised":
+    true}` - the whole of what such a case asks is that the loop let it out."""
     if answers is None:
-        return None
+        return _raises_and_expectation_agree(False, expect)
     if not isinstance(answers, list):
         return (
             "answers is not a list of scripts, one per item, so it scripts no outcome"
         )
+    raises = False
     for index, script in enumerate(answers):
         if not isinstance(script, list):
             return f"answers[{index}] is not a list, so it scripts no outcome"
@@ -556,6 +566,13 @@ def run_script_problem(answers) -> str | None:
                 or outcome.get("kind") not in OUTCOME_KINDS
             ):
                 return f"{where}: a map whose kind is one of {list(OUTCOME_KINDS)}"
+            if outcome["kind"] == RAISES:
+                if index != len(answers) - 1 or at != len(script) - 1:
+                    return (
+                        f"answers[{index}][{at}]: nothing is called after a raise, so"
+                        " it is the last outcome of the last script"
+                    )
+                raises = True
             if outcome["kind"] != "failure":
                 if set(outcome) != {"kind"}:
                     return (
@@ -574,6 +591,18 @@ def run_script_problem(answers) -> str | None:
                     f"{where}: a failure carries failure_message, a string, and"
                     " failure_class, a string or null, and nothing else"
                 )
+    return _raises_and_expectation_agree(raises, expect)
+
+
+def _raises_and_expectation_agree(raises: bool, expect) -> str | None:
+    """A script raises exactly where its case expects a raised call: one without the other is a
+    case that asks nothing, and the driver refuses the file rather than reading it."""
+    if expect is UNGIVEN:
+        return None
+    if raises and expect != RAISED:
+        return 'a script that raises expects {"raised": true}'
+    if not raises and expect == RAISED:
+        return "expects a raised call and scripts none"
     return None
 
 

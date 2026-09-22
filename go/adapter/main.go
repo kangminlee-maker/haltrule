@@ -414,6 +414,14 @@ type outcomeJSON struct {
 // call the script has no answer for, or an answer no call asks for, is the
 // case's own mistake and is reported under its id; call cannot answer an
 // error, so the first mistake is kept and reported after the loop.
+// A `raises` answer is the caller's own bug and no outcome of the loop, and
+// what it panics with is the fixtures' word and no part's
+// (../../fixtures/README.md, "Expectations").
+const (
+	raisesKind        = "raises"
+	raisedByTheScript = "the caller's own bug"
+)
+
 type script struct {
 	items    []string
 	answers  [][]haltrule.DispatchOutcome
@@ -444,6 +452,11 @@ func (s *script) call(itemID string) haltrule.DispatchOutcome {
 	}
 	outcome := s.answers[s.at][0]
 	s.answers[s.at] = s.answers[s.at][1:]
+	// The caller's own function failing instead of answering; the loop is to
+	// let it out, and the case runner catches it where the case was run.
+	if string(outcome.Kind) == raisesKind {
+		panic(raisedByTheScript)
+	}
 	return outcome
 }
 
@@ -888,7 +901,7 @@ func runCase(out *bufio.Writer, sectionName string, raw json.RawMessage) error {
 	}
 	delete(fields, "id")
 	delete(fields, "expect")
-	actual, err := compute(fields)
+	actual, err := computed(compute, fields)
 	switch {
 	case errors.Is(err, errUnbuildable):
 		parts["unbuildable"] = haltrule.Bool(true)
@@ -905,6 +918,18 @@ func runCase(out *bufio.Writer, sectionName string, raw json.RawMessage) error {
 	}
 	fmt.Fprintln(out, lineFor(parts))
 	return nil
+}
+
+// computed runs one case's section function and turns a panic into that case's
+// own trouble: a case that raises is reported under its id, as it is in the
+// languages whose calls throw, rather than ending the run and losing the rest.
+func computed(compute func(inputs) (haltrule.Value, error), fields inputs) (value haltrule.Value, err error) {
+	defer func() {
+		if held := recover(); held != nil {
+			value, err = nil, fmt.Errorf("%v", held)
+		}
+	}()
+	return compute(fields)
 }
 
 func readFile(path string, out *bufio.Writer) error {

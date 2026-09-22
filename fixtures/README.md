@@ -76,7 +76,9 @@ bytes — which the driver checks on the fixture itself, with no port involved.
 
 An adapter prints one line per case, files by path and each file in its own order:
 `{"actual":<result>,"id":"<case id>","section":"<section>"}`, with `"raised":"<what>"` in place of `actual`
-when the case raised something that is not a refusal — the line is a map like any other, so its keys are
+when the case raised something that is not a refusal — which is a failure of the case, except where the
+case expects `{"raised": true}`, and there the words a language puts on it are its own and only `the
+caller's own bug` inside them is compared — the line is a map like any other, so its keys are
 sorted there too: `id`, `raised`, `section`. A port whose types cannot build a case's input prints
 `{"id":"<case id>","section":"<section>","unbuildable":true}` for it. The driver takes that line for a
 case whose input holds an unpaired surrogate, a `$bigint` outside a signed 64-bit integer, or an
@@ -121,7 +123,12 @@ refuses, which changes nothing — or `{"refused": true}` alone when the policy 
 a `policy` and `items`, and `answers`: the script its `call` follows, one list per item in the items' order
 of the outcomes that item's calls answer — `{"kind": "success"}`, `{"kind": "skipped"}`, or `{"kind":
 "failure", "failure_message": <a string>, "failure_class": <a string or null>}` — and a case without
-`answers` is every call succeeding, which is what the generated calls are. `answers` is the case file's and
+`answers` is every call succeeding, which is what the generated calls are. A fourth answer, `{"kind":
+"raises"}`, is the caller's own function failing instead of answering: the adapter raises `the caller's own
+bug` where the call was made — an exception, a panic, whatever a bug is in that language — and the case
+expects `{"raised": true}`, which is the whole of what it asks: the loop let it out rather than reporting it
+as a failure. Nothing is called after it, so it is the last outcome of the last script, and a script that
+raises and an expectation of a raised call each need the other or the file is refused. `answers` is the case file's and
 not an argument: the driver refuses a file whose script is not the loop's outcomes, and an adapter reports
 under the case's id a call the script has no answer for, or an answer no call asks for. The case expects
 `completed`, `dead_letter`, `tripped`, `incomplete` and `slept` — the delays handed to `sleep`, in order —

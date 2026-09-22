@@ -263,11 +263,18 @@ def _state(tc: dict):
     }
 
 
+# What a `raises` answer raises, which is the fixtures' word and no part's
+# (../fixtures/README.md, "Expectations"): the caller's own function failing
+# instead of answering, which the loop is to let out rather than report.
+_RAISED_BY_THE_SCRIPT = "the caller's own bug"
+
+
 class _Script:
     """`call` as a case scripts it: answers[i] is what item i's calls answer,
-    in order, and a case without answers is every call succeeding. A call the
-    script has no answer for, or an answer no call asks for, is the case's
-    own mistake and is reported under its id."""
+    in order, and a case without answers is every call succeeding. An answer of
+    `raises` is the caller's own bug and is raised where the call was made. A
+    call the script has no answer for, or an answer no call asks for, is the
+    case's own mistake and is reported under its id."""
 
     def __init__(self, items, answers) -> None:
         self._items = items
@@ -293,6 +300,8 @@ class _Script:
                 f"the loop called {item_id!r} where the script has no answer"
             )
         outcome = self._script(self._at).pop(0)
+        if outcome["kind"] == "raises":
+            raise AssertionError(_RAISED_BY_THE_SCRIPT)
         if outcome["kind"] == "success":
             return Success()
         if outcome["kind"] == "skipped":

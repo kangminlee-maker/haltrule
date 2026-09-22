@@ -209,6 +209,10 @@ function state(tc: Inputs): unknown {
  * a promise, as a real caller's would, and `sleep` stays pending until the
  * next turn of the event loop: a call made while it is pending is a loop
  * that did not wait, and is reported the same way. */
+// What a `raises` answer throws, which is the fixtures' word and no part's
+// (../../fixtures/README.md, "Expectations").
+const RAISED_BY_THE_SCRIPT = "the caller's own bug";
+
 class Script {
   private at = 0;
   private sleeping = false;
@@ -243,7 +247,10 @@ class Script {
     if (this.items[this.at] !== itemId || this.script(this.at).length === 0) {
       throw new Error(`the loop called ${itemId} where the script has no answer`);
     }
-    return this.script(this.at).shift()!;
+    const answer = this.script(this.at).shift()!;
+    // The caller's own function failing instead of answering; the loop is to let it out.
+    if ((answer as { kind: string }).kind === "raises") throw new Error(RAISED_BY_THE_SCRIPT);
+    return answer;
   };
 
   unasked(): boolean {

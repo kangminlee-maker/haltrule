@@ -651,6 +651,55 @@ CATALOG += [
         (TS_FAILS, PY_FAILS, "FAIL [never_read_case] field=never_read.missing"),
     ),
     mutant(
+        "py breaker: a delay of zero or less is not handed to sleep",
+        "py/haltrule/breaker.py",
+        """            sleep(
+                dispatch_backoff_delay_ms(
+                    attempt=attempt - 1, initial_ms=initial_ms, cap_ms=cap_ms
+                )
+            )
+            continue""",
+        """            _delay = dispatch_backoff_delay_ms(
+                attempt=attempt - 1, initial_ms=initial_ms, cap_ms=cap_ms
+            )
+            if _delay > 0:
+                sleep(_delay)
+            continue""",
+        [PY_FAILS, "FAIL [spec_run_a_delay_of_zero_is_still_a_sleep] field=run.expect"],
+        [TS_FAILS],
+    ),
+    mutant(
+        "ts breaker: the loop swallows what the caller's call raises",
+        "ts/breaker.ts",
+        "      const outcome: DispatchOutcome = await call(itemId);\n",
+        """      let outcome: DispatchOutcome;
+      try {
+        outcome = await call(itemId);
+      } catch (error) {
+        outcome = { kind: "failure", failure_message: String(error), failure_class: null };
+      }
+""",
+        [
+            TS_FAILS,
+            "FAIL [spec_run_a_call_that_raises_is_let_out] field=run.raised",
+        ],
+        [PY_FAILS],
+    ),
+    mutant(
+        "driver: a case that was to raise passes on any line",
+        "scripts/conform.py",
+        """    return (
+        set(parsed) == {"id", "raised", "section"}
+        and isinstance(parsed.get("raised"), str)
+        and RAISED_BY_THE_SCRIPT in parsed["raised"]
+    )""",
+        "    return True",
+        [
+            DRIVER_FAILS,
+            "FAIL [self-test] a case that was to raise and answered instead passed",
+        ],
+    ),
+    mutant(
         "ts breaker: the loop waits for its sleep before it calls again",
         "ts/breaker.ts",
         "        await sleep(dispatchBackoffDelayMs({ attempt: attempt - 1, initial_ms: initialMs, cap_ms: capMs }));\n",

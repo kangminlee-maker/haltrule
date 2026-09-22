@@ -140,7 +140,7 @@
     "why": "the entry point reads the arguments and opens the output; the bridge test calls the reading and the writing directly, as a mutation run needs it to, so nothing runs main itself"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:469:36: replace match guard normative(&halt) == normative(&other) with true in canonicalize_case",
+    "survivor": "rust/adapter/src/sections.rs:501:36: replace match guard normative(&halt) == normative(&other) with true in canonicalize_case",
     "why": "canonicalize and the digest are one walk of the same value, so no case can make them disagree; the guard is there to catch a defect in this port, not to answer a case. Every port has it, and scripts/mutants_catalog.py plants the disagreement by hand"
   },
   {
@@ -176,15 +176,15 @@
     "why": "the script's own guard against a case file the loop runs past or leaves unused; such a file is reported under its case's id and never passes, so no passing case reaches the guard; scripts/mutants_catalog.py plants both mistakes by hand and requires every adapter to report them"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:339:29: replace match guard expected == Some(item_id) && !script.is_empty() with true in Script::call",
+    "survivor": "rust/adapter/src/sections.rs:350:29: replace match guard expected == Some(item_id) && !script.is_empty() with true in Script::call",
     "why": "the script's own guard against a case file the loop runs past or leaves unused; such a file is reported under its case's id and never passes, so no passing case reaches the guard; scripts/mutants_catalog.py plants both mistakes by hand and requires every adapter to report them"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:339:55: replace && with || in Script::call",
+    "survivor": "rust/adapter/src/sections.rs:350:55: replace && with || in Script::call",
     "why": "the script's own guard against a case file the loop runs past or leaves unused; such a file is reported under its case's id and never passes, so no passing case reaches the guard; scripts/mutants_catalog.py plants both mistakes by hand and requires every adapter to report them"
   },
   {
-    "survivor": "rust/adapter/src/sections.rs:350:9: replace Script::unasked -> bool with false",
+    "survivor": "rust/adapter/src/sections.rs:367:9: replace Script::unasked -> bool with false",
     "why": "the script's own guard against a case file the loop runs past or leaves unused; such a file is reported under its case's id and never passes, so no passing case reaches the guard; scripts/mutants_catalog.py plants both mistakes by hand and requires every adapter to report them"
   },
   {

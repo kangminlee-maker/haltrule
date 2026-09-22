@@ -362,9 +362,11 @@ read from `contract.json`; what that listing looks like is for a person and is n
 A port is conformant when:
 
 1. the lines its adapter prints are, byte for byte, the lines the fixtures expect — one line per case, as
-   `../fixtures/README.md` defines them, the format's own vectors (`protocol/v0`) included — and it keeps
-   `contract.json` on the calls the driver generates from it: every call with one defect refused, no call
-   inside the contract refused, and every call inside it answered with the same line as the other ports.
+   `../fixtures/README.md` defines them, the format's own vectors (`protocol/v0`) included, except for a
+   case whose script raises, where what the loop let out is compared and not the words the language puts on
+   a bug — and it keeps `contract.json` on the calls the driver generates from it: every call with one
+   defect refused, no call inside the contract refused, and every call inside it answered with the same
+   line as the other ports.
    One driver, `../scripts/conform.py`, decides that for every language, and the driver is checked, not
    trusted: every expectation in every fixture is corrupted in turn and must fail under its own id, and so
    must a wrong answer to a generated call and a line one port prints differently;

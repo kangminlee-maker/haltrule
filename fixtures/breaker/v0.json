@@ -4040,6 +4040,125 @@
       }
     },
     {
+      "id": "spec_run_a_delay_of_zero_is_still_a_sleep",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "2"
+        },
+        "backoff_initial_ms": {
+          "$number": "0"
+        },
+        "backoff_cap_ms": {
+          "$number": "0"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          0
+        ]
+      }
+    },
+    {
+      "id": "spec_run_a_delay_below_zero_is_still_a_sleep",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "2"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "-5"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "failure",
+            "failure_message": "429 rate limited",
+            "failure_class": "rate_limit"
+          },
+          {
+            "kind": "success"
+          }
+        ]
+      ],
+      "expect": {
+        "completed": [
+          "a"
+        ],
+        "dead_letter": [],
+        "tripped": null,
+        "incomplete": [],
+        "slept": [
+          -5
+        ]
+      }
+    },
+    {
+      "id": "spec_run_a_call_that_raises_is_let_out",
+      "policy": {
+        "enabled": true,
+        "systemic_threshold": {
+          "$number": "2"
+        },
+        "per_call_max_attempts": {
+          "$number": "3"
+        },
+        "backoff_initial_ms": {
+          "$number": "1000"
+        },
+        "backoff_cap_ms": {
+          "$number": "30000"
+        }
+      },
+      "items": [
+        "a"
+      ],
+      "answers": [
+        [
+          {
+            "kind": "raises"
+          }
+        ]
+      ],
+      "expect": {
+        "raised": true
+      }
+    },
+    {
       "id": "zero_attempts_is_one_call",
       "policy": {
         "enabled": true,

@@ -318,9 +318,20 @@ fn state(from: &Inputs) -> Answer {
 /// script has no answer for, or an answer no call asks for, is the case's own
 /// mistake and is reported under its id; `call` cannot answer an error, so
 /// the first mistake is kept and reported after the loop.
+/// What a script answers: one of the loop's outcomes, or the caller's own
+/// function failing instead of answering. The second is a panic here, because
+/// that is what a Rust caller's bug is, and what it says is the fixtures' word
+/// and no part's (../../../fixtures/README.md, "Expectations").
+enum Scripted {
+    Answer(DispatchOutcome),
+    Raises,
+}
+
+pub const RAISED_BY_THE_SCRIPT: &str = "the caller's own bug";
+
 struct Script {
     items: Vec<String>,
-    answers: Option<Vec<Vec<DispatchOutcome>>>,
+    answers: Option<Vec<Vec<Scripted>>>,
     at: usize,
     trouble: Option<String>,
 }
@@ -336,7 +347,13 @@ impl Script {
         }
         let expected = self.items.get(self.at).map(String::as_str);
         match answers.get_mut(self.at) {
-            Some(script) if expected == Some(item_id) && !script.is_empty() => script.remove(0),
+            Some(script) if expected == Some(item_id) && !script.is_empty() => {
+                match script.remove(0) {
+                    Scripted::Answer(outcome) => outcome,
+                    // The loop is to let it out; the section catches it there.
+                    Scripted::Raises => panic!("{RAISED_BY_THE_SCRIPT}"),
+                }
+            }
             _ => {
                 self.trouble.get_or_insert_with(|| {
                     format!("the loop called {item_id:?} where the script has no answer")
@@ -355,7 +372,7 @@ impl Script {
 
 /// Reads a case's answers. The driver has held them to the fixture protocol
 /// already, so a script this adapter cannot read is its own failure.
-fn script_of(raw: Option<&Json>) -> Result<Option<Vec<Vec<DispatchOutcome>>>, Trouble> {
+fn script_of(raw: Option<&Json>) -> Result<Option<Vec<Vec<Scripted>>>, Trouble> {
     let scripts = match raw {
         None | Some(Json::Null) => return Ok(None),
         Some(Json::Array(scripts)) => scripts,
@@ -376,20 +393,23 @@ fn script_of(raw: Option<&Json>) -> Result<Option<Vec<Vec<DispatchOutcome>>>, Tr
     Ok(Some(answers))
 }
 
-fn outcome_of(raw: &Json) -> Result<DispatchOutcome, Trouble> {
+fn outcome_of(raw: &Json) -> Result<Scripted, Trouble> {
     let unreadable = || Trouble::Raised("an answer outside the fixture protocol".to_string());
     let fields = raw.as_object().ok_or_else(unreadable)?;
-    match fields.get("kind").and_then(Json::as_str) {
-        Some("success") => Ok(DispatchOutcome::Success),
-        Some("skipped") => Ok(DispatchOutcome::Skipped),
-        Some("failure") => Ok(DispatchOutcome::Failure {
-            failure_message: text(fields.get("failure_message")).map_err(|_| unreadable())?,
-            failure_class: optional_text(fields.get("failure_class"))
-                .map_err(|_| unreadable())?
-                .map(FailureClass::new),
-        }),
-        _ => Err(unreadable()),
-    }
+    Ok(Scripted::Answer(
+        match fields.get("kind").and_then(Json::as_str) {
+            Some("raises") => return Ok(Scripted::Raises),
+            Some("success") => DispatchOutcome::Success,
+            Some("skipped") => DispatchOutcome::Skipped,
+            Some("failure") => DispatchOutcome::Failure {
+                failure_message: text(fields.get("failure_message")).map_err(|_| unreadable())?,
+                failure_class: optional_text(fields.get("failure_class"))
+                    .map_err(|_| unreadable())?
+                    .map(FailureClass::new),
+            },
+            _ => return Err(unreadable()),
+        },
+    ))
 }
 
 fn run(from: &Inputs) -> Answer {
@@ -415,14 +435,26 @@ fn run(from: &Inputs) -> Answer {
         trouble: None,
     };
     let mut slept = Vec::new();
-    let result = match run_batch(
-        policy,
-        &items,
-        |id| script.call(id),
-        |ms| slept.push(Value::Int(ms)),
-    ) {
-        Ok(result) => result,
-        Err(_) => return Ok(refused()),
+    // A `raises` answer panics where the call was made, and the loop lets it out
+    // as it lets a caller's bug out in every language: caught here, it is this
+    // case's raised line rather than the end of the run. The hook is silenced
+    // for the moment of the call so a case that means to raise says nothing to
+    // a person reading the output.
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run_batch(
+            policy,
+            &items,
+            |id| script.call(id),
+            |ms| slept.push(Value::Int(ms)),
+        )
+    }));
+    std::panic::set_hook(hook);
+    let result = match ran {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => return Ok(refused()),
+        Err(_) => return Err(Trouble::Raised(RAISED_BY_THE_SCRIPT.to_string())),
     };
     if let Some(trouble) = script.trouble.take() {
         return Err(Trouble::Raised(trouble));
