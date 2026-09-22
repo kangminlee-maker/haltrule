@@ -45,6 +45,26 @@ Verdict { spec, verdict: ok | warning | halt, reason, message, resume }
 Some reasons name facts of their own — which dependency moved, how many failures crossed the threshold —
 and those sit beside the five in the same map.
 
+## Try it
+
+The Python port answers from a shell, one entry point of the contract per call: the arguments as a JSON
+object under the names `spec/contract.json` gives them, the answer as one line, and the worst verdict in
+it as the exit code — 0 ok, 1 warning, 2 halt; 3 when the arguments are outside the contract, 4 when no
+call was made.
+
+```
+$ echo '{"message": "429 Too Many Requests"}' | python3 py/cli.py breaker.classify -
+"rate_limit"
+$ echo '{"args": {"stage_id": "draft", "artifact": null}}' | python3 py/cli.py checkpoint.evaluate -
+[{"message":"draft: nothing was recorded","reason":"artifact_missing","resume":"draft","spec":"haltrule/0","stage_id":"draft","subject_ref":null,"verdict":"halt"}]
+$ echo "exit $?"
+exit 2
+```
+
+`python3 py/cli.py` alone lists the entry points and their arguments, read from the contract file;
+`breaker.run` takes a function and is not among them. The fixtures that hold the four ports hold this
+program too (`scripts/conform.py cli`), answer and exit code both.
+
 ## What this is not
 
 Not a workflow engine. There is no scheduler, no graph, no runner, no UI, no execution history. It is called
@@ -81,7 +101,8 @@ fixtures themselves, with no implementation involved.
 ```
 spec/        the contract, in words, and contract.json: the argument contract as a rule the driver checks
 fixtures/    examples of the spec's sentences: one JSON file per part, and the line format's own vectors
-ts/ py/ go/ rust/  a port each: the modules, and an adapter that reads case files and prints one line per case
+ts/ py/ go/ rust/  a port each: the modules, and an adapter that reads case files and prints one line per case;
+             py/cli.py is the entry points from a shell
 scripts/     conform.py, the one driver that judges every port, and contract.py, which makes the generated
              calls it judges the contract by; check.sh, the gates; mutants.py, which
              plants the defects no tool makes and requires the gates to catch them; survivors.py, which
@@ -92,7 +113,7 @@ A port is its modules plus an adapter. The adapter holds no expectation and comp
 language adds one line to `scripts/check.sh` for its adapter and one for its own mainstream purity tools.
 A language whose types cannot hold some inputs at all — neither Go nor Rust has a string with an unpaired
 surrogate — answers `unbuildable` for those cases; the driver knows from the input which they may be, and
-counts them. Both of them sit out the same thirty-one of 538, and neither needed a case of its own.
+counts them. Both of them sit out the same thirty-one of 539, and neither needed a case of its own.
 
 Purity is whatever each language can be held to by construction rather than by a search through the text:
 TypeScript compiles with no host types, Python is held to an import allowlist, a Go package can reach only

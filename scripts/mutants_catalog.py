@@ -46,6 +46,7 @@ RS_NO_HOST = "  FAIL  the rust library is no_std"
 GO_NO_HOST = "  FAIL  go modules import only what the allowlist holds"
 TS_NAMES = "  FAIL  typescript modules name no clock"
 PY_NAMES = "  FAIL  python modules import and use only what the allowlists hold"
+CLI_FAILS = "  FAIL  the python cli answers every case a shell can make"
 
 CATALOG: list[Mutant] = []
 
@@ -695,6 +696,34 @@ CATALOG += [
         '    return {key: value for key, value in result.items() if key != "message"}\n\n\ndef _normative_open',
         "    return dict(result)\n\n\ndef _normative_open",
         [PY_FAILS, "FAIL [no_caps_never_exhausted] field=charge.expect"],
+    ),
+]
+
+# --- the cli: the answer is the port's, the exit code is the verdict
+CATALOG += [
+    mutant(
+        "cli: a halt exits as ok",
+        "py/cli.py",
+        'LEVELS = {"ok": 0, "warning": 1, "halt": 2}\n',
+        'LEVELS = {"ok": 0, "warning": 1, "halt": 0}\n',
+        [CLI_FAILS, "FAIL [artifact_missing] field=checkpoint.cli_exit"],
+        [PY_FAILS],
+    ),
+    mutant(
+        "cli: a refusal exits as an answer",
+        "py/cli.py",
+        '        sys.stderr.write(f"refused: {error}\\n")\n        return REFUSED\n',
+        '        sys.stderr.write(f"refused: {error}\\n")\n        return 0\n',
+        [CLI_FAILS, "field=validate.cli_exit"],
+        [PY_FAILS],
+    ),
+    mutant(
+        "cli: an entry point answers with another's function",
+        "py/cli.py",
+        '    "checkpoint.evaluate": evaluate,\n',
+        '    "checkpoint.evaluate": canonical,\n',
+        [CLI_FAILS, "FAIL [artifact_missing] field=checkpoint.cli_answer"],
+        [PY_FAILS],
     ),
 ]
 

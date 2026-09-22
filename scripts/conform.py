@@ -13,6 +13,7 @@ expectation would be noticed.
     conform.py check [--every-input] <adapter command...>   the fixtures and the contract, one port
     conform.py identity <adapter command> -- <adapter command> ...   the same answer from every port
     conform.py judge <lines file>                           check, over lines already written
+    conform.py cli <cli command...>                         the fixtures through a shell program, one process per case
     conform.py generate                                     write the generated cases; print the path
     conform.py self-test                                    show that this driver can fail
 
@@ -31,6 +32,14 @@ the rest; the driver accepts that for those cases only - it reads which they
 are off the input itself - and says how many there were. --every-input is for a
 port in a language that can build them all: it may not say unbuildable at all.
 
+A CLI is a program of one port that takes an entry point's arguments as a JSON
+object and prints the answer, with the worst verdict in it as the exit code
+(py/cli.py says the rest). `cli` runs one process per fixture case a shell can
+make - every section but run, which takes a function, and the line format's own
+vectors, over every input some JSON text can carry and this driver's own reader
+reads - and holds the answer, `message` aside, and the exit code to the case's
+expectation.
+
 It imports nothing from any port, the Python one included.
 """
 
@@ -42,6 +51,7 @@ import json
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -513,6 +523,205 @@ _VALID = {
 }
 
 
+# ------------------------------------------------------------------ the cli
+
+VERDICT_LEVELS = {"ok": 0, "warning": 1, "halt": 2}
+CLI_SECTIONS_OUT = ("run", "result_line")
+
+
+def read_calls() -> list[tuple[str, str, dict, object]]:
+    """(section, id, inputs, expect) of every fixture case, in the adapters' order, once
+    read_fixtures has held every file to the grammar."""
+    read_fixtures()
+    calls = []
+    for path in fixture_paths():
+        doc = json.loads(path.read_bytes())
+        for section, entries in doc.items():
+            if section == "fixture_version":
+                continue
+            for entry in entries:
+                inputs = {k: v for k, v in entry.items() if k not in ("id", "expect")}
+                calls.append((section, entry["id"], inputs, entry["expect"]))
+    return calls
+
+
+def plain_json(node) -> str | None:
+    """A fixture input as the JSON text a caller would write: a $number or $bigint literal is
+    the number itself. None where no JSON text can carry the value - an $unsupported one."""
+    if isinstance(node, dict):
+        if len(node) == 1:
+            ((tag, literal),) = node.items()
+            if tag in ("$number", "$bigint"):
+                return literal
+            if tag == "$unsupported":
+                return None
+        members = []
+        for key, value in node.items():
+            inner = plain_json(value)
+            if inner is None:
+                return None
+            members.append(json.dumps(key) + ":" + inner)
+        return "{" + ",".join(members) + "}"
+    if isinstance(node, list):
+        items = [plain_json(item) for item in node]
+        if any(item is None for item in items):
+            return None
+        return "[" + ",".join(items) + "]"
+    return json.dumps(node)
+
+
+def readable(text: str) -> bool:
+    """Whether this driver's own JSON reader reads the text: it asks a cli nothing it cannot read
+    itself - an integer past Python's digit limit is the one such input in the fixtures."""
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
+def worst_verdict(node) -> int:
+    """The worst verdict anywhere in an answer or an expectation; 0 where there is none."""
+    if isinstance(node, dict):
+        own = VERDICT_LEVELS.get(node.get("verdict"), 0)
+        return max([own] + [worst_verdict(value) for value in node.values()])
+    if isinstance(node, list):
+        return max([0] + [worst_verdict(item) for item in node])
+    return 0
+
+
+def without_messages(node):
+    """An answer as the fixtures write it: a verdict's `message` is for people, not conformance."""
+    if isinstance(node, dict):
+        return {
+            key: without_messages(value)
+            for key, value in node.items()
+            if not (key == "message" and node.get("verdict") in VERDICT_LEVELS)
+        }
+    if isinstance(node, list):
+        return [without_messages(item) for item in node]
+    return node
+
+
+def judge_cli(section: str, case_id: str, expect, stdout: str, code: int) -> list[str]:
+    """What is wrong with one case's run through a cli: the answer, `message` aside, must be the
+    expectation, and the exit code its worst verdict; a refusal prints nothing and exits 3."""
+    if expect == {"refused": True}:
+        if stdout != "" or code != 3:
+            return [
+                f"FAIL [{case_id}] field={section}.cli_exit — a refusal exits 3 and prints nothing; got exit {code}: {stdout[:200]!r}"
+            ]
+        return []
+    if stdout.count("\n") != 1 or not stdout.endswith("\n"):
+        return [
+            f"FAIL [{case_id}] field={section}.cli_output — not one line: {stdout[:300]!r}"
+        ]
+    try:
+        actual = line_of(without_messages(json.loads(stdout)))
+    except (ValueError, Malformed) as error:
+        return [f"FAIL [{case_id}] field={section}.cli_output — unreadable: {error}"]
+    failures = []
+    if actual != line_of(expect):
+        failures.append(
+            f"FAIL [{case_id}] field={section}.cli_answer\n  expected: {line_of(expect)}\n  actual:   {actual}"
+        )
+    if code != worst_verdict(expect):
+        failures.append(
+            f"FAIL [{case_id}] field={section}.cli_exit — expected {worst_verdict(expect)}, got {code}"
+        )
+    return failures
+
+
+def cli(command: list[str]) -> int:
+    """Every fixture case a shell can make, through the cli, one process each."""
+    entry_of = {
+        entry["section"]: name
+        for name, entry in contract.load()["entry_points"].items()
+    }
+    runnable, uncarried = [], 0
+    for section, case_id, inputs, expect in read_calls():
+        if section in CLI_SECTIONS_OUT:
+            continue
+        text = plain_json(inputs)
+        if text is None or not readable(text):
+            uncarried += 1
+            continue
+        runnable.append((section, case_id, text, expect))
+
+    def one(item) -> list[str]:
+        section, case_id, text, expect = item
+        done = subprocess.run(
+            [*command, entry_of[section], "-"],
+            input=text.encode("ascii"),
+            capture_output=True,
+        )
+        return judge_cli(
+            section,
+            case_id,
+            expect,
+            done.stdout.decode("utf-8", "replace"),
+            done.returncode,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        failures = [failure for found in pool.map(one, runnable) for failure in found]
+    for failure in failures:
+        print(failure)
+    if failures:
+        print(
+            f"{len(failures)} problem(s) across {len(runnable)} cases through the cli"
+        )
+        return 1
+    print(
+        f"OK: {len(runnable)} cases through the cli, each answered as the fixtures expect it and exited"
+        f" with its worst verdict; {uncarried} inputs no JSON text can carry"
+    )
+    return 0
+
+
+def cli_judge_self_test() -> list[str]:
+    """The cli judge held to the same standard: a wrong answer, a wrong exit code, a line too
+    many or too few, and an answer where a refusal was expected must each fail."""
+    problems = []
+    expect = {"spec": "haltrule/0", "verdict": "halt", "reason": "x", "resume": None}
+    right = json.dumps({**expect, "message": "m"}) + "\n"
+    if judge_cli("s", "a", expect, right, 2):
+        problems.append("a right cli answer with the right exit code failed")
+    if not judge_cli("s", "a", expect, right, 0):
+        problems.append("a wrong cli exit code passed")
+    if not judge_cli(
+        "s",
+        "a",
+        expect,
+        json.dumps({**expect, "reason": "y", "message": "m"}) + "\n",
+        2,
+    ):
+        problems.append("a wrong cli answer passed")
+    if not judge_cli("s", "a", expect, right + right, 2):
+        problems.append("two cli lines passed")
+    if not judge_cli("s", "a", expect, "", 2):
+        problems.append("no cli line passed")
+    if judge_cli("s", "a", {"refused": True}, "", 3):
+        problems.append("a refusal answered as a refusal failed")
+    if not judge_cli("s", "a", {"refused": True}, right, 2):
+        problems.append("an answer where a refusal was expected passed")
+    both = [{**expect, "message": "m"}, {**expect, "verdict": "ok", "message": "m"}]
+    if not judge_cli(
+        "s", "a", [expect, {**expect, "verdict": "ok"}], json.dumps(both) + "\n", 0
+    ):
+        problems.append("an exit code that is not the worst verdict passed")
+    if (
+        plain_json({"a": {"$number": "1.5"}, "b": [{"$bigint": "9223372036854775807"}]})
+        != '{"a":1.5,"b":[9223372036854775807]}'
+    ):
+        problems.append("plain_json does not write a literal as the number itself")
+    if plain_json({"a": [{"$unsupported": "undefined"}]}) is not None:
+        problems.append("plain_json wrote a value no JSON text can carry")
+    if readable("1" * 5001) or not readable("[1]"):
+        problems.append("readable does not say what the driver's reader reads")
+    return problems
+
+
 def _malformed_table():
     """(what is wrong, the file's bytes, a piece of the refusal)."""
 
@@ -827,12 +1036,13 @@ def self_test() -> int:
                 f"the driver writes {vector['id']} differently from the vector"
             )
     problems += generator_self_test()
+    problems += cli_judge_self_test()
     for problem in problems:
         print(f"FAIL [self-test] {problem}")
     if problems:
         return 1
     print(
-        f"OK: every one of {len(cases)} corrupted expectations fails under its own id; malformed fixtures and malformed output are refused; the generated contract checks can fail"
+        f"OK: every one of {len(cases)} corrupted expectations fails under its own id; malformed fixtures and malformed output are refused; the generated contract checks and the cli judge can fail"
     )
     return 0
 
@@ -947,6 +1157,8 @@ def main(argv: list[str]) -> int:
             return identity([command for command in commands if command])
         if argv[:1] == ["judge"] and len(argv) == 2:
             return judge(Path(argv[1]))
+        if argv[:1] == ["cli"] and len(argv) > 1:
+            return cli(argv[1:])
         if argv == ["generate"]:
             path, cells = generated()
             print(path)

@@ -63,6 +63,9 @@ gate "rust conforms" python3 scripts/conform.py check rust/target/debug/rust-ada
 # The third property of the contract needs every port at once: one line, whoever answers.
 gate "the four ports give the same line on every generated call inside the contract" \
   python3 scripts/conform.py identity node ts/adapter/adapter.ts -- python3 py/adapter.py -- .bin/go-adapter -- rust/target/debug/rust-adapter
+# A program of the Python port: the same cases through a shell, the answer with its message, the verdict as the exit code.
+gate "the python cli answers every case a shell can make as the fixtures expect, and exits with the worst verdict" \
+  python3 scripts/conform.py cli python3 py/cli.py
 
 echo "3. purity — the modules cannot reach the host, and name nothing that is not a function of its arguments"
 gate "typescript modules compile with no host types: ts/tsconfig.json, and ts/host.d.ts is all the host there is" \
