@@ -12,7 +12,11 @@ to and there is nothing to restore. A baseline copy must pass every gate first,
 or no failure could be credited to a mutation, and controls prove that the
 suite reports a survivor when there is one.
 
-    python3 scripts/mutants.py [--jobs N] [--only ID-PREFIX]
+    python3 scripts/mutants.py [--jobs N] [--only ID-PREFIX] [--shard K/N]
+
+--shard K/N runs every N-th mutant starting at the K-th (1-based), so that a
+slow machine can spread one run over several; every shard checks every anchor
+and the survivor control, and the catalog is one list whichever shard runs.
 
 Standard library only. CI runs every mutant on every push and pull request.
 """
@@ -279,12 +283,26 @@ def main() -> int:
     parser.add_argument(
         "--only", default="", help="run only mutants whose id starts with this"
     )
+    parser.add_argument(
+        "--shard", default="1/1", help="K/N: run the K-th of every N mutants"
+    )
     args = parser.parse_args()
 
     problems = catalog_problems(CATALOG + [SURVIVOR])
-    selected = [m for m in CATALOG if m.id.startswith(args.only)]
+    try:
+        shard, shards = (int(part) for part in args.shard.split("/"))
+        if not 1 <= shard <= shards:
+            raise ValueError
+    except ValueError:
+        problems.append(f"--shard must be K/N with 1 <= K <= N, not {args.shard!r}")
+        shard, shards = 1, 1
+    selected = [
+        m
+        for index, m in enumerate(CATALOG)
+        if m.id.startswith(args.only) and index % shards == shard - 1
+    ]
     if not selected:
-        problems.append(f"no mutant id starts with {args.only!r}")
+        problems.append(f"no mutant id starts with {args.only!r} in shard {args.shard}")
     if problems:
         print("mutants: the catalog is invalid:\n  " + "\n  ".join(problems))
         return 2

@@ -16,7 +16,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     # Every planted defect builds four ports in its own copy of the tree, and
-    # the Rust one builds its dependencies from cold each time.
+    # the Rust one builds its dependencies from cold each time; the catalog is
+    # run in two halves side by side, each holding every anchor and the
+    # survivor control, so that one job stays well inside its hour.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/2", "2/2"]
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v5
@@ -43,7 +49,7 @@ jobs:
       - name: The gates
         run: ./scripts/check.sh
       - name: Every planted defect must make the gates fail with its own evidence
-        run: python3 scripts/mutants.py
+        run: python3 scripts/mutants.py --shard ${{ matrix.shard }}
 
   # Do the fixtures notice a defect in a port's own modules? A mainstream
   # mutation tool per language plants them, with the shared driver as its only
