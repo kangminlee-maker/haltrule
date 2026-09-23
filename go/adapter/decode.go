@@ -16,7 +16,7 @@ import (
 	"math"
 	"strconv"
 
-	"haltrule"
+	haltrule "github.com/kangminlee-maker/haltrule/go"
 )
 
 var errUnbuildable = errors.New("this port's types cannot hold that value")

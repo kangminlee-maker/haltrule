@@ -26,7 +26,7 @@ import (
 	"os"
 	"strconv"
 
-	"haltrule"
+	haltrule "github.com/kangminlee-maker/haltrule/go"
 )
 
 const (

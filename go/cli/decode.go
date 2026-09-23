@@ -21,7 +21,7 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"haltrule"
+	haltrule "github.com/kangminlee-maker/haltrule/go"
 )
 
 // errUnholdable is a value no Go value can be: the call cannot be made at all.

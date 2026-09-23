@@ -16,6 +16,14 @@ target/
 rust/target/
 mutants.out*/
 
+# what building a package leaves behind (scripts/packages.sh, docs/releasing.md)
+build/
+*.egg-info/
+# npm takes the two of these from the package directory and nowhere else, so
+# docs/releasing.md copies them into ts/ for the publish and removes them after
+ts/README.md
+ts/LICENSE
+
 # macOS folder droppings
 .DS_Store
 .generated/

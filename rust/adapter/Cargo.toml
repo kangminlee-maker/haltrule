@@ -1,8 +1,11 @@
+# The adapter is the repository's and not the registry's: it reads the fixtures
+# and prints one line per case, which is of no use to anyone who installs the
+# library.
 [package]
 name = "adapter"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
-publish.workspace = true
+publish = false
 
 [[bin]]
 name = "rust-adapter"

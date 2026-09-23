@@ -45,6 +45,25 @@ Verdict { spec, verdict: ok | warning | halt, reason, message, resume }
 Some reasons name facts of their own — which dependency moved, how many failures crossed the threshold —
 and those sit beside the five in the same map.
 
+## Install
+
+Not yet: the first release is not out, and the status above says why. These are the names it will take,
+and `docs/releasing.md` is the command that makes it.
+
+| Language | Install | Imports as |
+|---|---|---|
+| TypeScript | `npm install haltrule` | `import { Budget } from "haltrule/budget"` |
+| Python | `pip install haltrule` | `from haltrule.budget import Budget` |
+| Go | `go get github.com/kangminlee-maker/haltrule/go` | `import haltrule "github.com/kangminlee-maker/haltrule/go"` |
+| Rust | `cargo add haltrule` | `use haltrule::Budget;` |
+
+A package is the library and nothing else: the adapters, the two shell programs and the fixtures stay in
+the repository, where the driver needs them. Each part is its own module, as the table above shows, and
+there is no root that re-exports them.
+
+The version is the spec's. `spec` answers `haltrule/0`, which is a draft, so every package is `0.x` and
+anything may change; the spec freezing at `haltrule/1` is what makes all four `1.0.0` on the same day.
+
 ## Try it
 
 The Python port answers from a shell, one entry point of the contract per call: the arguments as a JSON
@@ -112,7 +131,9 @@ ts/ py/ go/ rust/  a port each: the modules, and an adapter that reads case file
 scripts/     conform.py, the one driver that judges every port, and contract.py, which makes the generated
              calls it judges the contract by; check.sh, the gates; mutants.py, which
              plants the defects no tool makes and requires the gates to catch them; survivors.py, which
-             runs a mainstream mutation tool per language and holds what survives to one short list
+             runs a mainstream mutation tool per language and holds what survives to one short list;
+             packages.sh, which builds what a release ships and uses each package from outside this tree
+docs/        releasing.md: the commands that publish, run by hand, by a person logged in to each registry
 ```
 
 A port is its modules plus an adapter. The adapter holds no expectation and compares nothing, so a new
@@ -150,7 +171,14 @@ python3 scripts/survivors.py ts     # about 530 mutants: ten seconds on a laptop
 python3 scripts/survivors.py py     # about 800 mutants: two minutes
 python3 scripts/survivors.py go     # about 290 mutants, one at a time: two and a half minutes
 python3 scripts/survivors.py rust   # about 380 mutants, one at a time: five minutes
+./scripts/packages.sh               # the four packages, built and used from outside: two minutes
 ```
+
+`packages.sh` is not one of the gates. Every gate runs inside this tree, where the modules are files beside
+each other, so none of them would notice a file left out of a manifest, an import the compiler rewrote to a
+name that is not there, or a module path that is not where `go get` fetches it. It builds each package the
+way `docs/releasing.md` says to, installs it where this repository is not on the path, and makes a real
+call through it. It is minutes and `check.sh` runs 138 times in `mutants.py`, which is why it is apart.
 
 ## License
 

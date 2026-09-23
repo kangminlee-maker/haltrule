@@ -1,4 +1,53 @@
 {
-  "private": true,
-  "type": "module"
+  "name": "haltrule",
+  "version": "0.0.1",
+  "description": "A portable verdict spec for pipelines whose state lives in their artifacts - the TypeScript reference implementation",
+  "license": "MIT",
+  "homepage": "https://github.com/kangminlee-maker/haltrule",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kangminlee-maker/haltrule.git",
+    "directory": "ts"
+  },
+  "bugs": "https://github.com/kangminlee-maker/haltrule/issues",
+  "keywords": [
+    "pipeline",
+    "verdict",
+    "circuit-breaker",
+    "checkpoint",
+    "canonicalization"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "exports": {
+    "./breaker": {
+      "types": "./dist/breaker.d.ts",
+      "default": "./dist/breaker.js"
+    },
+    "./budget": {
+      "types": "./dist/budget.d.ts",
+      "default": "./dist/budget.js"
+    },
+    "./checkpoint": {
+      "types": "./dist/checkpoint.d.ts",
+      "default": "./dist/checkpoint.js"
+    },
+    "./slot": {
+      "types": "./dist/slot.d.ts",
+      "default": "./dist/slot.js"
+    },
+    "./verdict": {
+      "types": "./dist/verdict.d.ts",
+      "default": "./dist/verdict.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  }
 }

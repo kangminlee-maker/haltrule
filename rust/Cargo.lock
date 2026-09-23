@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adapter"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "haltrule",
  "indexmap",
@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "haltrule"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "sha2",
 ]

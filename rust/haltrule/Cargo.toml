@@ -1,8 +1,13 @@
 [package]
 name = "haltrule"
-version = "0.0.0"
+description = "A portable verdict spec for pipelines whose state lives in their artifacts - the Rust reference implementation"
+version.workspace = true
 edition.workspace = true
-publish.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["pipeline", "verdict", "circuit-breaker", "checkpoint", "canonicalization"]
+categories = ["no-std", "development-tools"]
 
 # SHA-256 is the dependency the spec allows where the language has none of its
 # own, and this is all of it. Without default features it needs no standard

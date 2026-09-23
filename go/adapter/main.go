@@ -31,7 +31,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"haltrule"
+	haltrule "github.com/kangminlee-maker/haltrule/go"
 )
 
 func newReader(raw []byte) *bytes.Reader { return bytes.NewReader(raw) }

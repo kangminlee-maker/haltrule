@@ -5,6 +5,11 @@
 resolver = "2"
 members = ["haltrule", "adapter"]
 
+# The version is the spec's: `spec` answers "haltrule/0" while the spec is a
+# draft, so the crate is 0.x and anything may change. Freezing the spec at
+# haltrule/1 is what makes it 1.0.0, in every language at once.
 [workspace.package]
 edition = "2021"
-publish = false
+version = "0.0.1"
+license = "MIT"
+repository = "https://github.com/kangminlee-maker/haltrule"

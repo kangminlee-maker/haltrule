@@ -1,0 +1,16 @@
+{
+  // What `npm publish` ships: the same modules ts/tsconfig.json type-checks,
+  // emitted as JavaScript beside their declarations. The modules import each
+  // other as "./contract.ts", which is what node runs and what the adapter
+  // needs; rewriteRelativeImportExtensions turns those into "./contract.js" on
+  // the way out, so the published package imports the files it actually has.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "rewriteRelativeImportExtensions": true,
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "dist"
+  },
+  "include": ["*.ts"]
+}

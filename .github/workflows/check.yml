@@ -6,8 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Three jobs, one per question, side by side. None of the tools is a dependency
-# of the library. A gate whose tool is missing fails; none is skipped.
+# Three questions, side by side, and a fourth job for what a release ships.
+# None of the tools is a dependency of the library. A gate whose tool is
+# missing fails; none is skipped.
 jobs:
   # Do the gates pass, and can each of them fail? scripts/mutants.py plants the
   # defects no mutation tool makes - in the judges, an adapter, a fixture file,
@@ -50,6 +51,31 @@ jobs:
         run: ./scripts/check.sh
       - name: Every planted defect must make the gates fail with its own evidence
         run: python3 scripts/mutants.py --shard ${{ matrix.shard }}
+
+  # Does what a release ships still build and still work? Every gate in
+  # check.sh runs inside the tree, so none of them would see a file left out of
+  # a manifest, an import the compiler rewrote to a name that is not there, or
+  # a module path that is not where `go get` fetches it. This builds the four
+  # packages the way docs/releasing.md says to and uses each from outside.
+  packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.22"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dev tools
+        run: npm install --no-save --no-audit --no-fund typescript@5 @types/node@24
+      - name: The four packages build and answer from outside this tree
+        run: ./scripts/packages.sh
 
   # Do the fixtures notice a defect in a port's own modules? A mainstream
   # mutation tool per language plants them, with the shared driver as its only

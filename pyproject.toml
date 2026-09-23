@@ -1,0 +1,41 @@
+# The Python port as a package: the modules under py/haltrule and nothing else.
+# The adapter, the shell program and the driver are the repository's, not the
+# package's - what is published is the part a caller imports.
+#
+# The version is the spec's: `spec` answers "haltrule/0" while the spec is a
+# draft, so the packages are 0.x and anything may change. Freezing the spec at
+# haltrule/1 is what makes them 1.0.0, in every language at once.
+[project]
+name = "haltrule"
+version = "0.0.1"
+description = "A portable verdict spec for pipelines whose state lives in their artifacts - the Python reference implementation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["pipeline", "verdict", "circuit-breaker", "checkpoint", "budget", "canonicalization"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/kangminlee-maker/haltrule"
+Repository = "https://github.com/kangminlee-maker/haltrule"
+Issues = "https://github.com/kangminlee-maker/haltrule/issues"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "py" }
+packages = ["haltrule"]
+
+# The modules are annotated, and PEP 561 says a marker file is how a type
+# checker learns it may read them.
+[tool.setuptools.package-data]
+haltrule = ["py.typed"]
