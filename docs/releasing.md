@@ -77,6 +77,10 @@ cargo publish -p haltrule --manifest-path rust/Cargo.toml
 Only the library. `rust/adapter` says `publish = false`: it reads the fixtures and prints one line per
 case, which is of no use to anyone who installs the library.
 
+No copy step here: `rust/haltrule/LICENSE` is a link to the one at the root, and cargo follows it and
+ships an ordinary file. Publish from a checkout that makes links — on one that does not, that path is a
+13-byte file with a path in it, and `scripts/packages.sh` says so.
+
 ## 6. Go, which is a tag
 
 Go has no registry. `go get github.com/kangminlee-maker/haltrule/go@v0.0.1` reads the repository, and the

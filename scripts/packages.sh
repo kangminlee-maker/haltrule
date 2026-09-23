@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 PATH="$PATH:$HOME/.cargo/bin"
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"; rm -rf ts/dist' EXIT
+trap 'rm -rf "$work"; rm -rf ts/dist; rm -f ts/README.md ts/LICENSE' EXIT
 
 failed=0
 # gate <what a pass shows> <command...>
@@ -140,7 +140,19 @@ npm_tarball() {
   local here="$PWD"
   rm -rf ts/dist
   node_modules/.bin/tsc -p ts/tsconfig.build.json || return 1
+  # The two copies docs/releasing.md makes before publishing, made here for the
+  # same reason: npm reads a README and a LICENSE from the package directory
+  # and from nowhere else, and neither of those lives there. This is the only
+  # thing that asks whether that step in the document still works.
+  cp README.md LICENSE ts/ || return 1
   (cd ts && npm pack --silent --pack-destination "$work") >/dev/null || return 1
+  rm -f ts/README.md ts/LICENSE || return 1
+  for carried in package/README.md package/LICENSE; do
+    if ! tar tzf "$work"/haltrule-*.tgz | grep -qxF "$carried"; then
+      echo "the tarball has no $carried, so npm would show the package without one"
+      return 1
+    fi
+  done
   mkdir -p "$work/ts-use" || return 1
   printf '{"name":"use","private":true,"type":"module"}\n' >"$work/ts-use/package.json"
   cat >"$work/ts-use/use.ts" <<'TS'
@@ -206,6 +218,19 @@ GO
 }
 
 rust_crate() {
+  # rust/haltrule/LICENSE is a link to the one at the root, which cargo follows
+  # and ships as an ordinary file: the crate carries the licence text without a
+  # second copy of it in the repository. A checkout that cannot make links
+  # leaves a 13-byte file with a path in it, which is what this notices.
+  if ! cargo package --list --allow-dirty -p haltrule --manifest-path rust/Cargo.toml \
+    | grep -qxF "LICENSE"; then
+    echo "the crate would ship without a LICENSE"
+    return 1
+  fi
+  if [ "$(wc -c <rust/haltrule/LICENSE)" != "$(wc -c <LICENSE)" ]; then
+    echo "rust/haltrule/LICENSE is not the licence text: this checkout did not make the link"
+    return 1
+  fi
   # --dry-run is the whole of what crates.io would refuse: the metadata it
   # requires, the files the manifest would ship, and a build of those files
   # alone. --allow-dirty because this runs on a tree with work in it.
