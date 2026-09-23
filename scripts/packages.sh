@@ -45,6 +45,9 @@ import tomllib
 from pathlib import Path
 
 REPOSITORY = "https://github.com/kangminlee-maker/haltrule"
+# What README.md's Install table tells a caller to type. A package that goes up
+# under another name is a package nobody asked for.
+NAME = "haltrule"
 
 python = tomllib.loads(Path("pyproject.toml").read_text())["project"]
 npm = json.loads(Path("ts/package.json").read_text())
@@ -53,10 +56,17 @@ crate = tomllib.loads(Path("rust/haltrule/Cargo.toml").read_text())["package"]
 
 findings: list[str] = []
 
+# The crate's own version is what cargo publishes. `version.workspace = true`
+# reads as {"workspace": True} and means the workspace's; anything else in that
+# key overrides it, and then the workspace number is not the one that ships.
+crate_version = crate.get("version")
+if isinstance(crate_version, dict) and crate_version.get("workspace"):
+    crate_version = workspace.get("version")
+
 versions = {
     "pyproject.toml": python.get("version"),
     "ts/package.json": npm.get("version"),
-    "rust/Cargo.toml": workspace.get("version"),
+    "rust/haltrule/Cargo.toml": crate_version,
 }
 if None in versions.values() or len(set(versions.values())) != 1:
     for name, version in sorted(versions.items()):
@@ -73,6 +83,15 @@ said = {
 for what, value in sorted(said.items()):
     if not value:
         findings.append(f"{what} is missing, and a registry will not take a package without it")
+
+named = {
+    "pyproject.toml": python.get("name"),
+    "ts/package.json": npm.get("name"),
+    "rust/haltrule/Cargo.toml": crate.get("name"),
+}
+for where, name in sorted(named.items()):
+    if name != NAME:
+        findings.append(f"{where} would publish as {name!r}, and the Install table says {NAME!r}")
 
 points = {
     "pyproject.toml": (python.get("urls") or {}).get("Repository"),
@@ -139,7 +158,10 @@ PY
 npm_tarball() {
   local here="$PWD"
   rm -rf ts/dist
-  node_modules/.bin/tsc -p ts/tsconfig.build.json || return 1
+  # Through the package's own script, because that is what docs/releasing.md
+  # runs. Compiling here with the same arguments would leave `npm run build`
+  # the one step of the release that nothing has ever executed.
+  (cd ts && npm run --silent build) || return 1
   # The two copies docs/releasing.md makes before publishing, made here for the
   # same reason: npm reads a README and a LICENSE from the package directory
   # and from nowhere else, and neither of those lives there. This is the only
@@ -147,12 +169,30 @@ npm_tarball() {
   cp README.md LICENSE ts/ || return 1
   (cd ts && npm pack --silent --pack-destination "$work") >/dev/null || return 1
   rm -f ts/README.md ts/LICENSE || return 1
+  # The listing is read to the end before anything looks at it: `grep -q` leaves
+  # a pipe as soon as it matches, tar dies writing into the closed one, and
+  # pipefail then fails the pipeline that had just found what it was looking
+  # for. It passed here and failed on CI, which is the only place it was seen.
+  tar tzf "$work"/haltrule-*.tgz >"$work/tarball-listing" || return 1
   for carried in package/README.md package/LICENSE; do
-    if ! tar tzf "$work"/haltrule-*.tgz | grep -qxF "$carried"; then
+    if ! grep -qxF "$carried" "$work/tarball-listing"; then
       echo "the tarball has no $carried, so npm would show the package without one"
       return 1
     fi
   done
+  # And nothing else. npm carries a README, a LICENSE and a package.json of its
+  # own accord, whatever `files` says - and it reads "a README" loosely enough
+  # that ts/README.local.md, which .gitignore holds back precisely because it
+  # must not be published, goes out with the package. Measured.
+  while read -r member; do
+    case "$member" in
+      package/dist/* | package/package.json | package/README.md | package/LICENSE) ;;
+      *)
+        echo "the tarball carries $member, which is not this package"
+        return 1
+        ;;
+    esac
+  done <"$work/tarball-listing"
   mkdir -p "$work/ts-use" || return 1
   printf '{"name":"use","private":true,"type":"module"}\n' >"$work/ts-use/package.json"
   cat >"$work/ts-use/use.ts" <<'TS'
@@ -160,12 +200,15 @@ import { classifySystemicDispatchFailure } from "haltrule/breaker";
 import { Budget } from "haltrule/budget";
 import { canonicalize } from "haltrule/checkpoint";
 import { validateSlot } from "haltrule/slot";
-import type { Verdict } from "haltrule/verdict";
+import { SPEC, type Verdict } from "haltrule/verdict";
 
 // Every subpath the manifest offers, because one left out of the exports map
 // resolves to nothing and no other gate here would reach it.
 if (classifySystemicDispatchFailure("429 Too Many Requests") !== "rate_limit") throw new Error("breaker");
 if (validateSlot({ name: "title", kind: "text" }, "x").verdict !== "ok") throw new Error("slot");
+// A value and not only a type: a type import is gone by the time this runs, so
+// the verdict subpath's runtime half would answer to nothing without this line.
+if (SPEC !== "haltrule/0") throw new Error(SPEC);
 
 const answer: Verdict = new Budget({ max_turns: 1 }).charge({ turns: 1 });
 if (answer.reason !== "budget_turns") throw new Error(JSON.stringify(answer));
@@ -218,23 +261,18 @@ GO
 }
 
 rust_crate() {
-  # rust/haltrule/LICENSE is a link to the one at the root, which cargo follows
-  # and ships as an ordinary file: the crate carries the licence text without a
-  # second copy of it in the repository. A checkout that cannot make links
-  # leaves a 13-byte file with a path in it, which is what this notices.
-  if ! cargo package --list --allow-dirty -p haltrule --manifest-path rust/Cargo.toml \
-    | grep -qxF "LICENSE"; then
-    echo "the crate would ship without a LICENSE"
-    return 1
-  fi
-  if [ "$(wc -c <rust/haltrule/LICENSE)" != "$(wc -c <LICENSE)" ]; then
-    echo "rust/haltrule/LICENSE is not the licence text: this checkout did not make the link"
-    return 1
-  fi
-  # --dry-run is the whole of what crates.io would refuse: the metadata it
-  # requires, the files the manifest would ship, and a build of those files
-  # alone. --allow-dirty because this runs on a tree with work in it.
-  cargo publish --dry-run --allow-dirty -p haltrule --manifest-path rust/Cargo.toml
+  # The crate carries `license = "MIT"` and the repository link, and not the
+  # licence text: a file beside the crate is the only way cargo would ship one,
+  # a link to the root is refused by the suite that copies the tree
+  # (scripts/mutants.py), and a copy made at publish time is a file cargo would
+  # have to be told to ship dirty.
+  #
+  # `cargo package`, not `cargo publish --dry-run`: the two build and verify the
+  # same tarball, and only one of them is one flag away from an upload. What the
+  # dry run checked beyond this - the fields crates.io requires - the manifest
+  # gate above reads for itself, which the dry run only warned about anyway.
+  # --allow-dirty because this runs on a tree with work in it.
+  cargo package --quiet --allow-dirty -p haltrule --manifest-path rust/Cargo.toml
 }
 
 echo "== the packages =="

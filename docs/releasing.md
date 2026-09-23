@@ -14,15 +14,24 @@ halfway through, do not retry that number: raise the patch version, commit, and 
 
 ## 1. Everything passes
 
+Every block in this document is one `&&` chain on purpose. A step that fails must not let the next one
+run, and from step 3 on the next one is an upload that cannot be taken back.
+
 ```
-git switch main && git pull --ff-only
-./scripts/check.sh                                   # the gates
-python3 scripts/mutants.py                           # every planted defect is caught
-for one in ts py go rust py-cli go-cli; do python3 scripts/survivors.py "$one"; done
-./scripts/packages.sh                                # the four packages, built and used from outside
+export PATH="$PATH:$HOME/.cargo/bin" &&
+git switch main && git pull --ff-only &&
+./scripts/check.sh &&
+python3 scripts/mutants.py &&
+(for one in ts py go rust py-cli go-cli; do python3 scripts/survivors.py "$one" || exit 1; done) &&
+./scripts/packages.sh
 ```
 
-The last one is the release's own: it builds each package the way this document says to, installs it
+`scripts/check.sh` and `scripts/packages.sh` put rustup's directory on their own `PATH` and the shell
+keeps none of that, so the `export` is what makes `cargo` in step 5 the same cargo the gates used. Without
+it, a machine with rustup but a bare `PATH` reaches step 5 and answers `cargo: command not found` — after
+npm and PyPI have already taken the version.
+
+The last command is the release's own: it builds each package the way this document says to, installs it
 somewhere this repository is not on the path, and makes a real call through it.
 
 ## 2. The version, in three files
@@ -33,24 +42,30 @@ somewhere this repository is not on the path, and makes a real call through it.
 | `ts/package.json` | `version` |
 | `rust/Cargo.toml` | `version` under `[workspace.package]` |
 
-Go has no fourth file: its version is a tag, made in step 5.
+Go has no fourth file: its version is a tag, made in step 6.
 
 ```
-./scripts/packages.sh      # the first gate fails if the three disagree
-git commit -am "haltrule 0.0.1"
+./scripts/packages.sh &&                             # the first gate fails if the three disagree
+version=$(python3 -c 'import tomllib, pathlib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])') &&
+echo "$version" &&
+git commit -am "haltrule $version" &&
 git push origin main
 ```
+
+Keep that shell for the rest of the document: step 6 tags `$version`, so a release that had to raise its
+patch number tags the number it actually published.
 
 ## 3. npm
 
 ```
-cd ts
-npm run build                        # tsc -p tsconfig.build.json, into ts/dist
-cp ../README.md ../LICENSE .         # npm reads both from the package directory and nowhere else
-npm publish --access public          # asks who you are, if npm does not already know
-rm README.md LICENSE
-cd ..
+(cd ts &&
+  npm run build &&                   # tsc -p tsconfig.build.json, into ts/dist
+  cp ../README.md ../LICENSE . &&    # npm reads both from the package directory and nowhere else
+  npm publish --access public) ;     # asks who you are, if npm does not already know
+rm -f ts/README.md ts/LICENSE
 ```
+
+The `rm` is after a `;` and not a `&&` because it has to run whether the publish worked or not.
 
 Both copies are in `.gitignore`, so a forgotten one is never committed; `rm` them anyway, because the next
 `npm pack` would otherwise ship a stale README.
@@ -58,9 +73,9 @@ Both copies are in `.gitignore`, so a forgotten one is never committed; `rm` the
 ## 4. PyPI
 
 ```
-rm -rf build py/haltrule.egg-info dist
-python3 -m pip install --quiet build twine      # in a venv, if the machine's python is managed
-python3 -m build --wheel --sdist                # into dist/
+rm -rf build py/haltrule.egg-info dist &&
+python3 -m pip install --quiet build twine &&   # in a venv, if the machine's python is managed
+python3 -m build --wheel --sdist &&             # into dist/
 python3 -m twine upload dist/*                  # asks for an API token
 ```
 
@@ -77,25 +92,22 @@ cargo publish -p haltrule --manifest-path rust/Cargo.toml
 Only the library. `rust/adapter` says `publish = false`: it reads the fixtures and prints one line per
 case, which is of no use to anyone who installs the library.
 
-No copy step here: `rust/haltrule/LICENSE` is a link to the one at the root, and cargo follows it and
-ships an ordinary file. Publish from a checkout that makes links — on one that does not, that path is a
-13-byte file with a path in it, and `scripts/packages.sh` says so.
-
 ## 6. Go, which is a tag
 
 Go has no registry. `go get github.com/kangminlee-maker/haltrule/go@v0.0.1` reads the repository, and the
-tag it looks for is the module's directory and the version, in that order:
+tag it looks for is the module's directory and the version, in that order. `$version` is the one step 2
+read out of the manifest, so these are the tags for what was actually published:
 
 ```
-git tag v0.0.1                       # the release
-git tag go/v0.0.1                    # the Go module, which lives in go/
-git push origin v0.0.1 go/v0.0.1
+git tag "v$version" &&               # the release
+git tag "go/v$version" &&            # the Go module, which lives in go/
+git push origin "v$version" "go/v$version"
 ```
 
 The module proxy fetches it the first time someone asks for it. To be the first to ask:
 
 ```
-GOPROXY=https://proxy.golang.org go list -m github.com/kangminlee-maker/haltrule/go@v0.0.1
+GOPROXY=https://proxy.golang.org go list -m "github.com/kangminlee-maker/haltrule/go@v$version"
 ```
 
 ## 7. Afterwards
