@@ -93,6 +93,18 @@ for where, name in sorted(named.items()):
     if name != NAME:
         findings.append(f"{where} would publish as {name!r}, and the Install table says {NAME!r}")
 
+# The licence a package carries has to be the licence this repository is under,
+# and the only way to see that is to read both.
+licences = {
+    "rust/haltrule/LICENSE": Path("rust/haltrule/LICENSE"),
+}
+root = Path("LICENSE").read_bytes()
+for where, beside in sorted(licences.items()):
+    if not beside.exists():
+        findings.append(f"{where} is missing, so that package would ship without the licence text")
+    elif beside.read_bytes() != root:
+        findings.append(f"{where} is not LICENSE: the two have drifted")
+
 points = {
     "pyproject.toml": (python.get("urls") or {}).get("Repository"),
     "ts/package.json": (npm.get("repository") or {}).get("url"),
@@ -261,12 +273,19 @@ GO
 }
 
 rust_crate() {
-  # The crate carries `license = "MIT"` and the repository link, and not the
-  # licence text: a file beside the crate is the only way cargo would ship one,
-  # a link to the root is refused by the suite that copies the tree
-  # (scripts/mutants.py), and a copy made at publish time is a file cargo would
-  # have to be told to ship dirty.
-  #
+  # rust/haltrule/LICENSE is a second copy of the one at the root, kept in step
+  # by the manifest gate above. npm takes its copy at publish time and cargo
+  # cannot: a file cargo ships has to be one git tracks, and a link in its place
+  # is refused by the suite that copies the tree (scripts/mutants.py).
+  if ! cargo package --list --allow-dirty -p haltrule --manifest-path rust/Cargo.toml \
+    >"$work/crate-listing"; then
+    echo "cargo would not list the crate's files"
+    return 1
+  fi
+  if ! grep -qxF "LICENSE" "$work/crate-listing"; then
+    echo "the crate would ship without a LICENSE"
+    return 1
+  fi
   # `cargo package`, not `cargo publish --dry-run`: the two build and verify the
   # same tarball, and only one of them is one flag away from an upload. What the
   # dry run checked beyond this - the fields crates.io requires - the manifest
