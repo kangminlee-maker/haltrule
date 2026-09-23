@@ -158,7 +158,7 @@ function encodeNumber(value: number, at: string): string {
   if (Math.abs(value) > MAX_SAFE_INTEGER) {
     throw new DigestInputError(
       "digest_input_int_range",
-      `${at}: ${String(value)} is outside ±(2^53 − 1)`,
+      `${at}: ${String(value)} is outside ±(2^53 − 1); render it as a string if it belongs in a digest`,
     );
   }
   // String(-0) is "0": zero is written without a sign.
@@ -169,7 +169,7 @@ function encodeBigInt(value: bigint, at: string): string {
   if (value > MAX_SAFE_BIGINT || value < -MAX_SAFE_BIGINT) {
     throw new DigestInputError(
       "digest_input_int_range",
-      `${at}: ${value.toString()} is outside ±(2^53 − 1)`,
+      `${at}: ${value.toString()} is outside ±(2^53 − 1); render it as a string if it belongs in a digest`,
     );
   }
   return value.toString();

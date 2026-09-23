@@ -73,7 +73,7 @@ func encodeValue(value Value, at string, depth int) (string, *Verdict) {
 		return "false", nil
 	case Int:
 		if held > maxSafeInteger || held < -maxSafeInteger {
-			return "", halted(digestInputIntRange, fmt.Sprintf("%s: %d is outside +/-(2^53 - 1)", at, int64(held)))
+			return "", halted(digestInputIntRange, fmt.Sprintf("%s: %d is outside +/-(2^53 - 1); render it as a string if it belongs in a digest", at, int64(held)))
 		}
 		return strconv.FormatInt(int64(held), 10), nil
 	case Float:
@@ -83,7 +83,7 @@ func encodeValue(value Value, at string, depth int) (string, *Verdict) {
 				"%s: %v is not an integer; render it as a string if it belongs in a digest", at, number))
 		}
 		if number > maxSafeInteger || number < -maxSafeInteger {
-			return "", halted(digestInputIntRange, fmt.Sprintf("%s: %v is outside +/-(2^53 - 1)", at, number))
+			return "", halted(digestInputIntRange, fmt.Sprintf("%s: %v is outside +/-(2^53 - 1); render it as a string if it belongs in a digest", at, number))
 		}
 		// A negative zero is written "0", as every zero is.
 		return strconv.FormatInt(int64(number), 10), nil

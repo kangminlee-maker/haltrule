@@ -75,7 +75,7 @@ fn encode_value(value: &Value, at: &str, depth: usize) -> Result<String, Verdict
             if *held > MAX_SAFE_INTEGER || *held < -MAX_SAFE_INTEGER {
                 return Err(halted(
                     DIGEST_INPUT_INT_RANGE,
-                    format!("{at}: {held} is outside +/-(2^53 - 1)"),
+                    format!("{at}: {held} is outside +/-(2^53 - 1); render it as a string if it belongs in a digest"),
                 ));
             }
             Ok(format!("{held}"))
@@ -139,7 +139,7 @@ fn encode_float(number: f64, at: &str) -> Result<String, Verdict> {
     if number > MAX_SAFE_INTEGER_AS_FLOAT || number < -MAX_SAFE_INTEGER_AS_FLOAT {
         return Err(halted(
             DIGEST_INPUT_INT_RANGE,
-            format!("{at}: {number} is outside +/-(2^53 - 1)"),
+            format!("{at}: {number} is outside +/-(2^53 - 1); render it as a string if it belongs in a digest"),
         ));
     }
     let whole = number as i64;

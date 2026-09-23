@@ -161,6 +161,16 @@
       }
     },
     {
+      "id": "int_past_the_range_as_a_string",
+      "input": {
+        "mtime_ns": "1790000000123456789"
+      },
+      "expect": {
+        "canonical": "{\"mtime_ns\":\"1790000000123456789\"}",
+        "digest": "sha256:0e4be615d26da82b5387afd636fad5dc7e08d1714b757b7bf0785f9476ddde93"
+      }
+    },
+    {
       "id": "fraction",
       "input": {
         "$number": "1.5"

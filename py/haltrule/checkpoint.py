@@ -169,7 +169,7 @@ def _encode_number(value: Union[int, float], at: str) -> str:
     if abs(value) > _MAX_SAFE_INTEGER:
         raise _DigestInputError(
             "digest_input_int_range",
-            f"{at}: {describe_number(value)} is outside ±(2^53 - 1)",
+            f"{at}: {describe_number(value)} is outside ±(2^53 - 1); render it as a string if it belongs in a digest",
         )
     # int() also writes a negative zero float as "0".
     return str(int(value))

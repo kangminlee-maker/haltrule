@@ -48,7 +48,8 @@ The input to a digest is deliberately narrow, so that four languages can canonic
 without a JSON library:
 
 - strings of Unicode scalar values (an unpaired surrogate is not one)
-- integers, `|n| <= 2^53 - 1` — the limit is JavaScript's, and it is therefore everyone's
+- integers, `|n| <= 2^53 - 1` — the widest run of whole numbers an IEEE 754 double holds with none
+  missing, which is the range RFC 8785 asks of a number meant to be read as an integer
 - booleans
 - null
 - lists
@@ -61,8 +62,13 @@ A number is an integer when its value is integral, however the language stores i
 JavaScript cannot tell them apart, and a JavaScript bigint in range is the same integer as a number. **Floats are rejected**, not coerced — a fractional value, NaN, or an
 infinity halts with reason `digest_input_float`; an integral value outside the range halts with
 `digest_input_int_range`. A float that matters to a digest is the caller's to render as a string, where the
-rendering is explicit and reviewable. Anything else — an unpaired surrogate, a non-string map key, nesting
-deeper than 100, a value of any other type — halts with `digest_input_unsupported`.
+rendering is explicit and reviewable. So is an integer past the range, and RFC 8785 asks for the same
+thing: "numbers that do not have a natural place in the current JSON ecosystem MUST be wrapped using the
+JSON string type". That is how a 64-bit integer already travels wherever it has to cross languages — a
+nanosecond time and a 64-bit identifier alike. A string of digits is a value like any other here: it
+canonicalizes to itself quoted, and nothing downstream can round it. Anything else — an unpaired
+surrogate, a non-string map key, nesting deeper than 100, a value of any other type — halts with
+`digest_input_unsupported`.
 
 A value with more than one thing wrong halts with the first one met walking it in canonical order: depth
 first, a list's items in order, a map's members by key as the canonical form sorts them, a key before its
