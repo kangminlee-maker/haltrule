@@ -141,11 +141,15 @@ python_package() {
   # A venv of its own, because the wheel is built by `build` and read by `pip`,
   # and neither is something this repository asks a machine to already have.
   python3 -m venv "$work/py-build" || return 1
-  "$work/py-build/bin/pip" install --quiet build || return 1
+  "$work/py-build/bin/pip" install --quiet build twine || return 1
   # Both of what PyPI takes. The sdist is the one that can be missing a file:
   # it is built from the tree by rules of its own, and pip builds the wheel
   # again out of whatever it holds.
   "$work/py-build/bin/python" -m build --wheel --sdist --outdir "$work/py-dist" . >/dev/null || return 1
+  # What PyPI refuses on sight, before it looks at the code: metadata it cannot
+  # read and a description it cannot render. An upload is the only other place
+  # this is ever said, and by then the version is spent.
+  "$work/py-build/bin/twine" check --strict "$work"/py-dist/* || return 1
   for built in "$work"/py-dist/*.whl "$work"/py-dist/*.tar.gz; do
     rm -rf "$work/py-venv" || return 1
     python3 -m venv "$work/py-venv" || return 1

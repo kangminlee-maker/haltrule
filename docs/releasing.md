@@ -74,10 +74,19 @@ Both copies are in `.gitignore`, so a forgotten one is never committed; `rm` the
 
 ```
 rm -rf build py/haltrule.egg-info dist &&
-python3 -m pip install --quiet build twine &&   # in a venv, if the machine's python is managed
-python3 -m build --wheel --sdist &&             # into dist/
-python3 -m twine upload dist/*                  # asks for an API token
+release_venv="$(mktemp -d)/venv" &&
+python3 -m venv "$release_venv" &&
+"$release_venv/bin/pip" install --quiet build twine &&
+"$release_venv/bin/python" -m build --wheel --sdist &&   # into dist/
+"$release_venv/bin/twine" check dist/* &&                # what PyPI would refuse to render
+"$release_venv/bin/twine" upload dist/*                  # asks for an API token
 ```
+
+A virtual environment of its own, because `build` and `twine` are the two tools this release needs and
+neither is something this repository asks a machine to already have — and a machine whose python came
+from a package manager refuses `pip install` outright (`externally-managed-environment`, PEP 668).
+`scripts/packages.sh` builds the same way for the same reason. It is under `mktemp`, so nothing is left
+in the tree.
 
 `build` and `py/haltrule.egg-info` are removed first because setuptools writes through them and does not
 empty them: without the `rm`, a file the manifest no longer ships is in the wheel anyway, from the last
