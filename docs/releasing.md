@@ -95,8 +95,14 @@ time it did.
 ## 5. crates.io
 
 ```
+cargo login &&                                  # asks for a token from crates.io/settings/tokens
 cargo publish -p haltrule --manifest-path rust/Cargo.toml
 ```
+
+crates.io also wants a verified email address on the account before it takes anything, and it says so at
+the upload and nowhere earlier: the crate is built, verified and sent, and comes back
+`400 A verified email address is required`. Nothing is spent when that happens - the version is still
+free - but set it at <https://crates.io/settings/profile> first.
 
 Only the library. `rust/adapter` says `publish = false`: it reads the fixtures and prints one line per
 case, which is of no use to anyone who installs the library.
