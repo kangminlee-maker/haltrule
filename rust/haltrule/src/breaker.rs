@@ -335,8 +335,12 @@ impl DispatchBreakerState {
                     Level::Warning,
                     "breaker_tripped",
                     format!(
-                        "{} items in a row failed with {:?}, which is the threshold: the provider,\
-                         and not the items, is the likely cause",
+                        // One line: a `\` at the end of a string literal eats the newline
+                        // AND the indentation after it, so the space this sentence needs
+                        // in the middle was never there. No gate can see that - a
+                        // message's wording is nobody's contract - and it took reading
+                        // the four ports' output side by side to notice.
+                        "{} items in a row failed with {:?}, which is the threshold: the provider, and not the items, is the likely cause",
                         self.pending_systemic.len(),
                         class.as_str()
                     ),
