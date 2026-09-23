@@ -3,8 +3,8 @@
 A portable verdict spec for pipelines whose state lives in their artifacts. It halts only when the next
 artifact would be contaminated, and warns about everything else.
 
-> **Status: pre-alpha.** The spec is not frozen and no implementation is published yet. Nothing here is
-> ready to depend on.
+> **Status: pre-alpha.** The spec is not frozen, so every package is `0.x` and anything in it may change.
+> Nothing here is ready to depend on.
 
 ## The rule
 
@@ -46,9 +46,6 @@ Some reasons name facts of their own — which dependency moved, how many failur
 and those sit beside the five in the same map.
 
 ## Install
-
-Not yet: the first release is not out, and the status above says why. These are the names it will take,
-and `docs/releasing.md` is the command that makes it.
 
 | Language | Install | Imports as |
 |---|---|---|

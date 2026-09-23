@@ -128,8 +128,26 @@ The module proxy fetches it the first time someone asks for it. To be the first 
 GOPROXY=https://proxy.golang.org go list -m "github.com/kangminlee-maker/haltrule/go@v$version"
 ```
 
-## 7. Afterwards
+## 7. Afterwards: install what was published
 
-Each package is now installable, so the README's Install section no longer has to say it is not. Remove
-the sentence that says the first release is not out, and the status banner at the top if the spec has been
-frozen.
+Everything up to here proved what was *built*. This is the first time the thing a caller gets is the thing
+being read, and it is four commands somewhere this repository is not:
+
+```
+cd "$(mktemp -d)" &&
+python3 -m venv venv && venv/bin/pip install --quiet "haltrule==$version" &&
+venv/bin/python -c 'from haltrule.budget import Budget; print(Budget(max_turns=1).charge(turns=1))'
+
+cd "$(mktemp -d)" && printf '{"type":"module"}\n' >package.json &&
+npm install --no-audit --no-fund "haltrule@$version" &&
+node --input-type=module -e 'import { SPEC } from "haltrule/verdict"; console.log(SPEC)'
+
+cd "$(mktemp -d)" && printf 'module use\n\ngo 1.22\n' >go.mod &&
+printf 'package main\n\nimport (\n\t"fmt"\n\n\thaltrule "github.com/kangminlee-maker/haltrule/go"\n)\n\nfunc main() { fmt.Println(*haltrule.ClassifySystemicDispatchFailure("429 Too Many Requests")) }\n' >main.go &&
+GOFLAGS= GOPROXY=https://proxy.golang.org go mod tidy && go run .
+
+cargo new --bin "$(mktemp -d)/use" && cd "$_" && cargo add "haltrule@$version" &&
+printf 'fn main() { println!("{}", haltrule::SPEC); }\n' >src/main.rs && cargo run
+```
+
+Then the README: the status banner at the top says the spec is not frozen, and comes off when it is.
